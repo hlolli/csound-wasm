@@ -1,0 +1,17 @@
+{
+   "name": "csound-wasm",
+   "version": "6.10.0-0",
+   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
+   "license": "GPL-3.0",
+   "main": "index.js",
+   "build": {
+      "appId": "csound-wasm"
+   },
+   "dependencies": {
+      "web-audio-api": "^0.2.2",
+      "speaker": "^0.3.0"
+   },
+   "devDependencies": {
+      "shadow-cljs": "^2.0.139"
+   }
+}
