@@ -8,7 +8,7 @@
                 :modules {:main {:entries [csound-wasm.core]}}
                 :exports {:compileOrc csound-wasm.core/compile-orc
                           :evalCode csound-wasm.core/eval-code
-                          ;; :inputMessage csound-wasm.core/input-message
+                          :inputMessage csound-wasm.core/input-message
                           :readScore csound-wasm.core/read-score
                           :getControlChannel csound-wasm.core/get-control-channel
                           :setControlChannel csound-wasm.core/set-control-channel
@@ -18,4 +18,9 @@
                           :destroy csound-wasm.core/destroy
                           :setOption csound-wasm.core/set-option
                           :compileCSD csound-wasm.core/compile-csd
+                          :setTable csound-wasm.core/set-table
+                          :getTable csound-wasm.core/get-table
+                          :getTableLength csound-wasm.core/get-table-length
+                          :getKsmps csound-wasm.core/get-ksmps
+                          :get0dbfs csound-wasm.core/get-0dbfs
                           }}}}

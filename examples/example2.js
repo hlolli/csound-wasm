@@ -1,20 +1,15 @@
 const csound = require('../index.js');
 
-const csd = `
-<CsoundSynthesizer>
-<CsInstruments>
-
+const beeper = `
 instr 1
-aOut vco2 0.3, p4
-out aOut
-endin
+  kfreq chnget "amazingChannel"
+  asig = poscil:a(0.3, kfreq)
+  outc asig, asig
+endin`
 
-</CsInstruments>
-<CsScore>
-i1 0 1 100
-i1 1 1 200
-i1 2 1 300
-</CsScore>
-</CsoundSynthesizer>`
+const makeBeep = `i 1 0 10`
 
-csound.compileCSD(csd, 'example2.wav');
+csound.compileOrc(beeper);
+setInterval(()=> csound.setControlChannel('amazingChannel', Math.random()*500+50), 50)
+csound.inputMessage(makeBeep);
+setTimeout(() => process.exit(), 15000);
