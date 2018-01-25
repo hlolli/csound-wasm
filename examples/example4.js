@@ -4,7 +4,7 @@ const csd = `
 <CsoundSynthesizer>
 <CsInstruments>
 0dbfs = 1
-ksmps = 32
+ksmps = 128
 sr = 44100
 
 instr 1
@@ -18,7 +18,8 @@ i1 0 1 100
 i1 1 1 200
 i1 2 1 300
 </CsScore>
-</CsoundSynthesizer>`
+</CsoundSynthesizer>
+`
 
-
-csound.renderToFile(csd, 'example3.wav');
+csound.playCSD(csd);
+setTimeout(() => process.exit(), 10000);

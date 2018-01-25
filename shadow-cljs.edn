@@ -6,7 +6,9 @@
                 ;; :js-options {:resolve {"libcsound" {:target :file
                 ;;                                     :file "libcsound.js"}}}
                 :modules {:main {:entries [csound-wasm.core]}}
-                :exports {:compileOrc csound-wasm.core/compile-orc
+                :exports {:startRealtime csound-wasm.core/start-realtime
+                          :compileOrc csound-wasm.core/compile-orc
+                          :renderToFile csound-wasm.core/render-to-file
                           :evalCode csound-wasm.core/eval-code
                           :inputMessage csound-wasm.core/input-message
                           :readScore csound-wasm.core/read-score
@@ -14,7 +16,9 @@
                           :setControlChannel csound-wasm.core/set-control-channel
                           :setStringChannel csound-wasm.core/set-string-channel
                           :getScoreTime csound-wasm.core/get-score-time
+                          :playCSD csound-wasm.core/play-csd
                           :reset csound-wasm.core/reset
+                          :stop csound-wasm.core/stop
                           :destroy csound-wasm.core/destroy
                           :setOption csound-wasm.core/set-option
                           :compileCSD csound-wasm.core/compile-csd

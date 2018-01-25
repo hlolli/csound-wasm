@@ -9,6 +9,7 @@ endin`
 
 const makeBeep = `i 1 0 10`
 
+csound.startRealtime();
 csound.compileOrc(beeper);
 setInterval(()=> csound.setControlChannel('amazingChannel', Math.random()*500+50), 50)
 csound.inputMessage(makeBeep);

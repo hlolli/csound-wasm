@@ -8,8 +8,8 @@ endin`
 
 const makeBeep = `i 1 0 1`
 
-
+csound.startRealtime()
 csound.compileOrc(beeper);
 csound.readScore(makeBeep);
 
-// setTimeout(() => process.exit(), 15000);
+setTimeout(() => process.exit(), 5000);
