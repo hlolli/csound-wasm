@@ -1503,188 +1503,184 @@ function integrateWasmJS() {
 
   var wasmTextFile = 'libcsound.wast';
   var wasmBinaryFile = 'libcsound.wasm';
-  if (ENVIRONMENT_IS_NODE) {
-      var nodePath = require('path');
-      wasmBinaryFile = nodePath.join(__dirname, wasmBinaryFile);
-  }
   var asmjsCodeFile = 'libcsound.temp.asm.js';
 
   if (typeof Module['locateFile'] === 'function') {
-      if (!isDataURI(wasmTextFile)) {
-	  wasmTextFile = Module['locateFile'](wasmTextFile);
-      }
-      if (!isDataURI(wasmBinaryFile)) {
-	    wasmBinaryFile = Module['locateFile'](wasmBinaryFile);
-      }
-      if (!isDataURI(asmjsCodeFile)) {
-	  asmjsCodeFile = Module['locateFile'](asmjsCodeFile);
-      }
+    if (!isDataURI(wasmTextFile)) {
+      wasmTextFile = Module['locateFile'](wasmTextFile);
+    }
+    if (!isDataURI(wasmBinaryFile)) {
+      wasmBinaryFile = Module['locateFile'](wasmBinaryFile);
+    }
+    if (!isDataURI(asmjsCodeFile)) {
+      asmjsCodeFile = Module['locateFile'](asmjsCodeFile);
+    }
   }
 
-    // utilities
+  // utilities
 
-    var wasmPageSize = 64*1024;
+  var wasmPageSize = 64*1024;
 
-    var info = {
-	'global': null,
-	'env': null,
-	'asm2wasm': { // special asm2wasm imports
-	    "f64-rem": function(x, y) {
-		return x % y;
-	    },
-	    "debugger": function() {
-		debugger;
-	    }
-	},
-	'parent': Module // Module inside wasm-js.cpp refers to wasm-js.cpp; this allows access to the outside program.
+  var info = {
+    'global': null,
+    'env': null,
+    'asm2wasm': { // special asm2wasm imports
+      "f64-rem": function(x, y) {
+        return x % y;
+      },
+      "debugger": function() {
+        debugger;
+      }
+    },
+    'parent': Module // Module inside wasm-js.cpp refers to wasm-js.cpp; this allows access to the outside program.
+  };
+
+  var exports = null;
+
+
+  function mergeMemory(newBuffer) {
+    // The wasm instance creates its memory. But static init code might have written to
+    // buffer already, including the mem init file, and we must copy it over in a proper merge.
+    // TODO: avoid this copy, by avoiding such static init writes
+    // TODO: in shorter term, just copy up to the last static init write
+    var oldBuffer = Module['buffer'];
+    if (newBuffer.byteLength < oldBuffer.byteLength) {
+      Module['printErr']('the new buffer in mergeMemory is smaller than the previous one. in native wasm, we should grow memory here');
+    }
+    var oldView = new Int8Array(oldBuffer);
+    var newView = new Int8Array(newBuffer);
+
+
+    newView.set(oldView);
+    updateGlobalBuffer(newBuffer);
+    updateGlobalBufferViews();
+  }
+
+  function fixImports(imports) {
+    return imports;
+  }
+
+  function getBinary() {
+    try {
+      if (Module['wasmBinary']) {
+        return new Uint8Array(Module['wasmBinary']);
+      }
+      if (Module['readBinary']) {
+        return Module['readBinary'](wasmBinaryFile);
+      } else {
+        throw "on the web, we need the wasm binary to be preloaded and set on Module['wasmBinary']. emcc.py will do that for you when generating HTML (but not JS)";
+      }
+    }
+    catch (err) {
+      abort(err);
+    }
+  }
+
+  function getBinaryPromise() {
+    // if we don't have the binary yet, and have the Fetch api, use that
+    // in some environments, like Electron's render process, Fetch api may be present, but have a different context than expected, let's only use it on the Web
+    if (!Module['wasmBinary'] && (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) && typeof fetch === 'function') {
+      return fetch(wasmBinaryFile, { credentials: 'same-origin' }).then(function(response) {
+        if (!response['ok']) {
+          throw "failed to load wasm binary file at '" + wasmBinaryFile + "'";
+        }
+        return response['arrayBuffer']();
+      }).catch(function () {
+        return getBinary();
+      });
+    }
+    // Otherwise, getBinary should be able to get it synchronously
+    return new Promise(function(resolve, reject) {
+      resolve(getBinary());
+    });
+  }
+
+  // do-method functions
+
+
+  function doNativeWasm(global, env, providedBuffer) {
+    if (typeof WebAssembly !== 'object') {
+      Module['printErr']('no native wasm support detected');
+      return false;
+    }
+    // prepare memory import
+    if (!(Module['wasmMemory'] instanceof WebAssembly.Memory)) {
+      Module['printErr']('no native wasm Memory in use');
+      return false;
+    }
+    env['memory'] = Module['wasmMemory'];
+    // Load the wasm module and create an instance of using native support in the JS engine.
+    info['global'] = {
+      'NaN': NaN,
+      'Infinity': Infinity
     };
+    info['global.Math'] = Math;
+    info['env'] = env;
+    // handle a generated wasm instance, receiving its exports and
+    // performing other necessary setup
+    function receiveInstance(instance, module) {
+      exports = instance.exports;
+      if (exports.memory) mergeMemory(exports.memory);
+      Module['asm'] = exports;
+      Module["usingWasm"] = true;
+      removeRunDependency('wasm-instantiate');
+    }
+    addRunDependency('wasm-instantiate');
 
-    var exports = null;
-
-
-    function mergeMemory(newBuffer) {
-	// The wasm instance creates its memory. But static init code might have written to
-	// buffer already, including the mem init file, and we must copy it over in a proper merge.
-	// TODO: avoid this copy, by avoiding such static init writes
-	// TODO: in shorter term, just copy up to the last static init write
-	var oldBuffer = Module['buffer'];
-	if (newBuffer.byteLength < oldBuffer.byteLength) {
-	    Module['printErr']('the new buffer in mergeMemory is smaller than the previous one. in native wasm, we should grow memory here');
-	}
-	var oldView = new Int8Array(oldBuffer);
-	var newView = new Int8Array(newBuffer);
-
-
-	newView.set(oldView);
-	updateGlobalBuffer(newBuffer);
-	updateGlobalBufferViews();
+    // User shell pages can write their own Module.instantiateWasm = function(imports, successCallback) callback
+    // to manually instantiate the Wasm module themselves. This allows pages to run the instantiation parallel
+    // to any other async startup actions they are performing.
+    if (Module['instantiateWasm']) {
+      try {
+        return Module['instantiateWasm'](info, receiveInstance);
+      } catch(e) {
+        Module['printErr']('Module.instantiateWasm callback failed with error: ' + e);
+        return false;
+      }
     }
 
-    function fixImports(imports) {
-	return imports;
+    // Async compilation can be confusing when an error on the page overwrites Module
+    // (for example, if the order of elements is wrong, and the one defining Module is
+    // later), so we save Module and check it later.
+    var trueModule = Module;
+    function receiveInstantiatedSource(output) {
+      // 'output' is a WebAssemblyInstantiatedSource object which has both the module and instance.
+      // receiveInstance() will swap in the exports (to Module.asm) so they can be called
+      assert(Module === trueModule, 'the Module object should not be replaced during async compilation - perhaps the order of HTML elements is wrong?');
+      trueModule = null;
+      receiveInstance(output['instance'], output['module']);
     }
-
-    function getBinary() {
-	try {
-	    if (Module['wasmBinary']) {
-		return new Uint8Array(Module['wasmBinary']);
-	    }
-	    if (Module['readBinary']) {
-		return Module['readBinary'](wasmBinaryFile);
-	    } else {
-		throw "on the web, we need the wasm binary to be preloaded and set on Module['wasmBinary']. emcc.py will do that for you when generating HTML (but not JS)";
-	    }
-	}
-	catch (err) {
-	    abort(err);
-	}
+    function instantiateArrayBuffer(receiver) {
+      getBinaryPromise().then(function(binary) {
+        return WebAssembly.instantiate(binary, info);
+      }).then(receiver).catch(function(reason) {
+        Module['printErr']('failed to asynchronously prepare wasm: ' + reason);
+        abort(reason);
+      });
     }
-
-    function getBinaryPromise() {
-	// if we don't have the binary yet, and have the Fetch api, use that
-	// in some environments, like Electron's render process, Fetch api may be present, but have a different context than expected, let's only use it on the Web
-	if (!Module['wasmBinary'] && (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) && typeof fetch === 'function') {
-	    return fetch(wasmBinaryFile, { credentials: 'same-origin' }).then(function(response) {
-		if (!response['ok']) {
-		    throw "failed to load wasm binary file at '" + wasmBinaryFile + "'";
-		}
-		return response['arrayBuffer']();
-	    }).catch(function () {
-		return getBinary();
-	    });
-	}
-	// Otherwise, getBinary should be able to get it synchronously
-	return new Promise(function(resolve, reject) {
-	    resolve(getBinary());
-	});
+    // Prefer streaming instantiation if available.
+    if (!Module['wasmBinary'] &&
+        typeof WebAssembly.instantiateStreaming === 'function' &&
+        !isDataURI(wasmBinaryFile) &&
+        typeof fetch === 'function') {
+      WebAssembly.instantiateStreaming(fetch(wasmBinaryFile, { credentials: 'same-origin' }), info)
+        .then(receiveInstantiatedSource)
+        .catch(function(reason) {
+          // We expect the most common failure cause to be a bad MIME type for the binary,
+          // in which case falling back to ArrayBuffer instantiation should work.
+          Module['printErr']('wasm streaming compile failed: ' + reason);
+          Module['printErr']('falling back to ArrayBuffer instantiation');
+          instantiateArrayBuffer(receiveInstantiatedSource);
+        });
+    } else {
+      instantiateArrayBuffer(receiveInstantiatedSource);
     }
-
-    // do-method functions
-
-
-    function doNativeWasm(global, env, providedBuffer) {
-	if (typeof WebAssembly !== 'object') {
-	    Module['printErr']('no native wasm support detected');
-	    return false;
-	}
-	// prepare memory import
-	if (!(Module['wasmMemory'] instanceof WebAssembly.Memory)) {
-	    Module['printErr']('no native wasm Memory in use');
-	    return false;
-	}
-	env['memory'] = Module['wasmMemory'];
-	// Load the wasm module and create an instance of using native support in the JS engine.
-	info['global'] = {
-	    'NaN': NaN,
-	    'Infinity': Infinity
-	};
-	info['global.Math'] = Math;
-	info['env'] = env;
-	// handle a generated wasm instance, receiving its exports and
-	// performing other necessary setup
-	function receiveInstance(instance, module) {
-	    exports = instance.exports;
-	    if (exports.memory) mergeMemory(exports.memory);
-	    Module['asm'] = exports;
-	    Module["usingWasm"] = true;
-	    removeRunDependency('wasm-instantiate');
-	}
-	addRunDependency('wasm-instantiate');
-
-	// User shell pages can write their own Module.instantiateWasm = function(imports, successCallback) callback
-	// to manually instantiate the Wasm module themselves. This allows pages to run the instantiation parallel
-	// to any other async startup actions they are performing.
-	if (Module['instantiateWasm']) {
-	    try {
-		return Module['instantiateWasm'](info, receiveInstance);
-	    } catch(e) {
-		Module['printErr']('Module.instantiateWasm callback failed with error: ' + e);
-		return false;
-	    }
-	}
-
-	// Async compilation can be confusing when an error on the page overwrites Module
-	// (for example, if the order of elements is wrong, and the one defining Module is
-	// later), so we save Module and check it later.
-	var trueModule = Module;
-	function receiveInstantiatedSource(output) {
-	    // 'output' is a WebAssemblyInstantiatedSource object which has both the module and instance.
-	    // receiveInstance() will swap in the exports (to Module.asm) so they can be called
-	    assert(Module === trueModule, 'the Module object should not be replaced during async compilation - perhaps the order of HTML elements is wrong?');
-	    trueModule = null;
-	    receiveInstance(output['instance'], output['module']);
-	}
-	function instantiateArrayBuffer(receiver) {
-	    getBinaryPromise().then(function(binary) {
-		return WebAssembly.instantiate(binary, info);
-	    }).then(receiver).catch(function(reason) {
-		Module['printErr']('failed to asynchronously prepare wasm: ' + reason);
-		abort(reason);
-	    });
-	}
-	// Prefer streaming instantiation if available.
-	if (!Module['wasmBinary'] &&
-            typeof WebAssembly.instantiateStreaming === 'function' &&
-            !isDataURI(wasmBinaryFile) &&
-            typeof fetch === 'function') {
-	    WebAssembly.instantiateStreaming(fetch(wasmBinaryFile, { credentials: 'same-origin' }), info)
-		.then(receiveInstantiatedSource)
-		.catch(function(reason) {
-		    // We expect the most common failure cause to be a bad MIME type for the binary,
-		    // in which case falling back to ArrayBuffer instantiation should work.
-		    Module['printErr']('wasm streaming compile failed: ' + reason);
-		    Module['printErr']('falling back to ArrayBuffer instantiation');
-		    instantiateArrayBuffer(receiveInstantiatedSource);
-		});
-	} else {
-	    instantiateArrayBuffer(receiveInstantiatedSource);
-	}
-	return {}; // no exports yet; we'll fill them in later
-    }
+    return {}; // no exports yet; we'll fill them in later
+  }
 
 
-    // We may have a preloaded value in Module.asm, save it
-    Module['asmPreload'] = Module['asm'];
+  // We may have a preloaded value in Module.asm, save it
+  Module['asmPreload'] = Module['asm'];
 
   // Memory growth integration code
 
@@ -10067,7 +10063,7 @@ Module['asm'] = asm;
 if (!Module["intArrayFromString"]) Module["intArrayFromString"] = function() { abort("'intArrayFromString' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Module["intArrayToString"]) Module["intArrayToString"] = function() { abort("'intArrayToString' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Module["ccall"]) Module["ccall"] = function() { abort("'ccall' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
-if (!Module["cwrap"]) Module["cwrap"] = function() { abort("'cwrap' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
+Module["cwrap"] = cwrap;
 if (!Module["setValue"]) Module["setValue"] = function() { abort("'setValue' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Module["getValue"]) Module["getValue"] = function() { abort("'getValue' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Module["allocate"]) Module["allocate"] = function() { abort("'allocate' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
@@ -10097,7 +10093,7 @@ if (!Module["writeArrayToMemory"]) Module["writeArrayToMemory"] = function() { a
 if (!Module["writeAsciiToMemory"]) Module["writeAsciiToMemory"] = function() { abort("'writeAsciiToMemory' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
 if (!Module["addRunDependency"]) Module["addRunDependency"] = function() { abort("'addRunDependency' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ). Alternatively, forcing filesystem support (-s FORCE_FILESYSTEM=1) can export this for you") };
 if (!Module["removeRunDependency"]) Module["removeRunDependency"] = function() { abort("'removeRunDependency' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ). Alternatively, forcing filesystem support (-s FORCE_FILESYSTEM=1) can export this for you") };
-if (!Module["FS"]) Module["FS"] = function() { abort("'FS' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ)") };
+Module["FS"] = FS;
 if (!Module["FS_createFolder"]) Module["FS_createFolder"] = function() { abort("'FS_createFolder' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ). Alternatively, forcing filesystem support (-s FORCE_FILESYSTEM=1) can export this for you") };
 if (!Module["FS_createPath"]) Module["FS_createPath"] = function() { abort("'FS_createPath' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ). Alternatively, forcing filesystem support (-s FORCE_FILESYSTEM=1) can export this for you") };
 if (!Module["FS_createDataFile"]) Module["FS_createDataFile"] = function() { abort("'FS_createDataFile' was not exported. add it to EXTRA_EXPORTED_RUNTIME_METHODS (see the FAQ). Alternatively, forcing filesystem support (-s FORCE_FILESYSTEM=1) can export this for you") };
@@ -10289,11 +10285,6 @@ run();
 
 // {{POST_RUN_ADDITIONS}}
 
-module.exports.Module = Module;
-module.exports.runtimeInitialized = runtimeInitialized;
-module.exports.FS = FS;
-module.exports.NODEFS = NODEFS
-module.exports.cwrap = cwrap;
 
 
 

@@ -12,14 +12,17 @@
       "webaudio"
    ],
    "main": "index.js",
+   "browser": "browser/main.js",
    "build": {
       "appId": "csound-wasm"
    },
    "dependencies": {
-      "web-audio-api": "^0.2.2",
-      "speaker": "^0.3.0"
+      "bufferutil": "^3.0.3",
+      "speaker": "^0.3.0",
+      "utf-8-validate": "^4.0.0",
+      "web-audio-api": "^0.2.2"
    },
    "devDependencies": {
-      "shadow-cljs": "^2.0.139"
+      "shadow-cljs": "^2.0.144"
    }
 }
