@@ -10,12 +10,40 @@
            (nil? @public/csound-object))
     (do (reset! public/csound-object js/Module)
         (def csound-object js/Module)
-        (public/activate-init-callback))
+        (public/activate-init-callback)
+        (set! (.-print csound-object)
+              (fn [log]
+                (.log js/console "%c%s" "background: #222; color: #bada55" log)))
+        (set! (.-printErr csound-object)
+              (fn [log]
+                (.log js/console "%c%s" "background: #222; color: #bada55" log)))
+        (set! (.-noExitRuntime csound-object) true))
     (js/setTimeout
      (fn [] (wait-for-libcsound))
      1)))
 
 (wait-for-libcsound)
+
+
+(defn enable-midi []
+  (letfn [(handle-midi-input [event]
+            (csound-wasm.public/push-midi-message
+             (aget (.-data event) 0)
+             (aget (.-data event) 1)
+             (aget (.-data event) 2)))
+          (midi-success [midi-interface]
+            (let [inputs (.values (.-inputs midi-interface))]
+              (loop [input (.next inputs)]
+                (when-not (.-done input)
+                  (set! (.-onmidimessage (.-value input)) handle-midi-input)
+                  (recur (.next inputs)))))
+            (public/set-midi-callbacks))
+          (midi-fail [error]
+            (.error js/console "Csound midi failed to start: %s" error))]
+    (if (exists? js/navigator.requestMIDIAccess)
+      (.then (.requestMIDIAccess js/navigator)
+             midi-success midi-fail)
+      (.error js/console "Csound: Midi not supported in this browser"))))
 
 (def ^:export main
   #js {:startRealtime csound-wasm.public/start-realtime
@@ -38,8 +66,10 @@
        :getTable csound-wasm.public/get-table
        :getTableLength csound-wasm.public/get-table-length
        :getKsmps csound-wasm.public/get-ksmps
-       :get0dbfs csound-wasm.public/get-0dbfs                              
-       })
+       :get0dbfs csound-wasm.public/get-0dbfs
+       :setMidiCallbacks csound-wasm.public/set-midi-callbacks
+       :pushMidiMessage csound-wasm.public/push-midi-message
+       :enableMidi enable-midi})
 
 (def wasm-buffer-offset (volatile! 0))
 
@@ -54,7 +84,7 @@
         audio-context (new audio-context-constructor)
         audio-process-node (.createScriptProcessor
                             audio-context
-                            1024 input-count output-count)
+                            2048 input-count output-count)
         _ (do (set! (.-inputCount audio-process-node) input-count)
               (set! (.-outputCount audio-process-node) output-count))
         buffer-size (.-bufferSize audio-process-node)
@@ -100,3 +130,5 @@
     ))
 
 (vreset! public/start-audio-fn start-audio)
+
+

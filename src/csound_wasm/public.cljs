@@ -157,3 +157,16 @@
       (callback ret))
     (vswap! event-queue conj #(get-0dbfs callback))))
 
+(defn set-midi-callbacks []
+  (if @wasm-loaded?
+    ((.cwrap @csound-object "CsoundObj_setMidiCallbacks" nil #js ["number"])
+     @csound-instance)
+    (vswap! event-queue conj #(set-midi-callbacks))))
+
+(defn push-midi-message [byte1 byte2 byte3]
+  ;; (prn "MIDI" byte1 byte2 byte3)
+  (if @wasm-loaded?
+    ((.cwrap @csound-object "CsoundObj_pushMidiMessage" nil #js ["number" "number" "number" "number"])
+     @csound-instance byte1 byte2 byte3)
+    (vswap! event-queue conj #(push-midi-message byte1 byte2 byte3))))
+

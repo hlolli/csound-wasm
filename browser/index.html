@@ -9,17 +9,47 @@
   <script>
     var csound = csound_wasm.browser.main;
     const beeper = `
-instr 1
-  asig = poscil:a(0.3, 440)
-  outc asig, asig
-endin`
+    <CsoundSynthesizer>
+      <CsOptions>
+	-+rtmidi=null -M0
+      </CsOptions>
+      <CsInstruments>
+	;Example by Andrés Cabrera
 
-const makeBeep = `i 1 0 1`
+	sr = 44100
+	ksmps = 32
+	nchnls = 2
+	0dbfs = 1
 
-csound.startRealtime()
-csound.compileOrc(beeper);
-csound.readScore(makeBeep);
+        massign   0, 1 ;assign all MIDI channels to instrument 1
+	
+        opcode declick, a, a
+	ain     xin
+	aenv    linseg 0, 0.02, 1, p3 - 0.05, 1, 0.02, 0, 0.01, 0
+        xout ain * aenv         ; apply envelope and write output
+        endop
+	
+	instr 1
+	iCps    cpsmidi   ;get the frequency from the key pressed
+	iAmp    ampmidi   0dbfs * 0.3 ;get the amplitude
+	aOut    poscil    iAmp, iCps ;generate a sine tone
+	kenv	mxadsr	0.1, 0, 1, 0.5
+	aOut *= kenv
+        outs      aOut, aOut ;write it to the output
+	endin
+
+      </CsInstruments>
+      <CsScore>
+      </CsScore>
+    </CsoundSynthesizer>
+    `
+
+    const makeBeep = `i 1 0 100`
+
+    <!-- csound.startRealtime(); -->
+    csound.enableMidi();
+    csound.playCSD(beeper);
+    <!-- csound.readScore(makeBeep); -->
   </script>
-
 </body>
 </html>

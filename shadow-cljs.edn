@@ -24,12 +24,14 @@
                            :getTableLength csound-wasm.public/get-table-length
                            :getKsmps csound-wasm.public/get-ksmps
                            :get0dbfs csound-wasm.public/get-0dbfs
+                           :enableMidi csound-wasm.node/enable-midi
                            }}
           :browser {:target :browser
                     :output-dir "browser"
                     :asset-path "./"
                     :js-options {:resolve {"libcsound" {:target :global
                                                         :global "Module"}}}
+                    :compiler-options {:optimizations :simple}
                     :modules {:main {:entries [csound-wasm.browser]}}
                     :devtools {:http-root "browser"
                                :http-resource-root "browser"

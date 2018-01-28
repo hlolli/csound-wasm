@@ -105,3 +105,16 @@
           (set! (.-onaudioprocess @global-audio-process-node) nil))
       (vswap! event-queue conj #(stop))))
 
+
+(defn enable-midi []
+  (letfn [(handle-midi-input [_ event]
+            (public/push-midi-message
+             (aget event 0)
+             (aget event 1)
+             (aget event 2)))]
+    (let [midi (js/require "midi")
+          midi-input (new midi.input)]
+      (.on midi-input "message" handle-midi-input)
+      (.openPort midi-input 1)
+      (public/set-midi-callbacks))))
+
