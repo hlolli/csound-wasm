@@ -5,17 +5,40 @@
             ["path" :as path]
             ["v8" :as v8]))
 
-(def libcsound (js/require (path/join js/__dirname "libcsound.js")))
+(def is-electron?
+  (and (exists? js/window)
+       (exists? js/window.process)
+       (exists? js/window.process.type)))
 
-(reset! public/csound-object libcsound)
+(declare csound-object wasm-fs wasm-node-fs)
 
-(public/activate-init-callback)
+(defn wait-for-libcsound []
+  (if (and (exists? js/Module)
+           (nil? @public/csound-object))
+    (do (reset! public/csound-object js/Module)
+        (def csound-object js/Module)
+        (def wasm-fs csound-object.FS)
+        (def wasm-node-fs csound-object.NODEFS)
+        (public/activate-init-callback (.-calledRun csound-object))
+        (set! (.-print csound-object)
+              (fn [log]
+                (.log js/console "%c%s" "background: #222; color: #bada55" log)))
+        (set! (.-printErr csound-object)
+              (fn [log]
+                (.log js/console "%c%s" "background: #222; color: #bada55" log)))
+        (set! (.-noExitRuntime csound-object) true))
+    (js/setTimeout
+     (fn [] (wait-for-libcsound))
+     1)))
 
-(def wasm-fs libcsound.FS)
-
-(def wasm-node-fs libcsound.NODEFS)
-
-(def csound-object @public/csound-object)
+(if is-electron?
+  (wait-for-libcsound)
+  (do 
+    (def csound-object (js/require (path/join js/__dirname "libcsound.js")))
+    (def wasm-fs csound-object.FS)
+    (def wasm-node-fs csound-object.NODEFS)
+    (reset! public/csound-object csound-object)
+    (public/activate-init-callback (.-calledRun csound-object))))
 
 (def wasm-buffer-offset (volatile! 0))
 

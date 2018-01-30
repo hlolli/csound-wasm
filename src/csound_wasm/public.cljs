@@ -15,19 +15,22 @@
 
 (def csound-instance (atom nil))
 
-(defn activate-init-callback []
-  (set! (.-onRuntimeInitialized @csound-object)
-        (fn []
-          (reset! csound-instance (._CsoundObj_new @csound-object))
-          (vreset! wasm-initialized? true)
-          (when (fn? @startup-fn)
-            (@startup-fn))
-          (js/setTimeout
-           #(do (vreset! wasm-loaded? true)
-                (doseq [event @event-queue]
-                  (event))
-                (vreset! event-queue []))
-           2000))))
+(defn activate-init-callback [called-run?]
+  (letfn [(initialize []
+            (reset! csound-instance (._CsoundObj_new @csound-object))
+            (vreset! wasm-initialized? true)
+            (when (fn? @startup-fn)
+              (@startup-fn))
+            (js/setTimeout
+             #(do (vreset! wasm-loaded? true)
+                  (doseq [event @event-queue]
+                    (event))
+                  (vreset! event-queue []))
+             2000))]
+    (if called-run?
+      (initialize)
+      (set! (.-onRuntimeInitialized @csound-object)
+            initialize))))
 
 (defn start-realtime [[config]]
   (if @wasm-initialized?

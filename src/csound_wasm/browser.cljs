@@ -10,7 +10,7 @@
            (nil? @public/csound-object))
     (do (reset! public/csound-object js/Module)
         (def csound-object js/Module)
-        (public/activate-init-callback)
+        (public/activate-init-callback (.-calledRun csound-object))
         (set! (.-print csound-object)
               (fn [log]
                 (.log js/console "%c%s" "background: #222; color: #bada55" log)))
@@ -69,7 +69,8 @@
        :get0dbfs csound-wasm.public/get-0dbfs
        :setMidiCallbacks csound-wasm.public/set-midi-callbacks
        :pushMidiMessage csound-wasm.public/push-midi-message
-       :enableMidi enable-midi})
+       :enableMidi enable-midi
+       :pushMidi csound-wasm.public/push-midi-message})
 
 (def wasm-buffer-offset (volatile! 0))
 
