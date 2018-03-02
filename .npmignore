@@ -4,3 +4,9 @@ node_modules
 package-lock.json
 *~
 *.wav
+deps.cljs
+project.clj
+shadow-cljs.edn
+src
+.shadow-cljs
+yarn.lock

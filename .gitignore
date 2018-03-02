@@ -6,3 +6,5 @@ package-lock.json
 *.wav
 browser/cljs-runtime
 browser/manifest.edn
+.shadow-cljs
+yarn.lock

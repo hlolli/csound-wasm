@@ -1,29 +1,20 @@
 (ns csound-wasm.browser
-  (:require [csound-wasm.public :as public]))
+  (:require [csound-wasm.public :as public]
+            ["libcsound" :as libcsound]))
 
 (enable-console-print!)
 
-(declare csound-object)
+(public/activate-init-callback libcsound/calledRun)
 
-(defn wait-for-libcsound []
-  (if (and (exists? js/Module)
-           (nil? @public/csound-object))
-    (do (reset! public/csound-object js/Module)
-        (def csound-object js/Module)
-        (public/activate-init-callback (.-calledRun csound-object))
-        (set! (.-print csound-object)
-              (fn [log]
-                (.log js/console "%c%s" "background: #222; color: #bada55" log)))
-        (set! (.-printErr csound-object)
-              (fn [log]
-                (.log js/console "%c%s" "background: #222; color: #bada55" log)))
-        (set! (.-noExitRuntime csound-object) true))
-    (js/setTimeout
-     (fn [] (wait-for-libcsound))
-     1)))
+(set! libcsound/print
+      (fn [log]
+        (.log js/console "%c%s" "background: #222; color: #bada55" log)))
 
-(wait-for-libcsound)
+(set! libcsound/printErr
+      (fn [log]
+        (.log js/console "%c%s" "background: #222; color: #bada55" log)))
 
+(set! libcsound/noExitRuntime true)
 
 (defn enable-midi []
   (letfn [(handle-midi-input [event]
@@ -75,11 +66,11 @@
 (def wasm-buffer-offset (volatile! 0))
 
 (defn start-audio [csound-instance]
-  (let [ksmps ((.cwrap csound-object "CsoundObj_getKsmps" #js ["number"] #js ["number"])
+  (let [ksmps ((libcsound/cwrap "CsoundObj_getKsmps" #js ["number"] #js ["number"])
                csound-instance)
-        input-count ((.cwrap csound-object "CsoundObj_getInputChannelCount" #js ["number"] #js ["number"])
+        input-count ((libcsound/cwrap "CsoundObj_getInputChannelCount" #js ["number"] #js ["number"])
                      csound-instance)
-        output-count ((.cwrap csound-object "CsoundObj_getOutputChannelCount" #js ["number"] #js ["number"])
+        output-count ((libcsound/cwrap "CsoundObj_getOutputChannelCount" #js ["number"] #js ["number"])
                       csound-instance)
         audio-context-constructor (or js/window.AudioContext js/window.webkitAudioContext)
         audio-context (new audio-context-constructor)
@@ -89,11 +80,11 @@
         _ (do (set! (.-inputCount audio-process-node) input-count)
               (set! (.-outputCount audio-process-node) output-count))
         buffer-size (.-bufferSize audio-process-node)
-        output-pointer ((.cwrap csound-object "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
+        output-pointer ((libcsound/cwrap "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
                         csound-instance)
-        csound-output-buffer (new js/Float32Array (.-buffer (.-HEAP8 csound-object))
+        csound-output-buffer (new js/Float32Array (.-buffer (.-HEAP8 libcsound))
                                   output-pointer (* ksmps output-count))
-        zerodbfs ((.cwrap csound-object "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
+        zerodbfs ((libcsound/cwrap "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
                   csound-instance)
         range-output-cnt (range output-count)
         process-buffers (fn [e sample-count src-offset dst-offset]
@@ -106,7 +97,7 @@
                                                      (+ j src-offset))))
                                        zerodbfs)))))
         perform-ksmps-fn (fn []
-                           ((.cwrap csound-object "CsoundObj_performKsmps" #js ["number"] #js ["number"])
+                           ((libcsound/cwrap "CsoundObj_performKsmps" #js ["number"] #js ["number"])
                             csound-instance))]
     (vreset! wasm-buffer-offset ksmps)
     (set! (.-onaudioprocess audio-process-node)
@@ -127,8 +118,7 @@
                         (recur sample-count
                                (+ index sample-count)))))))))
     (.connect audio-process-node (.-destination audio-context))
-    nil
-    ))
+    nil))
 
 (vreset! public/start-audio-fn start-audio)
 

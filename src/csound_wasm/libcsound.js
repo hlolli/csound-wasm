@@ -10291,5 +10291,5 @@ run();
 
 // {{MODULE_ADDITIONS}}
 
-
+module.exports = Module;
 

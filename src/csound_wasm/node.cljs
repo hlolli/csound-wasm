@@ -1,56 +1,53 @@
 (ns csound-wasm.node
   (:require [csound-wasm.public :as public]
+            ["libcsound" :as libcsound]
             ["speaker" :as Speaker]
+            ["web-audio-api" :as web-audio-api]
+            ["midi" :as midi]
             ["fs" :as fs]
             ["path" :as path]
             ["v8" :as v8]))
 
-(def is-electron?
-  (and (exists? js/window)
-       (exists? js/window.process)
-       (exists? js/window.process.type)))
 
-(declare csound-object wasm-fs wasm-node-fs)
+(def wasm-fs libcsound/FS)
 
-(defn wait-for-libcsound []
-  (if (and (exists? js/Module)
-           (nil? @public/csound-object))
-    (do (reset! public/csound-object js/Module)
-        (def csound-object js/Module)
-        (def wasm-fs csound-object.FS)
-        (def wasm-node-fs csound-object.NODEFS)
-        (public/activate-init-callback (.-calledRun csound-object))
-        (set! (.-print csound-object)
-              (fn [log]
-                (.log js/console "%c%s" "background: #222; color: #bada55" log)))
-        (set! (.-printErr csound-object)
-              (fn [log]
-                (.log js/console "%c%s" "background: #222; color: #bada55" log)))
-        (set! (.-noExitRuntime csound-object) true))
-    (js/setTimeout
-     (fn [] (wait-for-libcsound))
-     1)))
+(def wasm-node-fs libcsound/NODEFS)
 
-(if is-electron?
-  (wait-for-libcsound)
-  (do 
-    (def csound-object (js/require (path/join js/__dirname "libcsound.js")))
-    (def wasm-fs csound-object.FS)
-    (def wasm-node-fs csound-object.NODEFS)
-    (reset! public/csound-object csound-object)
-    (public/activate-init-callback (.-calledRun csound-object))))
+;; (reset! public/libcsound-atom libcsound)
+
+(public/activate-init-callback libcsound/calledRun)
+
+#_(defn wait-for-libcsound []
+    (if (and (exists? js/Module)
+             (nil? @public/libcsound-atom))
+      (do (reset! public/libcsound-atom js/Module)
+          ;; (def libcsound js/Module)
+          (def wasm-fs libcsound/FS)
+          (def wasm-node-fs libcsound/NODEFS)
+          (public/activate-init-callback (.-calledRun libcsound))
+          (set! (.-print libcsound)
+                (fn [log]
+                  (.log js/console "%c%s" "background: #222; color: #bada55" log)))
+          (set! (.-printErr libcsound)
+                (fn [log]
+                  (.log js/console "%c%s" "background: #222; color: #bada55" log)))
+          (set! (.-noExitRuntime libcsound) true))
+      (js/setTimeout
+       (fn [] (wait-for-libcsound))
+       1)))
+
 
 (def wasm-buffer-offset (volatile! 0))
 
 (defn start-audio [csound-instance]
   ;; (.setFlagsFromString v8 "--no-use_strict") ;; To be able to load web-audio-api
-  (let [ksmps ((.cwrap csound-object "CsoundObj_getKsmps" #js ["number"] #js ["number"])
+  (let [ksmps ((libcsound/cwrap "CsoundObj_getKsmps" #js ["number"] #js ["number"])
                csound-instance)
-        input-count ((.cwrap csound-object "CsoundObj_getInputChannelCount" #js ["number"] #js ["number"])
+        input-count ((libcsound/cwrap "CsoundObj_getInputChannelCount" #js ["number"] #js ["number"])
                      csound-instance)
-        output-count ((.cwrap csound-object "CsoundObj_getOutputChannelCount" #js ["number"] #js ["number"])
+        output-count ((libcsound/cwrap "CsoundObj_getOutputChannelCount" #js ["number"] #js ["number"])
                       csound-instance)
-        audio-context-constructor (.-AudioContext (js/require "web-audio-api"))
+        audio-context-constructor web-audio-api/AudioContext
         audio-context (new audio-context-constructor)
         audio-process-node (.createScriptProcessor
                             audio-context
@@ -58,12 +55,12 @@
         _ (do (set! (.-inputCount audio-process-node) input-count)
               (set! (.-outputCount audio-process-node) output-count))
         buffer-size (.-bufferSize audio-process-node)
-        output-pointer ((.cwrap csound-object "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
+        output-pointer ((libcsound/cwrap "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
                         csound-instance)
-        csound-output-buffer (new js/Float32Array (.-buffer (.-HEAP8 csound-object))
+        csound-output-buffer (new js/Float32Array (.-buffer (.-HEAP8 libcsound))
                                   output-pointer (* ksmps output-count))
         ;; TODO add microphone input buffer
-        zerodbfs ((.cwrap csound-object "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
+        zerodbfs ((libcsound/cwrap "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
                   csound-instance)
         range-output-cnt (range output-count)
         process-buffers (fn [e sample-count src-offset dst-offset]
@@ -76,7 +73,7 @@
                                                      (+ j src-offset))))
                                        zerodbfs)))))
         perform-ksmps-fn (fn []
-                           ((.cwrap csound-object "CsoundObj_performKsmps" #js ["number"] #js ["number"])
+                           ((libcsound/cwrap "CsoundObj_performKsmps" #js ["number"] #js ["number"])
                             csound-instance))]
     (vreset! wasm-buffer-offset ksmps)
     (set! (.-outStream audio-context)
@@ -113,7 +110,7 @@
     (if @public/wasm-loaded?
       (do 
         (public/compile-csd csd)
-        ((.cwrap @public/csound-object "CsoundObj_render" nil #js ["number"])
+        ((.cwrap libcsound "CsoundObj_render" nil #js ["number"])
          @public/csound-instance)
         (let [file-data (.readFile wasm-fs "test.wav" #js {:encoding "binary"})]
           (fs/writeFileSync file-name file-data)
@@ -135,8 +132,7 @@
              (aget event 0)
              (aget event 1)
              (aget event 2)))]
-    (let [midi (js/require "midi")
-          midi-input (new midi.input)]
+    (let [midi-input (new midi/input)]
       (.on midi-input "message" handle-midi-input)
       (.openPort midi-input 1)
       (public/set-midi-callbacks))))

@@ -1,4 +1,4 @@
-const csound = require('../index.js');
+const csound = require('../');
 
 const beeper = `
 instr 1

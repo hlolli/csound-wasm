@@ -1,8 +1,11 @@
 {:dependencies [[org.clojure/core.specs.alpha "0.1.24"]]
  :source-paths ["src"]
  :builds {:node {:target :node-library
-                 :output-to "index.js"
+                 :output-to "node/index.js"
                  :modules {:main {:entries [csound-wasm.node]}}
+                 :js-options {:resolve {"libcsound"
+                                        {:target :file
+                                         :file "src/csound_wasm/libcsound.js"}}}
                  :exports {:startRealtime csound-wasm.public/start-realtime
                            :compileOrc csound-wasm.public/compile-orc
                            :renderToFile csound-wasm.node/render-to-file
@@ -25,18 +28,18 @@
                            :getKsmps csound-wasm.public/get-ksmps
                            :get0dbfs csound-wasm.public/get-0dbfs
                            :enableMidi csound-wasm.node/enable-midi
-                           :pushMidi csound-wasm.public/push-midi-message
-                           }}
+                           :pushMidi csound-wasm.public/push-midi-message}}
           :browser {:target :browser
                     :output-dir "browser"
                     :asset-path "./"
-                    :js-options {:resolve {"libcsound" {:target :global
-                                                        :global "Module"}}}
-                    :compiler-options {:optimizations :simple
+                    :js-options {:resolve {"libcsound"
+                                           {:target :file
+                                            :file "src/csound_wasm/libcsound.js"}}}
+                    :compiler-options {:optimizations :advanced
                                        :output-wrapper true}
                     :modules {:main {:entries [csound-wasm.browser]
-                                     :prepend "var csound_wasm = (function () {\n"
-                                     :append "\n return csound_wasm.browser.main;})()\n"}}
+                                     :append "\nvar csound = csound_wasm.browser.main;\n"}}
+                    :exports {:csound csound-wasm.browser/main}
                     :devtools {:http-root "browser"
                                :http-resource-root "browser"
                                :http-port 8600
