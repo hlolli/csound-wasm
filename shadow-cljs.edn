@@ -3,6 +3,7 @@
  :builds {:node {:target :node-library
                  :output-to "node/index.js"
                  :modules {:main {:entries [csound-wasm.node]}}
+                 :compiler-options {:optimizations :advanced}
                  :js-options {:resolve {"libcsound"
                                         {:target :file
                                          :file "src/csound_wasm/libcsound.js"}}}

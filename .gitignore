@@ -8,3 +8,5 @@ browser/cljs-runtime
 browser/manifest.edn
 .shadow-cljs
 yarn.lock
+browser/main.js
+browser/manifest.edn

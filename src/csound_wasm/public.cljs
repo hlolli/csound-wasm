@@ -12,8 +12,6 @@
 
 (def wasm-initialized? (volatile! false))
 
-;; (def libcsound-atom (atom nil))
-
 (def csound-instance (atom nil))
 
 (defn activate-init-callback [called-run?]
@@ -33,7 +31,6 @@
       (set! libcsound/onRuntimeInitialized initialize))))
 
 (defn start-realtime [& [config]]
-  (println "start-realtime" @wasm-initialized?)
   (if @wasm-initialized?
     (let [{:keys [nchnls zerodbfs sr ksmps]
            :or {nchnls 2 zerodbfs 1 sr 44100 ksmps 256}}

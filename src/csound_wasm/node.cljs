@@ -13,28 +13,8 @@
 
 (def wasm-node-fs libcsound/NODEFS)
 
-;; (reset! public/libcsound-atom libcsound)
 
 (public/activate-init-callback libcsound/calledRun)
-
-#_(defn wait-for-libcsound []
-    (if (and (exists? js/Module)
-             (nil? @public/libcsound-atom))
-      (do (reset! public/libcsound-atom js/Module)
-          ;; (def libcsound js/Module)
-          (def wasm-fs libcsound/FS)
-          (def wasm-node-fs libcsound/NODEFS)
-          (public/activate-init-callback (.-calledRun libcsound))
-          (set! (.-print libcsound)
-                (fn [log]
-                  (.log js/console "%c%s" "background: #222; color: #bada55" log)))
-          (set! (.-printErr libcsound)
-                (fn [log]
-                  (.log js/console "%c%s" "background: #222; color: #bada55" log)))
-          (set! (.-noExitRuntime libcsound) true))
-      (js/setTimeout
-       (fn [] (wait-for-libcsound))
-       1)))
 
 
 (def wasm-buffer-offset (volatile! 0))
