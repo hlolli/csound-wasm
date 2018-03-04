@@ -94,6 +94,12 @@
       (callback ret-val))
     (vswap! event-queue conj #(get-score-time callback))))
 
+(defn get-score-time-sync [callback]
+  (if @wasm-loaded?
+    ((libcsound/cwrap "CsoundObj_getScoreTime" nil #js ["number"])
+     @csound-instance)
+    0))
+
 (defn reset []
   (if @wasm-loaded?
     ((libcsound/cwrap "CsoundObj_reset" nil #js ["number"])

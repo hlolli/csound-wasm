@@ -1,6 +1,6 @@
 {
   "name": "csound-wasm",
-  "version": "6.10.0-4",
+  "version": "6.10.0-5",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "GPL-3.0",
   "keywords": [
@@ -18,15 +18,15 @@
   },
   "dependencies": {
     "bufferutil": "^3.0.3",
-    "datauri": "^1.1.0",
     "libcsound": "^6.10.0-3",
     "midi": "^0.9.5",
-    "replace-in-file": "^3.1.1",
     "speaker": "^0.3.0",
-    "utf-8-validate": "^4.0.0"
+    "utf-8-validate": "^4.0.0",
+    "web-audio-api": "^0.2.2"
   },
   "devDependencies": {
+    "replace-in-file": "^3.1.1",
     "shadow-cljs": "^2.2.3",
-    "web-audio-api": "^0.2.2"
+    "replace-in-file": "^3.1.1"
   }
 }
