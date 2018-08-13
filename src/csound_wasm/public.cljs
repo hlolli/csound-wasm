@@ -16,7 +16,6 @@
 
 (defn activate-init-callback [Libcsound]
   (letfn [(initialize []
-            (prn "INITIALIZE")
             (reset! csound-instance ^js (((.-cwrap @libcsound) "CsoundObj_new" #js ["number"] nil)))
             (((.-cwrap @libcsound) "CsoundObj_prepareRT" nil #js ["number"]) @csound-instance)
             (vreset! wasm-initialized? true)
@@ -49,7 +48,7 @@
                              "\nnchnls=" nchnls
                              "\n0dbfs=" zerodbfs
                              "\nksmps=" ksmps))
-      (@start-audio-fn @csound-instance))
+      (@start-audio-fn @csound-instance false))
     (vreset! startup-fn #(start-realtime config))))
 
 (defn compile-orc [orc]
@@ -163,7 +162,7 @@
 (defn play-csd [csd]
   (if @wasm-loaded?
     (do (compile-csd csd)
-        (@start-audio-fn @csound-instance))
+        (@start-audio-fn @csound-instance true))
     (vswap! event-queue conj #(play-csd csd))))
 
 (defn set-table [table-num index val]

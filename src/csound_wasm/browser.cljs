@@ -1,6 +1,7 @@
 (ns csound-wasm.browser
   (:require [csound-wasm.public :as public]
-            ["libcsound_browser" :as Libcsound]))
+            ["libcsound_browser" :as Libcsound])
+  (:import [goog.exportSymbol]))
 
 (enable-console-print!)
 
@@ -38,7 +39,7 @@
              midi-success midi-fail)
       (.error js/console "Csound: Midi not supported in this browser"))))
 
-(def ^:export main 
+(def main 
   #js {:startRealtime     csound-wasm.public/start-realtime
        :compileOrc        csound-wasm.public/compile-orc
        ;; :renderToFile csound-wasm.public/render-to-file
@@ -65,7 +66,8 @@
        :enableMidi        enable-midi
        :pushMidi          csound-wasm.public/push-midi-message})
 
-(js/eval "var csound = window.csound_wasm.browser.main;")
+(goog.exportSymbol "csound" main)
+
 
 ;; (def wasm-buffer-offset (volatile! 0))
 

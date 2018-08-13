@@ -48,9 +48,7 @@
                                     :output-wrapper true
                                     :output-to      "release/browser/csound-wasm-browser.js"
                                     }
-                 :modules          {:main {:entries [csound-wasm.browser]
-                                           ;; :append  "\nvar csound = csound_wasm.browser.main;\n"
-                                           }}
+                 :modules          {:main {:entries [csound-wasm.browser]}}
                  :exports          {:csound csound-wasm.browser/main}
                  :build-hooks      [(csound-wasm.hooks/delete-browser-js)
                                     (csound-wasm.hooks/rename-release)]
