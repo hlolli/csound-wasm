@@ -1,89 +1,95 @@
 (ns csound-wasm.node
   (:require [csound-wasm.public :as public]
-            ["libcsound" :as libcsound]
+            ["libcsound" :default Libcsound]
             ["speaker" :as Speaker]
             ["web-audio-api" :as web-audio-api]
             ["midi" :as midi]
             ["fs" :as fs]
             ["path" :as path]
-            ["v8" :as v8]))
+            ;; ["v8" :as v8]
+            ))
 
 
-(def wasm-fs libcsound/FS)
+(def libcsound (public/activate-init-callback Libcsound))
 
-(def wasm-node-fs libcsound/NODEFS)
+(reset! public/libcsound libcsound)
+
+(def wasm-fs libcsound.FS)
+
+(def wasm-node-fs libcsound.NODEFS)
+
+;; (public/activate-init-callback libcsound.calledRun)
 
 
-(public/activate-init-callback libcsound/calledRun)
-
-
-(def wasm-buffer-offset (volatile! 0))
-
-(defn start-audio [csound-instance]
+(defn start-audio [csound-instance auto-reset?]
   ;; (.setFlagsFromString v8 "--no-use_strict") ;; To be able to load web-audio-api
-  (let [ksmps ((libcsound/cwrap "CsoundObj_getKsmps" #js ["number"] #js ["number"])
-               csound-instance)
-        input-count ((libcsound/cwrap "CsoundObj_getInputChannelCount" #js ["number"] #js ["number"])
-                     csound-instance)
-        output-count ((libcsound/cwrap "CsoundObj_getOutputChannelCount" #js ["number"] #js ["number"])
-                      csound-instance)
+  (let [ksmps                     ((libcsound.cwrap "CsoundObj_getKsmps" #js ["number"] #js ["number"])
+                                   csound-instance)
+        input-count               ((libcsound.cwrap "CsoundObj_getInputChannelCount" #js ["number"] #js ["number"])
+                                   csound-instance)
+        output-count              ((libcsound.cwrap "CsoundObj_getOutputChannelCount" #js ["number"] #js ["number"])
+                                   csound-instance)
         audio-context-constructor web-audio-api/AudioContext
-        audio-context (new audio-context-constructor)
-        audio-process-node (.createScriptProcessor
-                            audio-context
-                            1024 input-count output-count)
-        _ (do (set! (.-inputCount audio-process-node) input-count)
-              (set! (.-outputCount audio-process-node) output-count))
-        buffer-size (.-bufferSize audio-process-node)
-        output-pointer ((libcsound/cwrap "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
-                        csound-instance)
-        csound-output-buffer (new js/Float32Array (.-buffer (.-HEAP8 libcsound))
-                                  output-pointer (* ksmps output-count))
+        audio-context             (new audio-context-constructor)
+        audio-process-node        (.createScriptProcessor
+                                   audio-context
+                                   (* 4 ksmps) input-count output-count)
+        _                         (do (set! (.-inputCount audio-process-node) input-count)
+                                      (set! (.-outputCount audio-process-node) output-count))
+        buffer-size               (.-bufferSize audio-process-node)
+        output-pointer            ((libcsound.cwrap "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
+                                   csound-instance)
+        output-buffer             (new js/Float32Array (.-buffer (.-HEAP8 libcsound))
+                                       ^js output-pointer (* ksmps output-count))
         ;; TODO add microphone input buffer
-        zerodbfs ((libcsound/cwrap "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
-                  csound-instance)
-        range-output-cnt (range output-count)
-        process-buffers (fn [e sample-count src-offset dst-offset]
-                          (doseq [i range-output-cnt]
-                            (doseq [j (range sample-count)]
-                              (aset (.getChannelData (.-outputBuffer e) i)
-                                    (+ j dst-offset)
-                                    (/ (aget csound-output-buffer
-                                             (+ i (* output-count
-                                                     (+ j src-offset))))
-                                       zerodbfs)))))
-        perform-ksmps-fn (fn []
-                           ((libcsound/cwrap "CsoundObj_performKsmps" #js ["number"] #js ["number"])
-                            csound-instance))]
-    (vreset! wasm-buffer-offset ksmps)
+        zerodbfs                  ((libcsound.cwrap "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
+                                   csound-instance)
+        range-output-cnt          (range output-count)
+        perform-ksmps-fn          (fn []
+                                    ((libcsound.cwrap "CsoundObj_performKsmps" #js ["number"] #js ["number"])
+                                     csound-instance))]
     (set! (.-outStream audio-context)
-          (new Speaker #js {:channels (.-numberOfChannels
-                                       (.-format audio-context))
-                            :bitDepth (.-bitDepth
-                                       (.-format audio-context))
+          (new Speaker #js {:channels   (.-numberOfChannels
+                                         (.-format audio-context))
+                            :bitDepth   (.-bitDepth
+                                         (.-format audio-context))
                             :sampleRate (.-sampleRate audio-context)}))
     (set! (.-onaudioprocess audio-process-node)
           (fn [e]
-            (loop [sample-count (- ksmps @wasm-buffer-offset)
-                   index (if (< 0 sample-count)
-                           (do (process-buffers e sample-count @wasm-buffer-offset 0) sample-count)
-                           0)]
-              (if-not (< index buffer-size)
-                (vreset! wasm-buffer-offset (+ @wasm-buffer-offset sample-count))
-                (let [sample-count (min ksmps (- buffer-size index))]
-                  (if (not= 0 (perform-ksmps-fn))
-                    (do (.disconnect audio-process-node)
-                        (set! (.-onaudioprocess audio-process-node) nil))
-                    (do (when (js/isNaN (aget csound-output-buffer 0))
-                          (.error js/console (str "NaN! outputPointer = " output-pointer)))
-                        (process-buffers e sample-count 0 index)
-                        (recur sample-count
-                               (+ index sample-count)))))))))
-    (.connect audio-process-node (.-destination audio-context))
+            (let [output (.-outputBuffer e)]
+              (loop [res (perform-ksmps-fn)
+                     i   0
+                     cnt 0
+                     len buffer-size]
+                (when (< i len)
+                  (if (and (< cnt len) (not (js/isNaN (aget output-buffer (* cnt output-count)))) #_(aget output-buffer (* cnt output-count)))
+                    (if (not= 0 res)
+                      (do (.disconnect audio-process-node)
+                          (set! (.-onaudioprocess audio-process-node) nil)
+                          (when auto-reset? (public/reset)))
+                      (do (run! #(aset (.getChannelData output %)
+                                       i
+                                       (/ (aget output-buffer (+ % (* cnt output-count))) zerodbfs))
+                                range-output-cnt)
+                          ;; (console.log (aget output-buffer (* cnt output-count)))
+                          (recur res (inc i) (inc cnt) len)))
+                    (let [res (perform-ksmps-fn)]
+                      ;; (prn "RES" res)
+                      (recur res
+                             i
+                             0
+                             len))))))))
+    (js/setTimeout #(.connect audio-process-node (.-destination audio-context)) 50)
     nil))
 
-
 (vreset! public/start-audio-fn start-audio)
+
+#_(defn get-files [path]
+    (((.cwrap libcsound "FileList_getFileNameString" #js ["string"] #js ["string" "number"])
+      @public/csound-instance) path))
+
+;; var _getFileCount = cwrap('FileList_getFileCount', ['number'], ['string']);
+;; var _getFileNameString = cwrap('FileList_getFileNameString', ['string'], ['string', 'number']);
 
 (defn render-to-file [csd file-name]
   (let [file-name (or file-name "test.wav")]
@@ -92,6 +98,10 @@
         (public/compile-csd csd)
         ((.cwrap libcsound "CsoundObj_render" nil #js ["number"])
          @public/csound-instance)
+        ;; (prn  "wasm-fs" wasm-fs)
+        ;; (prn (js/Object.keys wasm-fs))
+        ;; (prn (.readdir wasm-fs "/" (fn [err items] (prn items))))
+        ;; (prn (get-files "/"))
         (let [file-data (.readFile wasm-fs "test.wav" #js {:encoding "binary"})]
           (fs/writeFileSync file-name file-data)
           (println (str "Render finished, file " (path/resolve file-name) " was written."))
@@ -117,3 +127,12 @@
       (.openPort midi-input 1)
       (public/set-midi-callbacks))))
 
+(comment
+  (public/start-realtime)
+  (public/compile-orc
+   "instr 1
+  asig = poscil:a(0.3, 440)
+  outc asig, asig
+endin")
+  (public/read-score "i 1 0 1")
+  )

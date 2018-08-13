@@ -1,6 +1,6 @@
 {
   "name": "csound-wasm",
-  "version": "6.10.0-6",
+  "version": "6.11.0-0",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "GPL-3.0",
   "keywords": [
@@ -11,22 +11,27 @@
     "audio",
     "webaudio"
   ],
-  "main": "node/index.js",
-  "browser": "browser/main.js",
+  "main": "release/node/index.js",
+  "browser": "release/browser/csound-wasm-browser.js",
   "build": {
     "appId": "csound-wasm"
   },
+  "scripts": {
+    "watch": "node libcsound/datauri.js && npx shadow-cljs watch browser node",
+    "release": "node libcsound/datauri.js && npx shadow-cljs release browser node"
+  },
   "dependencies": {
     "bufferutil": "^3.0.3",
-    "libcsound": "^6.10.0-3",
     "midi": "^0.9.5",
-    "speaker": "^0.3.0",
+    "speaker": "^0.4.1",
     "utf-8-validate": "^4.0.0",
     "web-audio-api": "^0.2.2"
   },
   "devDependencies": {
-    "replace-in-file": "^3.1.1",
-    "shadow-cljs": "^2.2.3",
-    "replace-in-file": "^3.1.1"
+    "datauri": "^1.1.0",
+    "replace-in-file": "^3.4.0",
+    "shadow-cljs": "^2.5.0",
+    "source-map-support": "^0.5.3",
+    "ws": "^5.0.0"
   }
 }
