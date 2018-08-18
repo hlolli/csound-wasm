@@ -10,4 +10,5 @@ release/browser/manifest.edn
 yarn.lock
 release/browser/main.js
 release/browser/manifest.edn
+release/browser/processor.js.map
 libcsound/libcsound_browser.js

@@ -18,8 +18,7 @@
 
 (def wasm-node-fs libcsound.NODEFS)
 
-;; (public/activate-init-callback libcsound.calledRun)
-
+(def csound-started? (volatile! false))
 
 (defn start-audio [csound-instance auto-reset?]
   ;; (.setFlagsFromString v8 "--no-use_strict") ;; To be able to load web-audio-api
@@ -46,8 +45,12 @@
                                    csound-instance)
         range-output-cnt          (range output-count)
         perform-ksmps-fn          (fn []
-                                    ((libcsound.cwrap "CsoundObj_performKsmps" #js ["number"] #js ["number"])
-                                     csound-instance))]
+                                    (let [res ((libcsound.cwrap
+                                                "CsoundObj_performKsmps" #js ["number"] #js ["number"])
+                                               csound-instance)]
+                                      (when (zero? res)
+                                        (public/perform-ksmps-event))
+                                      res)) ]
     (set! (.-outStream audio-context)
           (new Speaker #js {:channels   (.-numberOfChannels
                                          (.-format audio-context))
@@ -61,8 +64,13 @@
                      i   0
                      cnt 0
                      len buffer-size]
+                (when (not @csound-started?)
+                  (.dispatchEvent
+                   js/window
+                   (new js/Event "csoundStarted"))
+                  (vreset! csound-started? true))
                 (when (< i len)
-                  (if (and (< cnt len) (not (js/isNaN (aget output-buffer (* cnt output-count)))) #_(aget output-buffer (* cnt output-count)))
+                  (if (and (< cnt len) (not (js/isNaN (aget output-buffer (* cnt output-count)))))
                     (if (not= 0 res)
                       (do (.disconnect audio-process-node)
                           (set! (.-onaudioprocess audio-process-node) nil)
@@ -71,10 +79,8 @@
                                        i
                                        (/ (aget output-buffer (+ % (* cnt output-count))) zerodbfs))
                                 range-output-cnt)
-                          ;; (console.log (aget output-buffer (* cnt output-count)))
                           (recur res (inc i) (inc cnt) len)))
                     (let [res (perform-ksmps-fn)]
-                      ;; (prn "RES" res)
                       (recur res
                              i
                              0

@@ -1,6 +1,7 @@
 {:dependencies [[org.clojure/core.specs.alpha "0.2.36"]
                 [org.clojure/tools.nrepl "0.2.12"]
                 [cider/cider-nrepl "0.18.0"]]
+ 
  :source-paths ["src"]
  :builds       {:node
                 {:target           :node-library
@@ -36,6 +37,7 @@
                   :get0dbfs          csound-wasm.public/get-0dbfs
                   :enableMidi        csound-wasm.node/enable-midi
                   :pushMidi          csound-wasm.public/push-midi-message}}
+
                 :browser
                 {:target           :browser
                  :output-dir       "release/browser"
@@ -55,4 +57,26 @@
                  :devtools         {:http-root          "release/browser"
                                     :http-resource-root "release/browser"
                                     :http-port          8600
-                                    :http-host          "localhost"}}}}
+                                    :http-host          "localhost"
+                                    ;; :after-load         csound-wasm.browser/start-audio
+                                    }}
+                
+                :processor
+                {:target           :browser
+                 :output-dir       "release/browser"
+                 :asset-path       "./"
+                 :js-options       {:resolve {"libcsound_browser"
+                                              {:target :file
+                                               :file   "libcsound/libcsound_browser_worklet.js"}}}
+                 :compiler-options {
+                                    :optimizations  :simple
+                                    :elide-strict   false
+                                    :output-wrapper true
+                                    :source-map     true
+                                    ;; :language-in    :es6-strict
+                                    :language-out   :es6-strict
+                                    :output-to      "release/browser/csound-wasm-worklet-processor.js"
+                                    }
+                 :modules          {:processor {:entries [csound-wasm.worklet-processor]}}
+                 :build-hooks      [(csound-wasm.hooks/delete-browser-worklet-js)
+                                    (csound-wasm.hooks/rename-processor-release)]}}}

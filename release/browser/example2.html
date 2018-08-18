@@ -26,6 +26,8 @@
                 ifn  = 1
                 
                 knh	line p4, p3, p5
+                kArr[] fillarray 1, 2, 3, 4, 5, 666
+                chnset kArr, "someData"
                 asig	buzz 0.1, kcps, knh, ifn
                     outs asig, asig
                 endin
@@ -46,8 +48,13 @@
     `
     document.getElementById('start').onclick = ()=> {
         csound.playCSD(csdText);
-
+        
     };
+
+    csound.on('performKsmps', () => {console.log(csound.getControlChannel('someData'))});
+    csound.on('started', (e) => console.log(csound.getTable(1)));
+    
+    csound.on('log', (log) => {console.log('yet even better way of logging', log)});
   </script>
 </body>
 </html>

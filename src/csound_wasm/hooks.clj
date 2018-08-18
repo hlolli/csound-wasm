@@ -5,7 +5,6 @@
   (:import [java.nio.file Files Paths StandardCopyOption]
            [java.net URI]))
 
-
 #_(defn wasm2datauri
     {:shadow.build/stage :compile-finish}
     [build-state & args]
@@ -18,7 +17,17 @@
 (defn delete-browser-js
   {:shadow.build/stage :flush}
   [build-state & args]
-  (Files/deleteIfExists (Paths/get "." (into-array ["libcsound" "libcsound_browser.js"])))
+  (when (= :release (:shadow.build/mode build-state))
+    (Files/deleteIfExists
+     (Paths/get "." (into-array ["libcsound" "libcsound_browser.js"]))))
+  build-state)
+
+(defn delete-browser-worklet-js
+  {:shadow.build/stage :flush}
+  [build-state & args]
+  (when (= :release (:shadow.build/mode build-state))
+    (Files/deleteIfExists
+     (Paths/get "." (into-array ["libcsound" "libcsound_browser_worklet.js"]))))
   build-state)
 
 (defn rename-release
@@ -29,3 +38,11 @@
     (Files/move src dest (into-array [StandardCopyOption/REPLACE_EXISTING])))
   build-state)
 
+(defn rename-processor-release
+  {:shadow.build/stage :flush}
+  [build-state & args]
+  (let [slur (slurp "release/browser/processor.js")
+        new  (string/replace slur "goog.global=this" "goog.global={}")]
+    (spit "release/browser/csound-wasm-worklet-processor.js" new)
+    (Files/deleteIfExists (Paths/get "." (into-array ["release" "browser" "processor.js"]))))
+  build-state)
