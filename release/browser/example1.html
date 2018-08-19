@@ -6,21 +6,9 @@
   </head>
   <body>
     <h1>csound-wasm dev: midi test</h1>
-    <script src="main.js"></script>
+    <script src="./csound-wasm-browser.js"></script>
   <script>
-    var csound = csound_wasm.browser.main;
     const beeper = `
-    <CsoundSynthesizer>
-      <CsOptions>
-        -+rtmidi=null -M0
-      </CsOptions>
-      <CsInstruments>
-        ;Example by Andrés Cabrera
-
-        sr = 44100
-        ksmps = 32
-        nchnls = 2
-        0dbfs = 1
 
         massign   0, 1 ;assign all MIDI channels to instrument 1
         
@@ -31,6 +19,7 @@
         endop
         
         instr 1
+        prints "MIDI EVT?"
         iCps    cpsmidi   ;get the frequency from the key pressed
         iAmp    ampmidi   0dbfs * 0.3 ;get the amplitude
         aOut    poscil    iAmp, iCps ;generate a sine tone
@@ -38,24 +27,14 @@
         aOut *= kenv
         outs      aOut, aOut ;write it to the output
         endin
-
-        instr 1
-         aOut vco2 0.3, p4
-         out aOut
-        endin
-
-      </CsInstruments>
-      <CsScore>
-      </CsScore>
-    </CsoundSynthesizer>
     `
 
-    const instanciateBeeper = `i 1 0 3600`
-    const singleBeep = `i 2 0 10 200`;
+    // const instanciateBeeper = `i 1 0 3600`
+    // const singleBeep = `i 2 0 10 200`;
     csound.startRealtime();
-    // csound.enableMidi();
-    csound.compileCsd(beeper);
-    csound.readScore(instanciateBeeper);
+    csound.compileOrc(beeper);
+    csound.enableMidi();
+    // csound.readScore(instanciateBeeper);
   </script>
 </body>
 </html>

@@ -6,7 +6,7 @@
   <body>
     <h5>Click Start realtime once, gotta love chrome's new autoplay ban policy</h5>
     <button id="start">Start realtime</button>
-    <button onclick="csound.inputMessage('i 1 0 1')">Make beep!</button>
+    <!-- <button onclick="csound.inputMessage('i 1 0 1')">Make beep!</button> -->
     <script src="./csound-wasm-browser.js"></script>
   <script>
     const csdText = `
@@ -26,8 +26,8 @@
                 ifn  = 1
                 
                 knh	line p4, p3, p5
-                kArr[] fillarray 1, 2, 3, 4, 5, 666
-                chnset kArr, "someData"
+                kVal = 666
+                chnset kVal, "someData"
                 asig	buzz 0.1, kcps, knh, ifn
                     outs asig, asig
                 endin
@@ -47,14 +47,13 @@
                 </CsoundSynthesizer>
     `
     document.getElementById('start').onclick = ()=> {
-        csound.playCsd(csdText);
-        
+        csound.playCSD(csdText);
     };
 
-    csound.on('performKsmps', () => {console.log(csound.getControlChannel('someData'))});
-    csound.on('started', (e) => console.log(csound.getTable(1)));
-    
-    csound.on('log', (log) => {console.log('yet even better way of logging', log)});
+    csound.on('perform', () => {
+        csound.getControlChannel('someData').then(data => console.log(data));
+    });
+    csound.on('started', () => csound.getTable(1).then((t) => console.log(t)));
   </script>
 </body>
 </html>

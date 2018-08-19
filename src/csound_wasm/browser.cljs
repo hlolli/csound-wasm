@@ -65,7 +65,6 @@
                              0
                              len))))))))
     (.connect audio-process-node (.-destination audio-context))
-    (prn "CONNECTED!")
     nil))
 
 

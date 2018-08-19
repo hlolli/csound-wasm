@@ -5,10 +5,17 @@
             [csound-wasm.browser-shared :as shared]
             ["libcsound_browser" :as Libcsound]))
 
+(declare AudioWorkletProcessor)
 
-(def csound-started? (volatile! false))
+(def csound-started? (atom false))
+
+(def performance-running? (atom false))
 
 (def worklet-audio-fn (atom (fn [& r] true)))
+
+(defn resume-perf []
+  (when-not @csound-started?
+    (reset! csound-started? true)))
 
 (defn initialize-audio-fn [csound-instance]
   (when-not @csound-started?
@@ -29,12 +36,14 @@
                             csound-instance)
           ;; range-output-cnt (range output-count)
           perform-ksmps-fn (fn []
-                             (let [res ((libcsound.cwrap
-                                         "CsoundObj_performKsmps" #js ["number"] #js ["number"])
-                                        csound-instance)]
-                               (when (zero? res)
-                                 (public/perform-ksmps-event))
-                               res))]
+                             (if-not @csound-started?
+                               0
+                               (let [res ((libcsound.cwrap
+                                           "CsoundObj_performKsmps" #js ["number"] #js ["number"])
+                                          csound-instance)]
+                                 (when (zero? res)
+                                   (public/perform-ksmps-event))
+                                 res)))]
       (reset! worklet-audio-fn
               (fn [inputs outputs parameters]
                 (let [output (aget outputs 0)
@@ -42,25 +51,34 @@
                   (loop [res (perform-ksmps-fn)
                          i   0
                          cnt 0]
-                    (when (not @csound-started?)
-                      (public/dispatch-event "csoundStarted")
-                      (vreset! csound-started? true))
-                    (when (< i len)
-                      (if (< cnt frame-len)
-                        (if (not= 0 res)
-                          (do
-                            (public/reset)
-                            (vreset! csound-started? false))
-                          (do
+                    (cond (and @csound-started?
+                               (not @performance-running?))
+                          (do (public/dispatch-event "csoundStarted")
+                              (reset! performance-running? true)
+                              (prn "CSOUND STARTED DISPATCHED")
+                              (recur res i cnt))
+                          (not @performance-running?)
+                          (dotimes [k len]
                             (dotimes [chn (.-length output)]
-                              (aset (aget output chn)
-                                    i
-                                    (/ (aget output-buffer (+ chn (* cnt (.-length output)))) zerodbfs)))
-                            (recur res (inc i) (inc cnt))))
-                        (let [res (perform-ksmps-fn)]
-                          (recur res
-                                 i
-                                 0)))))
+                              (aset (aget output chn) k 0)))
+                          (not= 0 res)
+                          (do (reset! csound-started? false)
+                              (reset! performance-running? false)
+                              (public/reset)
+                              (recur res i cnt))
+                          :else
+                          (when (< i len)
+                            (if (< cnt frame-len)
+                              (do
+                                (dotimes [chn (.-length output)]
+                                  (aset (aget output chn)
+                                        i
+                                        (/ (aget output-buffer (+ chn (* cnt (.-length output)))) zerodbfs)))
+                                (recur res (inc i) (inc cnt)))
+                              (let [res (perform-ksmps-fn)]
+                                (recur res
+                                       i
+                                       0))))))
                   true))))))
 
 (vreset! public/start-audio-fn
@@ -76,7 +94,9 @@
              "instanciateLibcsound"
              (fn []
                (reset! public/libcsound
-                       (public/instanciate-libcsound Libcsound))))))
+                       (public/instanciate-libcsound Libcsound)))
+             "resumePerformance"
+             resume-perf)))
 
 (def public-functions-keys
   (into #{} (keys public-functions)))
@@ -111,7 +131,7 @@
                       AudioWorkletProcessor)]
         (set! (.. instance -port -onmessage) processor-event-handler)
         (reset! public/audio-worklet-processor
-                {:post (fn [msg] (.postMessage (.. instance -port) msg))})
+                {:post (fn [msg & r] (.postMessage ^js (.. instance -port) msg))})
         (.postMessage (.. instance -port) #js ["workletProcessorReady"])
         instance))))
 

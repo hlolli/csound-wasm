@@ -145,3 +145,4 @@ Where `EVENT` can be of following
 # Known errors
 
 - In google chrome 68, AudioWorklet impl works fine, but when it falls backs to older webaudio the page can freeze. This isnt't the case in google chrome 66.
+- In general Firefox v61+ seems to be the most stable browser with WASM and AudioWorklets (as this is written).

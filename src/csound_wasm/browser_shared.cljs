@@ -15,26 +15,29 @@
       (set! libcsound.noExitRuntime true)))
 
 (defn enable-midi []
-  (if-let [awn @public/audio-worklet-node]
-    ((:post awn) #js ["enableMidi"])
-    (letfn [(handle-midi-input [event]
-              (csound-wasm.public/push-midi-message
-               (aget (.-data event) 0)
-               (aget (.-data event) 1)
-               (aget (.-data event) 2)))
-            (midi-success [midi-interface]
-              (let [inputs (.values (.-inputs midi-interface))]
-                (loop [input (.next inputs)]
-                  (when-not (.-done input)
-                    (set! (.-onmidimessage (.-value input)) handle-midi-input)
-                    (recur (.next inputs)))))
-              (public/set-midi-callbacks))
-            (midi-fail [error]
-              (.error js/console "Csound midi failed to start: %s" error))]
-      (if (exists? js/navigator.requestMIDIAccess)
-        (.then (.requestMIDIAccess js/navigator)
-               midi-success midi-fail)
-        (.error js/console "Csound: Midi not supported in this browser")))))
+  ;; if-let [awn @public/audio-worklet-node]
+  ;; ((:post awn) #js ["enableMidi"])
+  
+  (letfn [(handle-midi-input [event]
+            (csound-wasm.public/push-midi-message
+             (aget (.-data event) 0)
+             (aget (.-data event) 1)
+             (aget (.-data event) 2)))
+          (midi-success [midi-interface]
+            (let [inputs (.values (.-inputs midi-interface))]
+              (loop [input (.next inputs)]
+                (when-not (.-done input)
+                  (set! (.-onmidimessage (.-value input)) handle-midi-input)
+                  (recur (.next inputs)))))
+            (public/set-midi-callbacks))
+          (midi-fail [error]
+            (.error js/console "Csound midi failed to start: %s" error))]
+    (if (exists? js/navigator.requestMIDIAccess)
+      (-> (.requestMIDIAccess js/navigator)
+          (.then midi-success midi-fail)
+          (.catch (fn [err]
+                    (.error js/console "Csound: Midi failed. Reason: " err))))
+      (.error js/console "MIDI ERROR: Your browser doesn't support WebAudio's Midi"))))
 
 (def main 
   #js {:startRealtime     csound-wasm.public/start-realtime

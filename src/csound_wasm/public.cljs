@@ -141,7 +141,7 @@
 
 (defn get-control-channel [ctrl-channel]
   (when @audio-worklet-node
-    (wrap-ipc-promise ["getControlChannel" ctrl-channel]))
+    (wrap-ipc-promise #js ["getControlChannel" ctrl-channel]))
   (let [callback (fn []
                    (((.-cwrap @libcsound)
                      "CsoundObj_getControlChannel"
@@ -189,6 +189,13 @@
        @csound-instance)
       0))
 
+(defn- resume-performance
+  "Private-fn that ensures performKspms is
+   running in case a previous score ended."
+  []
+  (when-let [awn @audio-worklet-node]
+    ((:post awn) #js ["resumePerformance"])))
+
 (defn reset []
   (when-let [awn @audio-worklet-node]
     ((:post awn) #js ["reset"]))
@@ -205,6 +212,7 @@
      @csound-instance)
     (vswap! event-queue conj #(destroy))))
 
+
 (defn compile-csd [csd]
   (when-let [awn @audio-worklet-node]
     ((:post awn) #js ["compileCSD" csd]))
@@ -216,11 +224,13 @@
 
 (defn play-csd [csd & [config]]
   (when-let [awn @audio-worklet-node]
-    ((:post awn) #js ["playCSD" csd]))
+    ((:post awn) #js ["playCSD" csd])
+    (resume-performance))
   (if @wasm-loaded?
     (let [{:keys [nchnls zerodbfs sr ksmps buffer]
            :or   {nchnls 2 zerodbfs 1 sr 44100 ksmps 128 buffer 2048}}
-          (js->clj (or config #js {}) :keywordize-keys true)]
+          (merge (js->clj (or config #js {}) :keywordize-keys true)
+                 @audio-config)]
       (set-option (str "-b" (* buffer 0.5)))
       (set-option (str "-B" buffer))
       (compile-csd csd)
@@ -293,6 +303,7 @@
     (vswap! event-queue conj #(set-midi-callbacks))))
 
 (defn push-midi-message [byte1 byte2 byte3]
+  (prn "PUSHING MIDI MESSAGE")
   (when-let [awn @audio-worklet-node]
     ((:post awn) #js ["pushMidiMessage" byte1 byte2 byte3]))
   (if @wasm-loaded?
@@ -337,9 +348,11 @@
 
 (defn start-realtime [& [config]]
   (let [config (merge @audio-config
-                      (js->clj
-                       (or config #js {})
-                       :keywordize-keys true))
+                      (if (map? config)
+                        config
+                        (js->clj
+                         (or config #js {})
+                         :keywordize-keys true)))
         {:keys [nchnls zerodbfs sr ksmps buffer]}
         config]
     (if @wasm-initialized?
@@ -357,7 +370,7 @@
         (reset! audio-config config)
         (when awn
           ((:post awn) #js ["setStartupFn" "startRealtime" config]))
-        (vreset! startup-fn #(start-realtime config))))))
+        (vreset! startup-fn #(apply start-realtime [config]))))))
 
 (defn run-event-queue []
   (vreset! wasm-loaded? true)
