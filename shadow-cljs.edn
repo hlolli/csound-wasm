@@ -17,13 +17,13 @@
                   :renderToFile      csound-wasm.node/render-to-file
                   :evalCode          csound-wasm.public/eval-code
                   :inputMessage      csound-wasm.public/input-message
-                  :inputMessageAsync csound-wasm.public/input-message-async
+                  ;; :inputMessageAsync csound-wasm.public/input-message-async
                   :readScore         csound-wasm.public/read-score
                   :getControlChannel csound-wasm.public/get-control-channel
                   :setControlChannel csound-wasm.public/set-control-channel
                   :setStringChannel  csound-wasm.public/set-string-channel
                   :getScoreTime      csound-wasm.public/get-score-time
-                  :getScoreTimeSync  csound-wasm.public/get-score-time-sync
+                  ;; :getScoreTimeSync  csound-wasm.public/get-score-time-sync
                   :playCSD           csound-wasm.public/play-csd
                   :reset             csound-wasm.public/reset
                   ;; :stop csound-wasm.public/stop
@@ -67,7 +67,7 @@
                  :asset-path       "./"
                  :js-options       {:resolve {"libcsound_browser"
                                               {:target :file
-                                               :file   "libcsound/libcsound_browser_worklet.js"}}}
+                                               :file   "libcsound/libcsound_browser.js"}}}
                  :compiler-options {
                                     :optimizations  :simple
                                     :elide-strict   false

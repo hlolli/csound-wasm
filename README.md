@@ -6,6 +6,7 @@ Simplified API for Csound's Webassembly.
 * Easy integration to node.js
 
 # Useage
+
 ## Node.js
 ##### Install
 ```js
@@ -41,6 +42,12 @@ Or alternatively (preferably for development) refer directly to the gihub releas
 <script src="https://github.com/hlolli/csound-wasm/releases/download/6.10.0-4/csound-wasm-browser.js"></script>
 ```
 This file is minified via Google Closure Compiler and is intended to be used as is. If you're useing Webpack or Gulp, then add this file as a vendor resource.
+
+Alternatively for browsers, require the file directly into your project
+```js
+require('csound-wasm/release/browser/csound-wasm-browser.js');
+```
+
 ##### Quick start
 ```html
 <!DOCTYPE html>
@@ -70,34 +77,71 @@ This file is minified via Google Closure Compiler and is intended to be used as 
 
 ```
 
+## AudioWorklet
+
+Audioworklet is new browser technology enableing higher quality lower latency audio. It is enabled by default if it was detected in your browser. *NOTICE* that AudioWorklet always needs to fetch a processor script, that lives in a secure environment and can only be fetched from servers useing `https`. If the fetch of the AudioWorklet processor script fails, then `csound-wasm` will fallback to the older WebAudio technology. Read the console logs to see if your csound instance is running on AudioWorklet or the old WebAudio (AudioContext).
+
 # API
 Many these functions are a direct implementation of the [Csound API](http://csound.com/docs/api/index.html). Some are `csound-wasm` specific.
 
+
+## Voids (without return values)
+
 | Public Function |  Parameters  |Description |
 | ----------------|-------------| -----------|
-| csound.startRealtime(config*)| config::Object default: {nchnls: 2, zerodbfs: 1, sr: 44100, ksmps: 256}  | starts/initializes realtime as oppsed to rendering to file|
+| csound.startRealtime(config*)| config::Object default: { nchnls: 2, zerodbfs: 1, sr: 44100, ksmps: 256, buffer: 2048 }  | starts/initializes realtime as oppsed to rendering to file|
 |csound.compileOrc(orc)| orc::String | Compiles any orchestra code at k-rate without return value.|
 |csound.renderToFile(csd, file) | csd::String, file::String| Renders CSD string, filepath for the file output, currently only supported on node|
 |csound.evalCode(orc)|orc::String| like compileOrc but returns status number on i-rate (0 if successful)|
 |csound.inputMessage(sco)|sco::String | sends (score) event(s) without pre-processing, use \n to seperate multiscore statements|
 |csound.readScore(sco)| sco::String |like inputMessage but tries to pre-process the before emitting the event|
-|csound.getControlChannel
 |csound.setControlChannel
 |csound.setStringChannel
-|csound.getScoreTime 
-|csound.playCSD            
-|csound.reset                 
-|csound.destroy             
-|csound.setOption        
-|csound.compileCSD      
-|csound.setTable          
-|csound.getTable          
-|csound.getTableLength
-|csound.getKsmps          
-|csound.get0dbfs          
-|csound.enableMidi        
+|csound.playCSD
+|csound.reset
+|csound.destroy
+|csound.setOption
+|csound.compileCSD
+|csound.setTable
+|csound.enableMidi
 |csound.pushMidi
 |csound.compileOrc
 |csound.evalCode
 |csound.inputMessage
 |csound.readScore
+
+## Functions that return javascript promises
+
+| Public Function |  Parameters  |Description |
+| ----------------|-------------| -----------|
+|csound.getControlChannel
+|csound.getTable
+|csound.getTableLength
+|csound.getKsmps
+|csound.get0dbfs
+|csound.getScoreTime
+
+All data is passed to resolve, ie. you need to chain
+`.then((returnValue) => ..callback..)`
+
+## Events
+
+Subscribe to events with
+
+```
+csound.on( EVENT, callback);
+```
+
+Where `EVENT` can be of following
+
+| Event Name  |  callback parameter |
+| ------------|---------------------|
+| "log" | (msg) => |
+| "ready" | () => |
+| "started" | () => |
+| "perform" / "performKsmps" | () => |
+
+
+# Known errors
+
+- In google chrome 68, AudioWorklet impl works fine, but when it falls backs to older webaudio the page can freeze. This isnt't the case in google chrome 66.

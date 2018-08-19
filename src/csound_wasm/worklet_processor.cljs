@@ -34,7 +34,6 @@
                                         csound-instance)]
                                (when (zero? res)
                                  (public/perform-ksmps-event))
-                               (when (zero? res))
                                res))]
       (reset! worklet-audio-fn
               (fn [inputs outputs parameters]
@@ -53,7 +52,7 @@
                             (public/reset)
                             (vreset! csound-started? false))
                           (do
-                            (doseq [chn (range (.-length output))]
+                            (dotimes [chn (.-length output)]
                               (aset (aget output chn)
                                     i
                                     (/ (aget output-buffer (+ chn (* cnt (.-length output)))) zerodbfs)))
@@ -75,24 +74,33 @@
   (-> (stringify-keys (js->clj shared/main))
       (assoc "csoundNew" public/csound-new-object
              "instanciateLibcsound"
-             #(reset!
-               public/libcsound
-               (public/instanciate-libcsound Libcsound)))))
+             (fn []
+               (reset! public/libcsound
+                       (public/instanciate-libcsound Libcsound))))))
 
 (def public-functions-keys
   (into #{} (keys public-functions)))
 
+(defn handle-promise [data]
+  (let [promise-id (second data)
+        params     (.slice data 3)
+        return-val (apply (get public-functions (aget data 2)) params)]
+    ((:post @public/audio-worklet-processor)
+     #js ["promise" promise-id return-val])))
+
 (defn processor-event-handler [event]
   (let [data (.-data event)
         key  (aget data 0)]
-    (if (public-functions-keys key)
+    (case key
+      "promise"
+      (handle-promise data)
+      "setStartupFn"
+      (vreset! public/startup-fn
+               (case (aget data 1)
+                 "startRealtime" #(public/start-realtime (aget data 2))))
       (apply (get public-functions key) (rest data))
-      (case key
-        "setStartupFn"
-        (vreset! public/startup-fn
-                 (case (aget data 1)
-                   "startRealtime" #(public/start-realtime (aget data 2))))
-        (.error js/console "Error unhandled key in processor: " key)))))
+      ;;(.error js/console "Error unhandled key in processor: " key)
+      )))
 
 (defn AudioWorkletProcessor []
   (cljs.core/this-as this
@@ -116,4 +124,3 @@
   (set! (.. AudioWorkletProcessor -prototype -process) process))
 
 (js/registerProcessor "csound-processor" AudioWorkletProcessor)
-

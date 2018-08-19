@@ -38,7 +38,7 @@
         buffer-size               (.-bufferSize audio-process-node)
         output-pointer            ((libcsound.cwrap "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
                                    csound-instance)
-        output-buffer             (new js/Float32Array (.-buffer (.-HEAP8 libcsound))
+        output-buffer             (new js/Float64Array (.-buffer (.-HEAP8 libcsound))
                                        ^js output-pointer (* ksmps output-count))
         ;; TODO add microphone input buffer
         zerodbfs                  ((libcsound.cwrap "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
@@ -65,9 +65,7 @@
                      cnt 0
                      len buffer-size]
                 (when (not @csound-started?)
-                  (.dispatchEvent
-                   js/window
-                   (new js/Event "csoundStarted"))
+                  (public/dispatch-event "csoundStarted")
                   (vreset! csound-started? true))
                 (when (< i len)
                   (if (and (< cnt len) (not (js/isNaN (aget output-buffer (* cnt output-count)))))
@@ -85,7 +83,7 @@
                              i
                              0
                              len))))))))
-    (js/setTimeout #(.connect audio-process-node (.-destination audio-context)) 50)
+    (.connect audio-process-node (.-destination audio-context))
     nil))
 
 (vreset! public/start-audio-fn start-audio)

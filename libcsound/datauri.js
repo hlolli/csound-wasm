@@ -4,7 +4,7 @@ const DataURI = require('datauri').promise;
 const fs = require('fs');
 const replace = require('replace-in-file');
 
-DataURI('libcsound.wasm')
+DataURI('release/node/libcsound.wasm')
     .then(content =>
           {
               // Old WebAudio
@@ -93,8 +93,8 @@ function getBinary() {
 `)
 
               try {
-                  fs.writeFileSync('libcsound/libcsound_browser.js', replc1);
-                  fs.writeFileSync('libcsound/libcsound_browser_worklet.js', replc2);
+                  fs.writeFileSync('libcsound/libcsound_browser.js', replc2);
+                  // fs.writeFileSync('libcsound/libcsound_browser_worklet.js', replc2);
               }
               catch (error) {
                   console.error('Error occurred:', error);

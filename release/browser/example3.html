@@ -55,15 +55,22 @@ schedule(1,0,4,200)
     editor.setTheme("ace/theme/monokai");
     editor.getSession().setMode("ace/mode/csound_orchestra");
     csound.startRealtime();
-  
+    // csound.compileOrc(editor.getValue());
+    // csound.on('log', (msg) => console.log('log', msg));
       var table = [];
       var table_len;
       var frames = [{name: 'waveform', data: [{x: [], y: []}]}]
       var trace1 = {x: frames[0].data[0].x, y: frames[0].data[0].y, mode: 'lines+text'};
 
       var kIndex = 0;
+  
+  csound.on('started', () => {
+      console.log('Csound Started Event received');
+     // csound.getTableLength(1).then(len => console.log('len', len));
+  });
 
-  window.addEventListener('performKsmps', (e) => {
+  
+  window.addEventListener('performKsmpss', (e) => {
       // console.log('perform!');
         kIndex++;           
         //grab table contents on last k-cycle
@@ -100,9 +107,10 @@ schedule(1,0,4,200)
       Plotly.newPlot('tester', data, layout);
 
 
-        document.getElementById('start').onclick = ()=>{
-            
-          csound.compileOrc(editor.getValue());
+        document.getElementById('start').onclick = ()=>{            
+            csound.compileOrc(editor.getValue());
+            csound.getTableLength(1).then(len => console.log('len', len));
+            csound.getTable(1).then(table => console.log('table', table));
       };
     </script>
 </body>
