@@ -3,6 +3,7 @@
             [csound-wasm.browser-shared :as shared]
             ["libcsound_browser" :as Libcsound]))
 
+(declare audio-context)
 
 (def csound-started? (volatile! false))
 
@@ -70,7 +71,7 @@
 
 (if (exists? js/AudioWorklet)
   (do
-    (def context (new js/AudioContext #js {:latencyHint "playback"}))
+    (def audio-context (new js/AudioContext #js {:latencyHint "playback"}))
     (defn component [ ctx ]
       (this-as that
         (let [nchnls   (:nchnls @public/audio-config)
@@ -81,17 +82,17 @@
                                   :outputChannelCount
                                   #js [ nchnls ]}]
                         component)]
-          (.connect instance (.-destination context))
+          (.connect instance (.-destination audio-context))
           instance)))
     (set! (.. component -prototype)
           (js/Object.assign
            (.. js/AudioWorkletNode -prototype)
            #js {:constructor (fn [ctx] (component ctx))}))
 
-    (-> (.addModule context.audioWorklet "./csound-wasm-worklet-processor.js")
+    (-> (.addModule audio-context.audioWorklet "./csound-wasm-worklet-processor.js")
         (.then
          (fn []
-           (let [node (new component context)]
+           (let [node (new component audio-context)]
              (set! (.. node -port -onmessage)
                    (fn [event]
                      (let [data (.-data event)]
@@ -123,6 +124,8 @@
                   (let [libcsound (public/activate-init-callback Libcsound)]
                     (reset! public/libcsound libcsound))))))
   (do
+    (.warn js/console
+           (str "No AudioWorklet support found"))
     (reset! public/audio-worklet-node false)
     (vreset! public/start-audio-fn start-audio)
     (let [libcsound (public/activate-init-callback Libcsound)]

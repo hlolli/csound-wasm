@@ -55,7 +55,6 @@
                                (not @performance-running?))
                           (do (public/dispatch-event "csoundStarted")
                               (reset! performance-running? true)
-                              (prn "CSOUND STARTED DISPATCHED")
                               (recur res i cnt))
                           (not @performance-running?)
                           (dotimes [k len]

@@ -29,6 +29,8 @@ endin
 
 schedule(1,0,4,200)
 </div>
+<button id="startrt"
+        style="margin-top:310px; height:40px;margin-left:300px">Start Csound</button>
 <button id="start" style="margin-top:310px; height:40px;margin-left:85%">Play</button>
 <div id="tester" style="margin-top:0px;width:600px;height:250px;"></div>
 <script src="./csound-wasm-browser.js"></script>
@@ -54,7 +56,7 @@ schedule(1,0,4,200)
     editor.setBehavioursEnabled(false);
     editor.setTheme("ace/theme/monokai");
     editor.getSession().setMode("ace/mode/csound_orchestra");
-    csound.startRealtime();
+    // csound.startRealtime();
     // csound.compileOrc(editor.getValue());
     // csound.on('log', (msg) => console.log('log', msg));
       var table = [];
@@ -104,8 +106,10 @@ schedule(1,0,4,200)
       };
 
       var data = [trace1];
-      Plotly.newPlot('tester', data, layout);
-
+  Plotly.newPlot('tester', data, layout);
+        document.getElementById('startrt').onclick = () => {
+            csound.startRealtime();
+        }
 
         document.getElementById('start').onclick = ()=>{            
             csound.compileOrc(editor.getValue());
