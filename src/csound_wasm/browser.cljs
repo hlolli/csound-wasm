@@ -128,9 +128,10 @@
                                    @public/worklet-message-queue)
                              (reset! public/worklet-message-queue [])
                              (reset! public/audio-worklet-node
-                                     {:object node
-                                      :post   (fn [msg]
-                                                (.postMessage node.port msg))}))
+                                     {:object  node
+                                      :post    (fn [msg]
+                                                 (.postMessage node.port msg))
+                                      :context audio-context}))
                          (println "unhandled message: " event))))))))
         (.catch (fn [err]
                   (.warn js/console

@@ -16,7 +16,7 @@
 
 (def audio-worklet-processor
   (if (exists? js/AudioWorkletProcessor)
-    (atom (fn [msg] (println "Missed a message: " msg)))
+    (atom {:post (fn [msg] (println "Missed a message: " msg))})
     (atom nil)))
 
 (def event-queue (volatile! []))
@@ -100,14 +100,14 @@
       (vswap! event-queue conj #(eval-code orc)))))
 
 (defn input-message [sco]
-  (if-let [awn @audio-worklet-node]
-    ((:post awn) #js ["inputMessage" sco])
-    (if @wasm-loaded?
-      (((.-cwrap @libcsound)
-        "CsoundObj_inputMessage"
-        "number" #js ["number" "string"])
-       @csound-instance sco)
-      (vswap! event-queue conj #(input-message sco)))))
+  (when-let [awn @audio-worklet-node]
+    ((:post awn) #js ["inputMessage" sco]))
+  (if @wasm-loaded?
+    (((.-cwrap @libcsound)
+      "CsoundObj_inputMessage"
+      "number" #js ["number" "string"])
+     @csound-instance sco)
+    (vswap! event-queue conj #(input-message sco))))
 
 #_(defn string-to-c [str]
     (let [len (inc (bit-shift-left (.-length str) 2))]
@@ -207,7 +207,8 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["reset"])
     (if @wasm-loaded?
-      (do (((.-cwrap @libcsound) "CsoundObj_reset" nil #js ["number"])
+      (do (reset! csound-running? :reset)
+          (((.-cwrap @libcsound) "CsoundObj_reset" nil #js ["number"])
            @csound-instance))
       (vswap! event-queue conj #(reset)))))
 
@@ -330,6 +331,7 @@
 
 ;;;; Initializers
 
+(declare activate-init-callback)
 
 (defn csound-new-object []
   (if-let [awn @audio-worklet-node]

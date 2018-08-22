@@ -12,8 +12,8 @@
 (def worklet-audio-fn (atom (fn [& r] true)))
 
 (defn start-audio-fn []
-  (if @public/csound-running?
-    (.err js/console "Csound already running, can't start audio again.")
+  (if (and (not (= :reset @public/csound-running?)) @public/csound-running?)
+    (.error js/console "Csound already running, can't start audio again.")
     (let [libcsound       @public/libcsound
           csound-instance @public/csound-instance
           ksmps           ((libcsound.cwrap
@@ -54,6 +54,8 @@
               (when (zero? res)
                 (public/perform-ksmps-event))
               res))]
+      (when (:reset @public/csound-running?)
+        (reset! public/csound-running? false))
       (reset! worklet-audio-fn
               (fn [inputs outputs parameters]
                 (let [output (aget outputs 0)
@@ -112,9 +114,10 @@
       "promise"
       (handle-promise data)
       "setStartupFn"
-      (vreset! public/startup-fn
-               (case (aget data 1)
-                 "startRealtime" #(public/start-realtime (aget data 2))))
+      (do (vreset! public/startup-fn
+                   (case (aget data 1)
+                     "startRealtime" #(public/start-realtime (aget data 2))))
+          (when @public/wasm-initialized? (@public/startup-fn)))
       (apply (get public-functions key) (rest data))
       ;;(.error js/console "Error unhandled key in processor: " key)
       )))

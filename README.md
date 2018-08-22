@@ -58,8 +58,8 @@ require('csound-wasm/release/browser/csound-wasm-browser.js');
   <body>
     <h5>Click Start realtime once, gotta love chrome's new autoplay ban policy</h5>
     <button id="start">Start realtime</button>
-    <button onclick="csound.inputMessage('i 1 0 1')">Make beep!</h1>
-    <script src="https://github.com/hlolli/csound-wasm/releases/download/6.10.0-4/csound-wasm-browser.js"></script>
+    <button id="beeper">Make beep!</button>
+    <script src="https://github.com/hlolli/csound-wasm/releases/download/6.11.0-0/csound-wasm-browser.js" />
   <script>
     const beeper = `
     instr 1
@@ -67,10 +67,14 @@ require('csound-wasm/release/browser/csound-wasm-browser.js');
     outc asig, asig
     endin
     `
-    document.getElementById('start').onclick = ()=> {
-    csound.startRealtime();
-    csound.compileOrc(beeper);
+    document.getElementById('start').onclick = () => {
+        csound.startRealtime();
+        csound.compileOrc(beeper);
     };
+
+    document.getElementById('beeper').onclick = () => {
+        csound.inputMessage('i 1 0 1');
+    }
   </script>
 </body>
 </html>

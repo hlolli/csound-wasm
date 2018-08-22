@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <h5>Click Start realtime once, gotta love chrome's new autoplay ban policy</h5>
+    <button id="start">Start realtime</button>
+    <button id="beeper">Make beep!</button>
+    <script>window["csound_worklet_processor_url"] = "./csound-wasm-worklet-processor.js"</script>
+    <script src="./csound-wasm-browser.js"></script>
+    <!-- <script src="https://github.com/hlolli/csound-wasm/releases/download/6.11.0-0/csound-wasm-browser.js"></script> -->
+  <script>
+    const beeper = `
+    instr 1
+    asig = poscil:a(0.3, 440)
+    outc asig, asig
+    endin
+    `
+    document.getElementById('start').onclick = () => {
+        csound.startRealtime();
+        csound.compileOrc(beeper);
+    };
+
+    document.getElementById('beeper').onclick = () => {
+        csound.inputMessage('i 1 0 1');
+    }
+  </script>
+</body>
+</html>
