@@ -41,7 +41,7 @@
                 i 1 0 3 20 20
                 i 1 + 3 3 3
                 i 1 + 3 10 1
-                e
+                
                 
                 </CsScore>
                 </CsoundSynthesizer>
@@ -50,10 +50,11 @@
         csound.playCSD(csdText);
     };
 
-    csound.on('perform', () => {
-        csound.getControlChannel('someData').then(data => console.log(data));
-    });
-    csound.on('started', () => csound.getTable(1).then((t) => console.log(t)));
+    // csound.on('perform', () => {
+    //     csound.getControlChannel('someData').then(data => console.log(data));
+    // });
+    csound.on('started', () => csound.getTable(1).then((t) => { console.log(t); }));
+   
   </script>
 </body>
 </html>

@@ -1,6 +1,5 @@
 (ns csound-wasm.macros)
 
-
 (defmacro wrap-ipc-promise [message]
   `(js/Promise.
     (fn [resolve# reject#]

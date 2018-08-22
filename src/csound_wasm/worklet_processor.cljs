@@ -7,43 +7,53 @@
 
 (declare AudioWorkletProcessor)
 
-(def csound-started? (atom false))
-
 (def performance-running? (atom false))
 
 (def worklet-audio-fn (atom (fn [& r] true)))
 
-(defn resume-perf []
-  (when-not @csound-started?
-    (reset! csound-started? true)))
-
-(defn initialize-audio-fn [csound-instance]
-  (when-not @csound-started?
-    (let [libcsound        @public/libcsound
-          ksmps            ((libcsound.cwrap "CsoundObj_getKsmps" #js ["number"] #js ["number"])
-                            csound-instance)
-          input-count      ((libcsound.cwrap "CsoundObj_getInputChannelCount" #js ["number"] #js ["number"])
-                            csound-instance)
-          output-count     ((libcsound.cwrap "CsoundObj_getOutputChannelCount" #js ["number"] #js ["number"])
-                            csound-instance)
-          output-pointer   ((libcsound.cwrap "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
-                            csound-instance)
-          frame-len        (* ksmps output-count)
-          output-buffer    (new js/Float64Array (.-buffer (.-HEAP8 libcsound))
-                                ^js output-pointer frame-len)
+(defn start-audio-fn []
+  (if @public/csound-running?
+    (.err js/console "Csound already running, can't start audio again.")
+    (let [libcsound       @public/libcsound
+          csound-instance @public/csound-instance
+          ksmps           ((libcsound.cwrap
+                            "CsoundObj_getKsmps"
+                            #js ["number"] #js ["number"])
+                           csound-instance)
+          input-count     ((libcsound.cwrap
+                            "CsoundObj_getInputChannelCount"
+                            #js ["number"] #js ["number"])
+                           csound-instance)
+          output-count    ((libcsound.cwrap
+                            "CsoundObj_getOutputChannelCount"
+                            #js ["number"] #js ["number"])
+                           csound-instance)
+          output-pointer  ((libcsound.cwrap
+                            "CsoundObj_getOutputBuffer"
+                            #js ["number"] #js ["number"])
+                           csound-instance)
+          frame-len       (* ksmps output-count)
+          output-buffer   (new js/Float64Array
+                               (.-buffer (.-HEAP8 libcsound))
+                               ^js output-pointer frame-len)
           ;; TODO add microphone input buffer
-          zerodbfs         ((libcsound.cwrap "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
-                            csound-instance)
+          zerodbfs        ((libcsound.cwrap
+                            "CsoundObj_getZerodBFS"
+                            #js ["number"] #js ["number"])
+                           csound-instance)
           ;; range-output-cnt (range output-count)
-          perform-ksmps-fn (fn []
-                             (if-not @csound-started?
-                               0
-                               (let [res ((libcsound.cwrap
-                                           "CsoundObj_performKsmps" #js ["number"] #js ["number"])
-                                          csound-instance)]
-                                 (when (zero? res)
-                                   (public/perform-ksmps-event))
-                                 res)))]
+          perform-ksmps-fn
+          (fn []
+            (let [res ((.cwrap @public/libcsound
+                               "CsoundObj_performKsmps"
+                               #js ["number"] #js ["number"])
+                       csound-instance)]
+              (when-not @public/csound-running?
+                (public/dispatch-event "csoundStarted")
+                (reset! public/csound-running? true))
+              (when (zero? res)
+                (public/perform-ksmps-event))
+              res))]
       (reset! worklet-audio-fn
               (fn [inputs outputs parameters]
                 (let [output (aget outputs 0)
@@ -51,38 +61,28 @@
                   (loop [res (perform-ksmps-fn)
                          i   0
                          cnt 0]
-                    (cond (and @csound-started?
-                               (not @performance-running?))
-                          (do (public/dispatch-event "csoundStarted")
-                              (reset! performance-running? true)
-                              (recur res i cnt))
-                          (not @performance-running?)
-                          (dotimes [k len]
+                    (if (not= 0 res)
+                      (do (reset! public/csound-running? false)
+                          (reset! worklet-audio-fn (fn [& r] true)))
+                      (when (< i len)
+                        (if (< cnt frame-len)
+                          (do
                             (dotimes [chn (.-length output)]
-                              (aset (aget output chn) k 0)))
-                          (not= 0 res)
-                          (do (reset! csound-started? false)
-                              (reset! performance-running? false)
-                              (public/reset)
-                              (recur res i cnt))
-                          :else
-                          (when (< i len)
-                            (if (< cnt frame-len)
-                              (do
-                                (dotimes [chn (.-length output)]
-                                  (aset (aget output chn)
-                                        i
-                                        (/ (aget output-buffer (+ chn (* cnt (.-length output)))) zerodbfs)))
-                                (recur res (inc i) (inc cnt)))
-                              (let [res (perform-ksmps-fn)]
-                                (recur res
-                                       i
-                                       0))))))
+                              (aset (aget output chn)
+                                    i
+                                    (/ (aget output-buffer (+ chn (* cnt (.-length output)))) zerodbfs)))
+                            (recur res (inc i) (inc cnt)))
+                          (let [res (perform-ksmps-fn)]
+                            (recur res
+                                   i
+                                   0))))))
                   true))))))
 
 (vreset! public/start-audio-fn
-         (fn [csound-instance & r]
-           (initialize-audio-fn csound-instance)))
+         (fn [& r]
+           (when-not @public/audio-started?
+             (reset! public/audio-started? true))
+           (start-audio-fn)))
 
 (defn apply-process [inputs outputs parameters]
   (@worklet-audio-fn inputs outputs parameters))
@@ -93,9 +93,7 @@
              "instanciateLibcsound"
              (fn []
                (reset! public/libcsound
-                       (public/instanciate-libcsound Libcsound)))
-             "resumePerformance"
-             resume-perf)))
+                       (public/instanciate-libcsound Libcsound))))))
 
 (def public-functions-keys
   (into #{} (keys public-functions)))
@@ -130,7 +128,8 @@
                       AudioWorkletProcessor)]
         (set! (.. instance -port -onmessage) processor-event-handler)
         (reset! public/audio-worklet-processor
-                {:post (fn [msg & r] (.postMessage ^js (.. instance -port) msg))})
+                {:object instance
+                 :post   (fn [msg & r] (.postMessage ^js (.. instance -port) msg))})
         (.postMessage (.. instance -port) #js ["workletProcessorReady"])
         instance))))
 

@@ -16,23 +16,21 @@
 <body>
 
 <div id="editor" style="height:300px">
-giBins = 1024
-giF1	ftgen	1,0,giBins, 7, 0, giBins, 0
 
 instr 1
     aNoise poscil 0.5, p4
     aNoise2 poscil 0.5, p4*1.1
-    fAnalSig    pvsanal  aNoise, 1024, 256, 1024, 0
-    kFlag	pvsftw	fAnalSig, giF1
     outs aNoise, aNoise2
 endin
 
 schedule(1,0,4,200)
 </div>
-<button id="startrt"
-        style="margin-top:310px; height:40px;margin-left:300px">Start Csound</button>
-<button id="start" style="margin-top:310px; height:40px;margin-left:85%">Play</button>
+<!-- <button id="start" style="margin-top:310px; height:40px;margin-left:120px">Start Csound</button> -->
+<button id="play" style="margin-top:310px; height:40px;margin-left:20px">Play</button>
 <div id="tester" style="margin-top:0px;width:600px;height:250px;"></div>
+
+<script>window["csound_worklet_processor_url"] = "./csound-wasm-worklet-processor.js"</script>
+
 <script src="./csound-wasm-browser.js"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.1/ace.js" type="text/javascript" charset="utf-8"></script>
@@ -56,66 +54,17 @@ schedule(1,0,4,200)
     editor.setBehavioursEnabled(false);
     editor.setTheme("ace/theme/monokai");
     editor.getSession().setMode("ace/mode/csound_orchestra");
-    // csound.startRealtime();
-    // csound.compileOrc(editor.getValue());
-    // csound.on('log', (msg) => console.log('log', msg));
-      var table = [];
-      var table_len;
-      var frames = [{name: 'waveform', data: [{x: [], y: []}]}]
-      var trace1 = {x: frames[0].data[0].x, y: frames[0].data[0].y, mode: 'lines+text'};
+    csound.startRealtime();
 
-      var kIndex = 0;
-  
+   document.getElementById('play').onclick = ()=>{            
+            csound.compileOrc(editor.getValue());
+   };
+
   csound.on('started', () => {
-      console.log('Csound Started Event received');
-     // csound.getTableLength(1).then(len => console.log('len', len));
+     console.log('Csound Started Event received');
+     csound.getTableLength(1).then(len => console.log('len', len));
   });
 
-  
-  window.addEventListener('performKsmpss', (e) => {
-      // console.log('perform!');
-        kIndex++;           
-        //grab table contents on last k-cycle
-        if(csound.getTableLength(1) > 0)
-        {
-          table = csound.getTable(1);
-          if (!table_len) {table_len=csound.getTableLength(1)};
-        } 
-      });
-
-      setInterval(() => {
-        if (table_len > 0) {
-         for ( var i = 0 ; i < table_len; i++)
-          {
-            frames[0].data[0].y[i] = table[i]*10;
-            frames[0].data[0].x[i] = i;
-          }
-
-          trace1 = {x: frames[0].data[0].x, y: frames[0].data[0].y, mode: 'lines+text'};
-          var data2 = [trace1];
-          Plotly.deleteTraces('tester', 0);
-          Plotly.addTraces('tester', data2);
-      }
-     }, 200);
-
-      var layout = {
-        showlegend: false,
-        yaxis: {range: [0, 1]},
-        xaxis: {range: [0, 500]},
-        margin:{width: 800, t: 10 }   
-      };
-
-      var data = [trace1];
-  Plotly.newPlot('tester', data, layout);
-        document.getElementById('startrt').onclick = () => {
-            csound.startRealtime();
-        }
-
-        document.getElementById('start').onclick = ()=>{            
-            csound.compileOrc(editor.getValue());
-            csound.getTableLength(1).then(len => console.log('len', len));
-            csound.getTable(1).then(table => console.log('table', table));
-      };
     </script>
 </body>
 </html>

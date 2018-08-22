@@ -74,12 +74,20 @@ require('csound-wasm/release/browser/csound-wasm-browser.js');
   </script>
 </body>
 </html>
-
 ```
+
+Bear in mind that you can only start realtime csound in two ways, with `csound.startRealtime()` or `csound.playCSD`, but don't call both of them at the same time, as each subsequent call will restart csound. `csound.playCSD` is good to use when you wan to evaluate some boilerplate before grabbing for other runtime functions like `csound.inputMessage` or `csound.compileOrc`, as well as just playing whole CSD files out your speakers. `csound.startRealtime()` is ideal when you want to start csound as a "blank sheet" and create instruments (`csound.compileOrc`, or `csound.evalCode`) or play notes (`csound.inputMessage` or `csound.readScore`) "on the fly".
 
 ## AudioWorklet
 
 Audioworklet is new browser technology enableing higher quality lower latency audio. It is enabled by default if it was detected in your browser. *NOTICE* that AudioWorklet always needs to fetch a processor script, that lives in a secure environment and can only be fetched from servers useing `https`. If the fetch of the AudioWorklet processor script fails, then `csound-wasm` will fallback to the older WebAudio technology. Read the console logs to see if your csound instance is running on AudioWorklet or the old WebAudio (AudioContext).
+
+If you wish to host the needed AudioWorklet processor script yourself, you'll need to set an endpoint variable onto the window object *before* calling csound-wasm.js. Note that the endpoint default to github releases until a longer term solution is found.
+
+```html
+<script>window["csound_worklet_processor_url"] = "./csound-wasm-worklet-processor.js"</script>
+<script src="./csound-wasm-browser.js"></script>
+```
 
 # API
 Many these functions are a direct implementation of the [Csound API](http://csound.com/docs/api/index.html). Some are `csound-wasm` specific.
