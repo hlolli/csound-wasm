@@ -20,71 +20,96 @@
 
 (def csound-started? (volatile! false))
 
-(defn start-audio [csound-instance auto-reset?]
-  ;; (.setFlagsFromString v8 "--no-use_strict") ;; To be able to load web-audio-api
-  (let [ksmps                     ((libcsound.cwrap "CsoundObj_getKsmps" #js ["number"] #js ["number"])
-                                   csound-instance)
-        input-count               ((libcsound.cwrap "CsoundObj_getInputChannelCount" #js ["number"] #js ["number"])
-                                   csound-instance)
-        output-count              ((libcsound.cwrap "CsoundObj_getOutputChannelCount" #js ["number"] #js ["number"])
-                                   csound-instance)
-        audio-context-constructor web-audio-api/AudioContext
-        audio-context             (new audio-context-constructor)
-        audio-process-node        (.createScriptProcessor
-                                   audio-context
-                                   (* 4 ksmps) input-count output-count)
-        _                         (do (set! (.-inputCount audio-process-node) input-count)
-                                      (set! (.-outputCount audio-process-node) output-count))
-        buffer-size               (.-bufferSize audio-process-node)
-        output-pointer            ((libcsound.cwrap "CsoundObj_getOutputBuffer" #js ["number"] #js ["number"])
-                                   csound-instance)
-        output-buffer             (new js/Float64Array (.-buffer (.-HEAP8 libcsound))
-                                       ^js output-pointer (* ksmps output-count))
-        ;; TODO add microphone input buffer
-        zerodbfs                  ((libcsound.cwrap "CsoundObj_getZerodBFS" #js ["number"] #js ["number"])
-                                   csound-instance)
-        range-output-cnt          (range output-count)
-        perform-ksmps-fn          (fn []
-                                    (let [res ((libcsound.cwrap
-                                                "CsoundObj_performKsmps" #js ["number"] #js ["number"])
-                                               csound-instance)]
-                                      (when (zero? res)
-                                        (public/perform-ksmps-event))
-                                      res)) ]
-    (set! (.-outStream audio-context)
-          (new Speaker #js {:channels   (.-numberOfChannels
-                                         (.-format audio-context))
-                            :bitDepth   (.-bitDepth
-                                         (.-format audio-context))
-                            :sampleRate (.-sampleRate audio-context)}))
-    (set! (.-onaudioprocess audio-process-node)
-          (fn [e]
-            (let [output (.-outputBuffer e)]
-              (loop [res (perform-ksmps-fn)
-                     i   0
-                     cnt 0
-                     len buffer-size]
-                (when (not @csound-started?)
-                  (public/dispatch-event "csoundStarted")
-                  (vreset! csound-started? true))
-                (when (< i len)
-                  (if (and (< cnt len) (not (js/isNaN (aget output-buffer (* cnt output-count)))))
-                    (if (not= 0 res)
-                      (do (.disconnect audio-process-node)
-                          (set! (.-onaudioprocess audio-process-node) nil)
-                          (when auto-reset? (public/reset)))
-                      (do (run! #(aset (.getChannelData output %)
-                                       i
-                                       (/ (aget output-buffer (+ % (* cnt output-count))) zerodbfs))
-                                range-output-cnt)
-                          (recur res (inc i) (inc cnt) len)))
-                    (let [res (perform-ksmps-fn)]
-                      (recur res
-                             i
-                             0
-                             len))))))))
-    (.connect audio-process-node (.-destination audio-context))
-    nil))
+(defn start-audio [config]
+  (if @public/csound-running?
+    (.err js/console "Csound already running, can't start audio again.")
+    (let [csound-instance           @public/csound-instance
+          libcsound                 @public/libcsound
+          buffer-size               (:buffer config)
+          ksmps                     ((libcsound.cwrap 
+                                      "CsoundObj_getKsmps" 
+                                      #js ["number"] #js ["number"])
+                                     csound-instance)
+          input-count               ((libcsound.cwrap 
+                                      "CsoundObj_getInputChannelCount" 
+                                      #js ["number"] #js ["number"])
+                                     csound-instance)
+          output-count              ((libcsound.cwrap 
+                                      "CsoundObj_getOutputChannelCount" 
+                                      #js ["number"] #js ["number"])
+                                     csound-instance)
+          audio-context-constructor web-audio-api/AudioContext
+          audio-context             (new audio-context-constructor)
+          audio-process-node        (.createScriptProcessor
+                                     audio-context
+                                     buffer-size input-count output-count)
+          _                         (do (set! (.-inputCount audio-process-node) input-count)
+                                        (set! (.-outputCount audio-process-node) output-count))
+          ;; actx                      (or js/window.AudioContext js/window.webkitAudioContext)
+          ;; audio-context             (new actx)
+          ;; audio-process-node        (.createScriptProcessor
+          ;;                            audio-context
+          ;;                            buffer-size input-count output-count)
+          ;; _                         (do (set! (.-inputCount audio-process-node) input-count)
+          ;;                               (set! (.-outputCount audio-process-node) output-count))
+          buffer-size               (.-bufferSize audio-process-node)
+          frame-len                 (* ksmps output-count)
+          output-pointer            ((libcsound.cwrap 
+                                      "CsoundObj_getOutputBuffer" 
+                                      #js ["number"] #js ["number"])
+                                     csound-instance)
+          output-buffer             (new js/Float64Array (.-buffer (.-HEAP8 libcsound))
+                                         ^js output-pointer frame-len)
+          ;; TODO add microphone input buffer
+          zerodbfs                  ((libcsound.cwrap 
+                                      "CsoundObj_getZerodBFS" 
+                                      #js ["number"] #js ["number"])
+                                     csound-instance)
+          range-output-cnt          (range output-count)
+          perform-ksmps-fn          (fn []
+                                      (let [res ((libcsound.cwrap
+                                                  "CsoundObj_performKsmps" 
+                                                  #js ["number"] #js ["number"])
+                                                 csound-instance)]
+                                        (when-not @public/csound-running?
+                                          (public/dispatch-event "csoundStarted")
+                                          (reset! public/csound-running? true))
+                                        (when (zero? res)
+                                          (public/perform-ksmps-event))
+                                        res))]
+      (set! (.-outStream audio-context)
+            (new Speaker #js {:channels   (.-numberOfChannels
+                                           (.-format audio-context))
+                              :bitDepth   (.-bitDepth
+                                           (.-format audio-context))
+                              :sampleRate (.-sampleRate audio-context)}))
+      (set! (.-onaudioprocess audio-process-node)
+            (fn [e]
+              (let [output (.-outputBuffer e)
+                    len    (.-length (.getChannelData output 0))]
+                ;; (prn "len" len frame-len)
+                (loop [res (perform-ksmps-fn)
+                       i   0
+                       cnt 0]
+                  (if (not= 0 res)
+                    (do (.disconnect audio-process-node)
+                        (set! (.-onaudioprocess audio-process-node) nil)
+                        (reset! public/csound-running? false))
+                    (when (< i len)
+                      (if (< cnt ksmps)
+                        (do
+                          (dotimes [chn output-count]
+                            (aset (.getChannelData output chn)
+                                  i
+                                  (/ (aget output-buffer (+ chn (* cnt output-count))) zerodbfs)))
+                          (recur res (inc i) (inc cnt)))
+                        (let [res (perform-ksmps-fn)]
+                          (recur res
+                                 i
+                                 0))))))
+                true )))
+      (.connect audio-process-node (.-destination audio-context))
+      nil)))
 
 (vreset! public/start-audio-fn start-audio)
 
