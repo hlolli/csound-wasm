@@ -102,15 +102,10 @@
           (js/Object.assign
            (.. js/AudioWorkletNode -prototype)
            #js {:constructor (fn [ctx] (component ctx))}))
-    (prn "READ WELL" (or (and (exists? js/csound_worklet_processor_url)
-                              js/csound_worklet_processor_url)
-                         (str "https://github.com/hlolli/csound-wasm/releases/download/"
-                              "6.11.0-0"
-                              "/csound-wasm-worklet-processor.js")))
     (-> (.addModule audio-context.audioWorklet 
                     (or (and (exists? js/window.csound_worklet_processor_url)
                              js/window.csound_worklet_processor_url)
-                        (str "https://github.com/hlolli/csound-wasm/releases/download/"
+                        (str "https://s3.amazonaws.com/hlolli/csound-wasm/"
                              "6.11.0-0"
                              "/csound-wasm-worklet-processor.js")))
         (.then
