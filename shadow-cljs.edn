@@ -2,7 +2,7 @@
                 [org.clojure/tools.nrepl "0.2.12"]
                 [cider/cider-nrepl "0.18.0"]]
  
- :source-paths ["src"]
+ :source-paths ["src" "test"]
  :builds       {:node
                 {:target           :node-library
                  :output-to        "release/node/index.js"
@@ -37,6 +37,17 @@
                   :get0dbfs          csound-wasm.public/get-0dbfs
                   :enableMidi        csound-wasm.node/enable-midi
                   :pushMidi          csound-wasm.public/push-midi-message}}
+                
+                :node-test
+                {:target      :node-test
+                 :output-to   "out/node-test.js"
+                 :ns-regexp   "-test$"
+                 :autorun     true
+                 :main        csound-wasm.node-test/main
+                 :build-hooks [(csound-wasm.hooks/libcsound-wasm-for-tests)]
+                 :js-options  {:resolve {"libcsound"
+                                         {:target :file
+                                          :file   "libcsound/libcsound.js"}}}}
 
                 :browser
                 {:target           :browser

@@ -6,10 +6,9 @@ instr 1
   outc asig, asig
 endin`
 
-const makeBeep = `i 1 0 1`
+const makeBeep = `i 1 0 10`
 
-csound.startRealtime()
+csound.startRealtime();
 csound.compileOrc(beeper);
 csound.readScore(makeBeep);
-
 setTimeout(() => process.exit(), 5000);

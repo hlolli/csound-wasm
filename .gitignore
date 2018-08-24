@@ -2,6 +2,7 @@ out
 target
 node_modules
 package-lock.json
+*#
 *~
 *.wav
 release/browser/cljs-runtime

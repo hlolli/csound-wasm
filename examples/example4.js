@@ -3,13 +3,11 @@ const csound = require('../');
 const csd = `
 <CsoundSynthesizer>
 <CsInstruments>
-0dbfs = 1
-ksmps = 128
-sr = 44100
 
 instr 1
-aOut vco2 0.3, p4
-out aOut
+aOut1 vco2 0.3, p4
+aOut2 vco2 0.3, p4*1.1
+outs aOut1, aOut2
 endin
 
 </CsInstruments>
@@ -21,5 +19,5 @@ i1 2 1 300
 </CsoundSynthesizer>
 `
 
-csound.playCSD(csd);
+csound.playCSD(csd, {ksmps: 1});
 setTimeout(() => process.exit(), 10000);

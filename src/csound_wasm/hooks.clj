@@ -5,14 +5,13 @@
   (:import [java.nio.file Files Paths StandardCopyOption]
            [java.net URI]))
 
-#_(defn wasm2datauri
-    {:shadow.build/stage :compile-finish}
-    [build-state & args]
-    (let [resrc   [:shadow.build.npm/resource "libcsound/libcsound.js"]
-          src     (get-in build-state [:sources resrc :source])
-          wasm    (string/trim (:out (sh "node" "libcsound/datauri.js")))
-          new-src (string/replace src "libcsound.wasm" wasm)]
-      (assoc-in build-state [:sources resrc :source] new-src)))
+(defn libcsound-wasm-for-tests
+  {:shadow.build/stage :configure}
+  [build-state & args]
+  (sh "mkdir" "-p" "out")
+  (sh "rm" "out/libcsound.wasm")
+  (sh "ln" "-s" "../libcsound/libcsound.wasm" "out/libcsound.wasm")
+  build-state)
 
 (defn delete-browser-js
   {:shadow.build/stage :flush}

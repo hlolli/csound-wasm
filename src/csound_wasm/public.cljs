@@ -358,17 +358,18 @@
   (dispatch-event "csoundReady"))
 
 (defn play-csd [csd & [config]]
-  (if-let [awn @audio-worklet-node]
-    ((:post awn) #js ["playCSD" csd])
-    (if @wasm-loaded?
-      (let [config (merge @audio-config
-                          (if (map? config)
-                            config
-                            (js->clj
-                             (or config #js {})
-                             :keywordize-keys true)))
-            {:keys [nchnls nchnls_i zerodbfs sr ksmps buffer]}
-            config]
+  (let [config (merge @audio-config
+                      (if (map? config)
+                        config
+                        (js->clj
+                         (or config #js {})
+                         :keywordize-keys true)))
+        {:keys [nchnls nchnls_i zerodbfs sr ksmps buffer]}
+        config]
+    (reset! audio-config config)
+    (if-let [awn @audio-worklet-node]
+      ((:post awn) #js ["playCSD" csd])
+      (if @wasm-loaded?
         (if-not @audio-started?
           (do (reset! audio-config config)
               (reset-sequence config)
@@ -378,8 +379,9 @@
               (prepareRT) ;; this prevents cannot open idac errors
               (reset-sequence config)
               (compile-csd csd)
-              (@start-audio-fn config))))
-      (vswap! event-queue conj #(play-csd csd)))))
+              (@start-audio-fn config)))
+        (do
+          (vswap! event-queue conj #(play-csd csd)))))))
 
 (defn start-realtime [& [config]]
   (let [config (merge @audio-config
