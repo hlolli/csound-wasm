@@ -306,15 +306,24 @@
 
 ;; Events
 
+(def ^:private csound-event-listeners
+  (atom []))
+
+(defn- get-event-name [event]
+  (case event
+    "log"     "csoundLog"
+    "ready"   "csoundReady"
+    "start"   "csoundStarted"
+    "perform" "performKsmps"
+    "end"     "csoundEnded"
+    event))
+
 (defn on [event callback]
-  (let [full-event-name (case event
-                          "log"     "csoundLog"
-                          "ready"   "csoundReady"
-                          "started" "csoundStarted"
-                          "perform" "performKsmps"
-                          event)
+  (let [full-event-name (get-event-name event)
         callback        (case event
-                          "log" (fn [e] (callback e.detail))
+                          "log" (fn [e] (if nodejs?
+                                          (callback e)
+                                          (callback e.detail)))
                           callback)]
     (if nodejs?
       (.on node-event-emitter full-event-name callback)
@@ -323,11 +332,32 @@
 (defn perform-ksmps-event []
   (dispatch-event "performKsmps"))
 
-(defn log-event [log]
+(defn- log-event [log]
   (if (exists? js/window)
     (.log js/console "%c%s" "font-size: 13px;" log)
     (.log js/console log))
   (dispatch-event "csoundLog" log))
+
+(defn remove-listener [event]
+  (let [full-event-name (get-event-name event)
+        pre-len         (count @csound-event-listeners)]
+    (reset! csound-event-listeners
+            (reduce (fn [i [event cb]]
+                      (if (= full-event-name event)
+                        (do (if nodejs?
+                              (.removeListener node-event-emitter full-event-name cb)
+                              (.removeListener js/window full-event-name cb))
+                            i)
+                        (conj i [event cb])))
+                    [] @csound-event-listeners))
+    (let [events-found (- pre-len (count @csound-event-listeners))]
+      (.log js/console
+            (if (zero? events-found)
+              (str "No events of type \"" event "\" were found.")
+              (str 
+               " event listeners of type "
+               event
+               "were removed."))))))
 
 ;;;; Initializers
 
@@ -421,6 +451,7 @@
   (when-not @wasm-initialized?
     (csound-new-object)
     (prepareRT)
+    (dispatch-event "wasmInitialized")
     (vreset! wasm-initialized? true)))
 
 (defn instanciate-libcsound [Libcsound]

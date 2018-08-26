@@ -140,7 +140,7 @@ All data is passed to resolve, ie. you need to chain
 
 Subscribe to events with
 
-```
+```js
 csound.on( EVENT, callback);
 ```
 
@@ -150,6 +150,16 @@ Where `EVENT` can be of following
 | ------------|---------------------|
 | "log" | (msg) => |
 | "ready" | () => |
-| "started" | () => |
+| "start" | () => |
+| "end" | () => |
 | "perform" / "performKsmps" | () => |
 
+Many events can be subscribed of same type.
+
+To unsubscribe an event
+
+```js
+csound.removeListener( EVENT )
+```
+
+not that this will remove ALL events of type EVENT (and only of type EVENT).

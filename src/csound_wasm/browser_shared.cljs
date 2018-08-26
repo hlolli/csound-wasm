@@ -65,4 +65,5 @@
        :pushMidiMessage   csound-wasm.public/push-midi-message
        :enableMidi        enable-midi
        :pushMidi          csound-wasm.public/push-midi-message
-       :on                csound-wasm.public/on})
+       :on                csound-wasm.public/on
+       :removeListener    csound-wasm.public/remove-listener})

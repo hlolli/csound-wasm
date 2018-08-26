@@ -80,8 +80,7 @@
                     (not= 0 res)
                     (do
                       (.push this nil)
-                      (dotimes [i (.-length buffer)]
-                        (.writeDoubleLE buffer i 0))
+                      (public/dispatch-event "csoundEnd")
                       (.close speaker))
                     (= offset ksmps)
                     (recur i 0 (perform-ksmps-fn))
@@ -103,7 +102,7 @@
           stream           (new (.-Readable Stream)
                                 #js {:read process})]
       ;; Fill the pipe with 0 before starting
-      (dotimes [_ 4]
+      (dotimes [_ 6]
         (.push stream (.from js/Buffer (.-buffer (new js/Float32Array 16384)))))
       (.pipe stream speaker)
       nil)))
@@ -152,6 +151,8 @@
       (.on midi-input "message" handle-midi-input)
       (.openPort midi-input 1)
       (public/set-midi-callbacks))))
+
+
 
 
 (comment

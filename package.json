@@ -18,9 +18,10 @@
   },
   "scripts": {
     "watch": "node libcsound/datauri.js && npx shadow-cljs watch browser node",
-    "watch-browser": "node libcsound/datauri.js && npx shadow-cljs watch browser",
-    "watch-node": "node libcsound/datauri.js && npx shadow-cljs watch node",
-    "release": "node libcsound/datauri.js && npx shadow-cljs release browser node processor"
+    "watch:browser": "node libcsound/datauri.js && npx shadow-cljs watch browser",
+    "watch:node": "node libcsound/datauri.js && npx shadow-cljs watch node",
+    "release": "node libcsound/datauri.js && npx shadow-cljs release browser node processor",
+    "test:node": "npx shadow-cljs compile node-test"
   },
   "dependencies": {
     "bufferutil": "^4.0.0",

@@ -10,7 +10,7 @@
   [build-state & args]
   (sh "mkdir" "-p" "out")
   (sh "rm" "out/libcsound.wasm")
-  (sh "ln" "-s" "../libcsound/libcsound.wasm" "out/libcsound.wasm")
+  (sh "ln" "-s" "../release/node/libcsound.wasm" "out/libcsound.wasm")
   build-state)
 
 (defn delete-browser-js
