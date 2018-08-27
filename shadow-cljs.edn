@@ -10,9 +10,9 @@
                  :output-to        "release/node/index.js"
                  :modules          {:main {:entries [csound-wasm.node]}}
                  :compiler-options {:optimizations :simple}
-                 :js-options       {:resolve {"libcsound"
-                                              {:target :file
-                                               :file   "libcsound/libcsound.js"}}}
+                 ;; :js-options       {:resolve {"libcsound"
+                 ;;                              {:target :file
+                 ;;                               :file   "libcsound/libcsound.js"}}}
                  :exports
                  {:startRealtime     csound-wasm.public/start-realtime
                   :compileOrc        csound-wasm.public/compile-orc
@@ -50,17 +50,18 @@
                  ;; :autorun          true
                  ;; :main        csound-wasm.node-test/main
                  :build-hooks      [(csound-wasm.hooks/libcsound-wasm-for-tests)]
-                 :js-options       {:resolve {"libcsound"
-                                              {:target :file
-                                               :file   "libcsound/libcsound.js"}}}}
+                 ;; :js-options       {:resolve {"libcsound"
+                 ;;                              {:target :file
+                 ;;                               :file   "libcsound/libcsound.js"}}}
+                 }
 
                 :browser
                 {:target           :browser
                  :output-dir       "release/browser"
                  :asset-path       "./"
-                 :js-options       {:resolve {"libcsound_browser"
-                                              {:target :file
-                                               :file   "libcsound/libcsound_browser.js"}}}
+                 ;; :js-options       {:resolve {"libcsound_browser"
+                 ;;                              {:target :file
+                 ;;                               :file   "libcsound/libcsound_browser.js"}}}
                  :compiler-options {
                                     :optimizations  :advanced
                                     :output-wrapper true
@@ -68,8 +69,7 @@
                                     }
                  :modules          {:main {:entries [csound-wasm.browser]}}
                  :exports          {:csound csound-wasm.browser/main}
-                 :build-hooks      [(csound-wasm.hooks/delete-browser-js)
-                                    (csound-wasm.hooks/rename-release)]
+                 :build-hooks      [(csound-wasm.hooks/rename-release)]
                  :devtools         {:http-root          "release/browser"
                                     :http-resource-root "release/browser"
                                     :http-port          8600
@@ -81,9 +81,9 @@
                 {:target           :browser
                  :output-dir       "release/browser"
                  :asset-path       "./"
-                 :js-options       {:resolve {"libcsound_browser"
-                                              {:target :file
-                                               :file   "libcsound/libcsound_browser.js"}}}
+                 ;; :js-options       {:resolve {"libcsound_browser"
+                 ;;                              {:target :file
+                 ;;                               :file   "libcsound/libcsound_browser.js"}}}
                  :compiler-options {
                                     :optimizations  :simple
                                     :elide-strict   false
@@ -94,5 +94,4 @@
                                     :output-to      "release/browser/csound-wasm-worklet-processor.js"
                                     }
                  :modules          {:processor {:entries [csound-wasm.worklet-processor]}}
-                 :build-hooks      [(csound-wasm.hooks/delete-browser-worklet-js)
-                                    (csound-wasm.hooks/rename-processor-release)]}}}
+                 :build-hooks      [(csound-wasm.hooks/rename-processor-release)]}}}

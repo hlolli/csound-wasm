@@ -5,29 +5,29 @@
   (:import [java.nio.file Files Paths StandardCopyOption]
            [java.net URI]))
 
-(defn libcsound-wasm-for-tests
-  {:shadow.build/stage :configure}
-  [build-state & args]
-  (sh "mkdir" "-p" "out")
-  (sh "rm" "out/libcsound.wasm")
-  (sh "ln" "-s" "../release/node/libcsound.wasm" "out/libcsound.wasm")
-  build-state)
+#_(defn libcsound-wasm-for-tests
+    {:shadow.build/stage :configure}
+    [build-state & args]
+    (sh "mkdir" "-p" "out")
+    (sh "rm" "out/libcsound.wasm")
+    (sh "ln" "-s" "../release/node/libcsound.wasm" "out/libcsound.wasm")
+    build-state)
 
-(defn delete-browser-js
-  {:shadow.build/stage :flush}
-  [build-state & args]
-  (when (= :release (:shadow.build/mode build-state))
-    (Files/deleteIfExists
-     (Paths/get "." (into-array ["libcsound" "libcsound_browser.js"]))))
-  build-state)
+#_(defn delete-browser-js
+    {:shadow.build/stage :flush}
+    [build-state & args]
+    (when (= :release (:shadow.build/mode build-state))
+      (Files/deleteIfExists
+       (Paths/get "." (into-array ["libcsound" "libcsound_browser.js"]))))
+    build-state)
 
-(defn delete-browser-worklet-js
-  {:shadow.build/stage :flush}
-  [build-state & args]
-  (when (= :release (:shadow.build/mode build-state))
-    (Files/deleteIfExists
-     (Paths/get "." (into-array ["libcsound" "libcsound_browser_worklet.js"]))))
-  build-state)
+#_(defn delete-browser-worklet-js
+    {:shadow.build/stage :flush}
+    [build-state & args]
+    (when (= :release (:shadow.build/mode build-state))
+      (Files/deleteIfExists
+       (Paths/get "." (into-array ["libcsound" "libcsound_browser_worklet.js"]))))
+    build-state)
 
 (defn rename-release
   {:shadow.build/stage :flush}

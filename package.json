@@ -17,22 +17,21 @@
     "appId": "csound-wasm"
   },
   "scripts": {
-    "watch": "node libcsound/datauri.js && npx shadow-cljs watch browser node",
-    "watch:browser": "node libcsound/datauri.js && npx shadow-cljs watch browser",
-    "watch:node": "node libcsound/datauri.js && npx shadow-cljs watch node",
-    "release": "node libcsound/datauri.js && npx shadow-cljs release browser node processor",
+    "watch": "npx shadow-cljs watch browser node",
+    "watch:browser": "npx shadow-cljs watch browser",
+    "watch:node": "npx shadow-cljs watch node",
+    "release": "npx shadow-cljs release browser node processor",
     "test:node": "npx shadow-cljs compile node-test"
   },
   "dependencies": {
     "bufferutil": "^4.0.0",
+    "libcsound": "^6.11.0-1",
     "midi": "^0.9.5",
     "speaker": "^0.4.1",
     "utf-8-validate": "^5.0.1"
   },
   "devDependencies": {
-    "datauri": "^1.1.0",
     "nan": "^2.10.0",
-    "replace-in-file": "^3.4.2",
     "shadow-cljs": "^2.6.2",
     "source-map-support": "^0.5.9"
   }

@@ -3,7 +3,7 @@
             [clojure.walk :refer [stringify-keys]]
             [csound-wasm.public :as public]
             [csound-wasm.browser-shared :as shared]
-            ["libcsound_browser" :as Libcsound]))
+            ["libcsound/libcsound_browser" :as Libcsound]))
 
 (declare AudioWorkletProcessor)
 

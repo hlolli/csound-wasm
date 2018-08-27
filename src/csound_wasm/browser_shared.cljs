@@ -1,6 +1,5 @@
 (ns csound-wasm.browser-shared
-  (:require [csound-wasm.public :as public]
-            ["libcsound_browser" :as Libcsound]))
+  (:require [csound-wasm.public :as public]))
 
 #_(defn fallback-load-sequence [Libcsound]
     (let [libcsound (public/activate-init-callback Libcsound)]

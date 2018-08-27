@@ -8,7 +8,7 @@
             ["fs" :as fs]
             ["path" :as path]))
 
-(def libcsound (public/activate-init-callback (.-default Libcsound)))
+(def libcsound (public/activate-init-callback Libcsound))
 
 (reset! public/libcsound libcsound)
 
