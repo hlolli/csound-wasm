@@ -43,15 +43,16 @@
                   :removeListener    csound-wasm.public/remove-listener}}
                 
                 :node-test
-                {:target      :node-test
-                 :output-to   "out/node-test.js"
-                 :ns-regexp   "-test$"
-                 :autorun     true
+                {:target           :node-test
+                 :output-to        "out/node-test.js"
+                 :ns-regexp        "-test$"
+                 :compiler-options {:optimizations :simple}
+                 ;; :autorun          true
                  ;; :main        csound-wasm.node-test/main
-                 :build-hooks [(csound-wasm.hooks/libcsound-wasm-for-tests)]
-                 :js-options  {:resolve {"libcsound"
-                                         {:target :file
-                                          :file   "libcsound/libcsound.js"}}}}
+                 :build-hooks      [(csound-wasm.hooks/libcsound-wasm-for-tests)]
+                 :js-options       {:resolve {"libcsound"
+                                              {:target :file
+                                               :file   "libcsound/libcsound.js"}}}}
 
                 :browser
                 {:target           :browser
