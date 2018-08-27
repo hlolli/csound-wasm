@@ -1,0 +1,42 @@
+# Clojure CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-clojure/ for more details
+#
+version: 2
+jobs:
+    
+  build:
+    docker:
+      - image: thheller/cljs-dev:latest
+        
+    working_directory: ~/repo
+
+    environment:
+      LEIN_ROOT: "true"
+      # Customize the JVM maximum heap limit
+      JVM_OPTS: -Xmx3200m
+    
+    steps:
+      - checkout
+      - run:
+          name: Install System Dependencies
+          command: apt-get update && apt-get install -y python2.7 libasound2-dev make g++
+      - run:
+          name: Install Node Modules
+          command: npm install --mpg123-backend=dummy
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "shadow-cljs.edn" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-dependencies-
+
+      - run: npx shadow-cljs release node-test
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: v1-dependencies-{{ checksum "shadow-cljs.edn" }}
+
+
+      - run: node out/node-test.js
