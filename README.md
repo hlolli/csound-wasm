@@ -1,3 +1,6 @@
+[![CircleCI](https://circleci.com/gh/hlolli/csound-wasm/tree/master.svg?style=svg)](https://circleci.com/gh/hlolli/csound-wasm/tree/master)
+[![npm version](https://badge.fury.io/js/csound-wasm.svg)](https://badge.fury.io/js/csound-wasm)
+
 # csound-wasm
 Simplified API for Csound's Webassembly.
 
@@ -5,13 +8,37 @@ Simplified API for Csound's Webassembly.
 * Automatic startup and initialization
 * Easy integration to node.js
 
+# Dependencies
+
+- nodejs9x
+- python2.7 (node-gyp)
+- libasound2-dev/alsa-lib-dev (linux only)
+
+_These dependencies are build dependencies and are only required for nodejs._
+
 # Useage
 
 ## Node.js
 ##### Install
+
 ```js
 npm install csound-wasm --save
 ```
+
+or if you want to select audio backend (makes only sense on Linux).
+
+```js
+npm install csound-wasm --save --mpg123-backend=BACKEND
+// or
+node-gyp rebuild --mpg123-backend=BACKEND
+```
+
+where *BACKEND* can be one of
+
+```
+alsa, coreaudio, openal, win32, pulse, jack
+```
+
 Csound-wasm is dependent on the module [Speaker](https://github.com/TooTallNate/node-speaker). This module is not compatable with all audio modules, and can be buggy on Windows if installed within a unix-shell. MacOsX and Linux should work fine with CoreAudio and Alsa respectively.
 ##### Quick start
 ```js
