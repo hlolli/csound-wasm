@@ -10,3 +10,8 @@ shadow-cljs.edn
 src
 .shadow-cljs
 yarn.lock
+release/browser/cljs-runtime
+release/browser/manifest.edn
+release/browser/main.js
+release/browser/manifest.edn
+release/browser/processor.js.map

@@ -1,4 +1,4 @@
-(ns csound-wasm.public
+(ns csound-wasm.core
   (:require-macros
    [csound-wasm.macros
     :refer [wrap-promise

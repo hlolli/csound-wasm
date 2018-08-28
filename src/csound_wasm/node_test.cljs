@@ -1,6 +1,6 @@
 (ns csound-wasm.node-test
   (:require [csound-wasm.node :as csound-node]
-            [csound-wasm.public :as public]
+            [csound-wasm.core :as public]
             [clojure.tools.reader.edn :as edn]
             [cljs.tools.reader :as reader]
             ["fs" :as fs]

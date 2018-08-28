@@ -1,5 +1,5 @@
 (ns csound-wasm.node
-  (:require [csound-wasm.public :as public]
+  (:require [csound-wasm.core :as public]
             ["libcsound" :as Libcsound]
             ["buffer" :as Buffer]
             ["speaker" :as Speaker]
@@ -7,6 +7,8 @@
             ["midi" :as midi]
             ["fs" :as fs]
             ["path" :as path]))
+
+;; (.setFlagsFromString (js/require "v8") "--no-use_strict")
 
 (def libcsound (public/activate-init-callback Libcsound))
 
@@ -153,7 +155,34 @@
       (public/set-midi-callbacks))))
 
 
-
+(defn exports-fn []
+  #js {:startRealtime     public/start-realtime
+       :compileOrc        public/compile-orc
+       :renderToFile      render-to-file
+       :evalCode          public/eval-code
+       :inputMessage      public/input-message
+       ;; :inputMessageAsync public/input-message-async
+       :readScore         public/read-score
+       :getControlChannel public/get-control-channel
+       :setControlChannel public/set-control-channel
+       :setStringChannel  public/set-string-channel
+       :getScoreTime      public/get-score-time
+       ;; :getScoreTimeSync  public/get-score-time-sync
+       :playCSD           public/play-csd
+       :reset             public/reset
+       ;; :stop public/stop
+       :destroy           public/destroy
+       :setOption         public/set-option
+       :compileCSD        public/compile-csd
+       :setTable          public/set-table
+       :getTable          public/get-table
+       :getTableLength    public/get-table-length
+       :getKsmps          public/get-ksmps
+       :get0dbfs          public/get-0dbfs
+       :enableMidi        enable-midi
+       :pushMidi          public/push-midi-message
+       :on                public/on
+       :removeListener    public/remove-listener})
 
 (comment
   (public/start-realtime)

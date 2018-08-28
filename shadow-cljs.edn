@@ -1,46 +1,18 @@
 {:dependencies [[org.clojure/core.specs.alpha "0.2.36"]
                 [org.clojure/tools.nrepl "0.2.12"]
                 [org.clojure/tools.reader "1.3.0"]
-                [org.clojure/core.async "0.4.474"]
+                ;; [org.clojure/core.async "0.4.474"]
                 [cider/cider-nrepl "0.18.0"]]
  
  :source-paths ["src" "test"]
  :builds       {:node
                 {:target           :node-library
                  :output-to        "release/node/index.js"
+                 :output-dir       "out"
                  :modules          {:main {:entries [csound-wasm.node]}}
-                 :compiler-options {:optimizations :simple}
-                 ;; :js-options       {:resolve {"libcsound"
-                 ;;                              {:target :file
-                 ;;                               :file   "libcsound/libcsound.js"}}}
-                 :exports
-                 {:startRealtime     csound-wasm.public/start-realtime
-                  :compileOrc        csound-wasm.public/compile-orc
-                  :renderToFile      csound-wasm.node/render-to-file
-                  :evalCode          csound-wasm.public/eval-code
-                  :inputMessage      csound-wasm.public/input-message
-                  ;; :inputMessageAsync csound-wasm.public/input-message-async
-                  :readScore         csound-wasm.public/read-score
-                  :getControlChannel csound-wasm.public/get-control-channel
-                  :setControlChannel csound-wasm.public/set-control-channel
-                  :setStringChannel  csound-wasm.public/set-string-channel
-                  :getScoreTime      csound-wasm.public/get-score-time
-                  ;; :getScoreTimeSync  csound-wasm.public/get-score-time-sync
-                  :playCSD           csound-wasm.public/play-csd
-                  :reset             csound-wasm.public/reset
-                  ;; :stop csound-wasm.public/stop
-                  :destroy           csound-wasm.public/destroy
-                  :setOption         csound-wasm.public/set-option
-                  :compileCSD        csound-wasm.public/compile-csd
-                  :setTable          csound-wasm.public/set-table
-                  :getTable          csound-wasm.public/get-table
-                  :getTableLength    csound-wasm.public/get-table-length
-                  :getKsmps          csound-wasm.public/get-ksmps
-                  :get0dbfs          csound-wasm.public/get-0dbfs
-                  :enableMidi        csound-wasm.node/enable-midi
-                  :pushMidi          csound-wasm.public/push-midi-message
-                  :on                csound-wasm.public/on
-                  :removeListener    csound-wasm.public/remove-listener}}
+                 :compiler-options {:optimizations :simple
+                                    :language-out  :es5}
+                 :exports-fn       csound-wasm.node/exports-fn}
                 
                 :node-test
                 {:target           :node-test
@@ -48,25 +20,15 @@
                  :ns-regexp        "-test$"
                  :compiler-options {:optimizations :simple}
                  ;; :autorun          true
-                 ;; :main        csound-wasm.node-test/main
-                 :build-hooks      [(csound-wasm.hooks/libcsound-wasm-for-tests)]
-                 ;; :js-options       {:resolve {"libcsound"
-                 ;;                              {:target :file
-                 ;;                               :file   "libcsound/libcsound.js"}}}
-                 }
+                 :build-hooks      [(csound-wasm.hooks/libcsound-wasm-for-tests)]}
 
                 :browser
                 {:target           :browser
                  :output-dir       "release/browser"
                  :asset-path       "./"
-                 ;; :js-options       {:resolve {"libcsound_browser"
-                 ;;                              {:target :file
-                 ;;                               :file   "libcsound/libcsound_browser.js"}}}
-                 :compiler-options {
-                                    :optimizations  :advanced
+                 :compiler-options {:optimizations  :advanced
                                     :output-wrapper true
-                                    :output-to      "release/browser/csound-wasm-browser.js"
-                                    }
+                                    :output-to      "release/browser/csound-wasm-browser.js"}
                  :modules          {:main {:entries [csound-wasm.browser]}}
                  :exports          {:csound csound-wasm.browser/main}
                  :build-hooks      [(csound-wasm.hooks/rename-release)]
@@ -81,15 +43,11 @@
                 {:target           :browser
                  :output-dir       "release/browser"
                  :asset-path       "./"
-                 ;; :js-options       {:resolve {"libcsound_browser"
-                 ;;                              {:target :file
-                 ;;                               :file   "libcsound/libcsound_browser.js"}}}
                  :compiler-options {
                                     :optimizations  :simple
                                     :elide-strict   false
                                     :output-wrapper true
                                     :source-map     true
-                                    ;; :language-in    :es6-strict
                                     :language-out   :es6-strict
                                     :output-to      "release/browser/csound-wasm-worklet-processor.js"
                                     }

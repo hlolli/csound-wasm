@@ -1,5 +1,5 @@
 (ns csound-wasm.browser
-  (:require [csound-wasm.public :as public]
+  (:require [csound-wasm.core :as public]
             [csound-wasm.browser-shared :as shared]
             ["libcsound/libcsound_browser" :as Libcsound]))
 

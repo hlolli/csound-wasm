@@ -1,7 +1,7 @@
 (ns csound-wasm.worklet-processor
   (:require [goog.object :as gobj]
             [clojure.walk :refer [stringify-keys]]
-            [csound-wasm.public :as public]
+            [csound-wasm.core :as public]
             [csound-wasm.browser-shared :as shared]
             ["libcsound/libcsound_browser" :as Libcsound]))
 
