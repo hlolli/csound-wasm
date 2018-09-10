@@ -49,7 +49,7 @@
                                #js ["number"] #js ["number"])
                        csound-instance)]
               (when-not @public/csound-running?
-                (public/dispatch-event "csoundStarted")
+                (public/dispatch-event "csoundStarted" nil)
                 (reset! public/csound-running? true))
               (when (zero? res)
                 (public/perform-ksmps-event))
@@ -65,7 +65,8 @@
                          cnt 0]
                     (if (not= 0 res)
                       (do (reset! public/csound-running? false)
-                          (reset! worklet-audio-fn (fn [& r] true)))
+                          (reset! worklet-audio-fn (fn [& r] true))
+                          (public/dispatch-event "csoundEnd" nil))
                       (when (< i len)
                         (if (< cnt frame-len)
                           (do
@@ -80,11 +81,11 @@
                                    0))))))
                   true))))))
 
-(vreset! public/start-audio-fn
-         (fn [& r]
-           (when-not @public/audio-started?
-             (reset! public/audio-started? true))
-           (start-audio-fn)))
+(reset! public/start-audio-fn
+        (fn [& r]
+          (when-not @public/audio-started?
+            (reset! public/audio-started? true))
+          (start-audio-fn)))
 
 (defn apply-process [inputs outputs parameters]
   (@worklet-audio-fn inputs outputs parameters))
@@ -114,9 +115,9 @@
       "promise"
       (handle-promise data)
       "setStartupFn"
-      (do (vreset! public/startup-fn
-                   (case (aget data 1)
-                     "startRealtime" #(public/start-realtime (aget data 2))))
+      (do (reset! public/startup-fn
+                  (case (aget data 1)
+                    "startRealtime" #(public/start-realtime (aget data 2))))
           (when @public/wasm-initialized? (@public/startup-fn)))
       (apply (get public-functions key) (rest data))
       ;;(.error js/console "Error unhandled key in processor: " key)

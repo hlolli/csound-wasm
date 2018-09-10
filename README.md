@@ -86,7 +86,7 @@ require('csound-wasm/release/browser/csound-wasm-browser.js');
     <h5>Click Start realtime once, gotta love chrome's new autoplay ban policy</h5>
     <button id="start">Start realtime</button>
     <button id="beeper">Make beep!</button>
-    <script src="https://github.com/hlolli/csound-wasm/releases/download/6.11.0-0/csound-wasm-browser.js" />
+    <script src="https://s3.amazonaws.com/hlolli/csound-wasm/6.12.0-0/csound-wasm-worklet-processor.js" />
   <script>
     const beeper = `
     instr 1

@@ -50,7 +50,7 @@
                                            #js ["number"] #js ["number"])
                                           csound-instance)]
                                  (when-not @public/csound-running?
-                                   (public/dispatch-event "csoundStarted")
+                                   (public/dispatch-event "csoundStarted" nil)
                                    (reset! public/csound-running? true))
                                  (when (zero? res)
                                    (public/perform-ksmps-event))
@@ -87,17 +87,16 @@
   (do
     (def audio-context (new js/AudioContext #js {:latencyHint "playback"}))
     (defn component [ ctx ]
-      (this-as that
-        (let [nchnls   (:nchnls @public/audio-config)
-              instance (js/Reflect.construct
-                        js/AudioWorkletNode
-                        #js [ctx "csound-processor"
-                             #js {:numberOfOutputs 1
-                                  :outputChannelCount
-                                  #js [ nchnls ]}]
-                        component)]
-          (.connect instance (.-destination audio-context))
-          instance)))
+      (let [nchnls   (:nchnls @public/audio-config)
+            instance (js/Reflect.construct
+                      js/AudioWorkletNode
+                      #js [ctx "csound-processor"
+                           #js {:numberOfOutputs 1
+                                :outputChannelCount
+                                #js [ nchnls ]}]
+                      component)]
+        (.connect instance (.-destination audio-context))
+        instance))
     (set! (.. component -prototype)
           (js/Object.assign
            (.. js/AudioWorkletNode -prototype)
@@ -106,7 +105,7 @@
                     (or (and (exists? js/window.csound_worklet_processor_url)
                              js/window.csound_worklet_processor_url)
                         (str "https://s3.amazonaws.com/hlolli/csound-wasm/"
-                             "6.11.0-0"
+                             "6.12.0-0"
                              "/csound-wasm-worklet-processor.js")))
         (.then
          (fn []

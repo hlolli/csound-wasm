@@ -54,7 +54,7 @@ schedule(1,0,4,200)
     editor.setBehavioursEnabled(false);
     editor.setTheme("ace/theme/monokai");
     editor.getSession().setMode("ace/mode/csound_orchestra");
-    csound.startRealtime();
+    csound.startRealtime({ksmps: 1});
 
    document.getElementById('play').onclick = ()=>{            
             csound.compileOrc(editor.getValue());

@@ -4,16 +4,17 @@
                 ;; [org.clojure/core.async "0.4.474"]
                 [cider/cider-nrepl "0.18.0"]]
  
- :source-paths ["src" "test"]
- :builds       {:node
+ :source-paths ["src"]
+ :builds       {
+                :node
                 {:target           :node-library
                  :output-to        "release/node/index.js"
-                 :output-dir       "out"
                  :modules          {:main {:entries [csound-wasm.node]}}
                  :compiler-options {:optimizations :simple
+                                    :source-map    true
                                     :language-out  :es5}
                  :exports-fn       csound-wasm.node/exports-fn}
-                
+
                 :node-test
                 {:target           :node-test
                  :output-to        "out/node-test.js"
@@ -27,6 +28,7 @@
                  :output-dir       "release/browser"
                  :asset-path       "./"
                  :compiler-options {:optimizations  :advanced
+                                    :source-map     true
                                     :output-wrapper true
                                     :output-to      "release/browser/csound-wasm-browser.js"}
                  :modules          {:main {:entries [csound-wasm.browser]}}
