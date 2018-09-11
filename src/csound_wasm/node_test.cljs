@@ -13,15 +13,15 @@
 
 (public/on "log" (fn [log] (swap! logs conj log)))
 
-(deftest publicAPI
-  (let [node-exports (-> "./shadow-cljs.edn" fs/readFileSync .toString edn/read-string
-                         :builds :node :exports)
-        ;; browser-exports (-> "./src/csound_wasm/browser_shared.cljs"
-        ;;                     fs/readFileSync
-        ;;                     reader/read
-        ;;                     str)
-        ]
-    (is (<= 24 (count node-exports)))))
+#_(deftest publicAPI
+    (let [node-exports (-> "./shadow-cljs.edn" fs/readFileSync .toString edn/read-string
+                           :builds :node :exports)
+          ;; browser-exports (-> "./src/csound_wasm/browser_shared.cljs"
+          ;;                     fs/readFileSync
+          ;;                     reader/read
+          ;;                     str)
+          ]
+      (is (<= 24 (count node-exports)))))
 
 (deftest libcsound-module
   (testing "Object type"
@@ -52,6 +52,6 @@
 (use-fixtures :once
   {:before #(async done (start-realtime done))
    :after  (fn []
-             (publicAPI)
+             ;; (publicAPI)
              (libcsound-module)
              (end-realtime))})

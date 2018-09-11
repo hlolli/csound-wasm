@@ -378,7 +378,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["csoundNew"])
     (reset! csound-instance
-            (((.-cwrap @libcsound)
+            (((.-cwrap ^js @libcsound)
               "CsoundObj_new"
               #js ["number"] nil)))))
 
@@ -470,8 +470,7 @@
     (if Libcsound
       (Libcsound #js {:postRun
                       (fn []
-                        (when (or Libcsound
-                                  @audio-worklet-node)
+                        (when (or Libcsound @audio-worklet-node)
                           (initialize)
                           (run-event-queue)))
                       :noExitRuntime true

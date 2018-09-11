@@ -34,7 +34,7 @@
                            csound-instance)
           frame-len       (* ksmps output-count)
           output-buffer   (new js/Float64Array
-                               (.-buffer (.-HEAP8 libcsound))
+                               (.-buffer (.-HEAP8 ^js libcsound))
                                ^js output-pointer frame-len)
           ;; TODO add microphone input buffer
           zerodbfs        ((libcsound.cwrap
@@ -96,7 +96,7 @@
              "instanciateLibcsound"
              (fn []
                (reset! public/libcsound
-                       (public/instanciate-libcsound Libcsound))))))
+                       (public/instanciate-libcsound ^js Libcsound))))))
 
 (def public-functions-keys
   (into #{} (keys public-functions)))
@@ -124,18 +124,17 @@
       )))
 
 (defn AudioWorkletProcessor []
-  (cljs.core/this-as this
-    (letfn [(process [inputs outputs parameters]
-              (@worklet-audio-fn inputs outputs parameters))]
-      (let [instance (js/Reflect.construct
-                      js/AudioWorkletProcessor #js []
-                      AudioWorkletProcessor)]
-        (set! (.. instance -port -onmessage) processor-event-handler)
-        (reset! public/audio-worklet-processor
-                {:object instance
-                 :post   (fn [msg & r] (.postMessage ^js (.. instance -port) msg))})
-        (.postMessage (.. instance -port) #js ["workletProcessorReady"])
-        instance))))
+  (letfn [(process [inputs outputs parameters]
+            (@worklet-audio-fn inputs outputs parameters))]
+    (let [instance (js/Reflect.construct
+                    js/AudioWorkletProcessor #js []
+                    AudioWorkletProcessor)]
+      (set! (.. instance -port -onmessage) processor-event-handler)
+      (reset! public/audio-worklet-processor
+              {:object instance
+               :post   (fn [msg & r] (.postMessage ^js (.. instance -port) msg))})
+      (.postMessage (.. instance -port) #js ["workletProcessorReady"])
+      instance)))
 
 (set! (.. AudioWorkletProcessor -prototype)
       (.. js/AudioWorkletProcessor -prototype))

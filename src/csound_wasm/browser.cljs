@@ -85,8 +85,8 @@
 
 (if (exists? js/AudioWorklet)
   (do
-    (def audio-context (new js/AudioContext #js {:latencyHint "playback"}))
-    (defn component [ ctx ]
+    (def ^js audio-context (new js/AudioContext #js {:latencyHint "playback"}))
+    (defn component [^js ctx ]
       (let [nchnls   (:nchnls @public/audio-config)
             instance (js/Reflect.construct
                       js/AudioWorkletNode
@@ -101,12 +101,12 @@
           (js/Object.assign
            (.. js/AudioWorkletNode -prototype)
            #js {:constructor (fn [ctx] (component ctx))}))
-    (-> (.addModule audio-context.audioWorklet 
-                    (or (and (exists? js/window.csound_worklet_processor_url)
-                             js/window.csound_worklet_processor_url)
-                        (str "https://s3.amazonaws.com/hlolli/csound-wasm/"
-                             "6.12.0-0"
-                             "/csound-wasm-worklet-processor.js")))
+    (-> (.addModule ^js (.-audioWorklet ^js audio-context)
+                    (if (exists? ^js js/window.csound_worklet_processor_url)
+                      ^js js/window.csound_worklet_processor_url
+                      (str "https://s3.amazonaws.com/hlolli/csound-wasm/"
+                           "6.12.0-0"
+                           "/csound-wasm-worklet-processor.js")))
         (.then
          (fn []
            (let [node (new component audio-context)]

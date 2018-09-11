@@ -46,7 +46,7 @@
                  :output-dir       "release/browser"
                  :asset-path       "./"
                  :compiler-options {
-                                    :optimizations  :simple
+                                    :optimizations  :advanced
                                     :elide-strict   false
                                     :output-wrapper true
                                     :source-map     true
@@ -54,4 +54,5 @@
                                     :output-to      "release/browser/csound-wasm-worklet-processor.js"
                                     }
                  :modules          {:processor {:entries [csound-wasm.worklet-processor]}}
-                 :build-hooks      [(csound-wasm.hooks/rename-processor-release)]}}}
+                 :build-hooks      [(csound-wasm.hooks/processor-overwrite-global)
+                                    (csound-wasm.hooks/rename-processor-release)]}}}

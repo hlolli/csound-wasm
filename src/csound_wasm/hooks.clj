@@ -37,11 +37,23 @@
     (Files/move src dest (into-array [StandardCopyOption/REPLACE_EXISTING])))
   build-state)
 
+(defn processor-overwrite-global
+  {:shadow.build/stage :compile-finish}
+  [build-state & args]
+  #_(spit "henda-pre.txt" (get-in build-state [:output [:shadow.build.classpath/resource "goog/base.js"] :js]))
+  #_(spit "henda-post.txt" (get-in (update-in build-state [:output [:shadow.build.classpath/resource "goog/base.js"] :js]
+                                              string/replace "goog.global=this" "goog.global={}")
+                                   [:output [:shadow.build.classpath/resource "goog/base.js"] :js]))
+  (update-in build-state [:output [:shadow.build.classpath/resource "goog/base.js"] :js]
+             string/replace "goog.global = this" "goog.global = {}"))
+
+
 (defn rename-processor-release
   {:shadow.build/stage :flush}
   [build-state & args]
   (let [slur (slurp "release/browser/processor.js")
-        new  (string/replace slur "goog.global=this" "goog.global={}")]
-    (spit "release/browser/csound-wasm-worklet-processor.js" new)
+        ;; new  (string/replace slur "goog.global=this" "goog.global={}")
+        ]
+    (spit "release/browser/csound-wasm-worklet-processor.js" slur)
     (Files/deleteIfExists (Paths/get "." (into-array ["release" "browser" "processor.js"]))))
   build-state)
