@@ -105,7 +105,7 @@
                     (if (exists? ^js js/window.csound_worklet_processor_url)
                       ^js js/window.csound_worklet_processor_url
                       (str "https://s3.amazonaws.com/hlolli/csound-wasm/"
-                           "6.12.0-0"
+                           "6.12.0-1"
                            "/csound-wasm-worklet-processor.js")))
         (.then
          (fn []
@@ -138,22 +138,22 @@
                               "falling back to WebAudio's script processor.\n")
                          err)
                   (reset! public/audio-worklet-node nil)
-                  (vreset! public/start-audio-fn
-                           (fn [config]
-                             (when-not @public/audio-started?
-                               (reset! public/audio-started? true))
-                             (start-audio config)))
+                  (reset! public/start-audio-fn
+                          (fn [config]
+                            (when-not @public/audio-started?
+                              (reset! public/audio-started? true))
+                            (start-audio config)))
                   (let [libcsound (public/activate-init-callback Libcsound)]
                     (reset! public/libcsound libcsound))))))
   (do
     (.warn js/console
            (str "No AudioWorklet support found"))
     (reset! public/audio-worklet-node false)
-    (vreset! public/start-audio-fn
-             (fn [config]
-               (when-not @public/audio-started?
-                 (reset! public/audio-started? true))
-               (start-audio config)))
+    (reset! public/start-audio-fn
+            (fn [config]
+              (when-not @public/audio-started?
+                (reset! public/audio-started? true))
+              (start-audio config)))
     (let [libcsound (public/activate-init-callback Libcsound)]
       (reset! public/libcsound libcsound))))
 

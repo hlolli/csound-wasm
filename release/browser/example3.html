@@ -29,7 +29,8 @@ schedule(1,0,4,200)
 <button id="play" style="margin-top:310px; height:40px;margin-left:20px">Play</button>
 <div id="tester" style="margin-top:0px;width:600px;height:250px;"></div>
 
-<script>window["csound_worklet_processor_url"] = "./csound-wasm-worklet-processor.js"</script>
+<!-- <script>window["csound_worklet_processor_url"] = "./csound-wasm-worklet-processor.js"</script> -->
+<script>window["csound_worklet_processor_url"] = "http://localhost:8080/csound-wasm-worklet-processor.js"</script>
 
 <script src="./csound-wasm-browser.js"></script>
 
@@ -54,6 +55,7 @@ schedule(1,0,4,200)
     editor.setBehavioursEnabled(false);
     editor.setTheme("ace/theme/monokai");
     editor.getSession().setMode("ace/mode/csound_orchestra");
+    csound.setControlChannel("freq", 200);
     csound.startRealtime({ksmps: 1});
 
    document.getElementById('play').onclick = ()=>{            

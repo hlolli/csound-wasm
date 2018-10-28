@@ -343,8 +343,8 @@
 
 (defn- log-event [log]
   (if (exists? js/window)
-    (.log js/console "%c%s" "font-size: 13px;" log)
-    (.log js/console log))
+    (.log js/console "%c%s" "font-size: 13px;" (str log))
+    (.log js/console (str log)))
   #_(when (or (not worker-threads)
               (.-isMainThread worker-threads))
       (dispatch-event "csoundLog" log)))

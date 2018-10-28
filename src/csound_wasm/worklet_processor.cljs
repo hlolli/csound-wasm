@@ -109,8 +109,9 @@
      #js ["promise" promise-id return-val])))
 
 (defn processor-event-handler [event]
-  (let [data (.-data event)
-        key  (aget data 0)]
+  (let [data   (.-data event)
+        key    (aget data 0)
+        params (aget data 1)]
     (case key
       "promise"
       (handle-promise data)
@@ -119,7 +120,10 @@
                   (case (aget data 1)
                     "startRealtime" #(public/start-realtime (aget data 2))))
           (when @public/wasm-initialized? (@public/startup-fn)))
-      (apply (get public-functions key) (rest data))
+      (apply (get public-functions key)
+             (let [rest-data (if (vector? params)
+                               params (js->clj params))]
+               params))
       ;;(.error js/console "Error unhandled key in processor: " key)
       )))
 
