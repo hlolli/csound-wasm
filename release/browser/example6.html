@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0>
+    <style> body {padding: 0; margin: 0;} </style>
+        <script>window["csound_worklet_processor_url"] = "./csound-wasm-worklet-processor.js"</script>
+    <script src="./csound-wasm-browser.js"></script>
+    <script>
+
+      const csd = `
+    <CsoundSynthesizer>
+    <CsInstruments>
+    instr 1
+    aOut1 vco2 0.3, p4
+    aOut2 vco2 0.3, p4*1.1
+    outs aOut1, aOut2
+    endin
+    </CsInstruments>
+    <CsScore>
+    i1 0 1 100
+    i1 1 1 200
+    i1 2 1 300
+    </CsScore>
+    </CsoundSynthesizer>
+    `
+
+      csound.playCSD(csd, {ksmps: 1});
+      
+      </script>
+  </head>
+  <body>
+  </body>
+</html>

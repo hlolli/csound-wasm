@@ -118,7 +118,8 @@
       "setStartupFn"
       (do (reset! public/startup-fn
                   (case (aget data 1)
-                    "startRealtime" #(public/start-realtime (aget data 2))))
+                    "startRealtime" #(public/start-realtime (aget data 2))
+                    "playCSD"       #(public/play-csd (aget data 2) (aget data 3))))
           (when @public/wasm-initialized? (@public/startup-fn)))
       (apply (get public-functions key)
              (let [rest-data (if (vector? params)
