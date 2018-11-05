@@ -3,11 +3,11 @@
 (defmacro wrap-ipc-promise [message]
   `(js/Promise.
     (fn [resolve# reject#]
-      (let [promise-id# (.-str (gensym))]
+      (let [promise-id# ^js/String (.-str (gensym))]
         (swap! csound-wasm.core/ipc-promise-queue
                assoc promise-id# [resolve# reject#])
         ((:post (deref csound-wasm.core/audio-worklet-node))
-         (.concat (js/Array "promise" promise-id#) ~message))))))
+         (.concat (js/Array "promise" promise-id#) ^js ~message))))))
 
 (defmacro wrap-promise [callback]
   `(if @csound-wasm.core/audio-worklet-processor

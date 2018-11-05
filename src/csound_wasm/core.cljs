@@ -79,14 +79,14 @@
 (defn prepareRT []
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["prepareRT"]))
-  (((.-cwrap @libcsound) "CsoundObj_prepareRT"
+  (((.-cwrap ^js @libcsound) "CsoundObj_prepareRT"
     nil #js ["number"]) @csound-instance))
 
 (defn set-option [option]
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["setOption" option])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound) "CsoundObj_setOption" nil #js ["number" "string"])
+      (((.-cwrap ^js @libcsound) "CsoundObj_setOption" nil #js ["number" "string"])
        @csound-instance option)
       (swap! event-queue conj #(set-option option)))))
 
@@ -94,7 +94,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["compileOrc" orc])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound)
+      (((.-cwrap ^js @libcsound)
         "CsoundObj_compileOrc"
         "number" #js ["number" "string"])
        @csound-instance orc)
@@ -104,7 +104,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["evalCode" orc])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound) "CsoundObj_evaluateCode" "number" #js ["number" "string"])
+      (((.-cwrap ^js @libcsound) "CsoundObj_evaluateCode" "number" #js ["number" "string"])
        @csound-instance orc)
       (swap! event-queue conj #(eval-code orc)))))
 
@@ -112,7 +112,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["inputMessage" sco])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound)
+      (((.-cwrap ^js @libcsound)
         "CsoundObj_inputMessage"
         "number" #js ["number" "string"])
        @csound-instance sco)
@@ -147,7 +147,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["readScore" sco])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound)
+      (((.-cwrap ^js @libcsound)
         "CsoundObj_readScore"
         "number" #js ["number" "string"])
        @csound-instance sco)
@@ -157,7 +157,7 @@
   (if @audio-worklet-node
     (wrap-ipc-promise #js ["getControlChannel" ctrl-channel])
     (let [callback (fn []
-                     (((.-cwrap @libcsound)
+                     (((.-cwrap ^js @libcsound)
                        "CsoundObj_getControlChannel"
                        #js ["number"] #js ["number" "string"])
                       @csound-instance ctrl-channel)
@@ -168,7 +168,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["setControlChannel" #js [ctrl-channel val]])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound)
+      (((.-cwrap ^js @libcsound)
         "CsoundObj_setControlChannel"
         nil #js ["number" "string" "number"])
        @csound-instance ctrl-channel val)
@@ -178,7 +178,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["setStringChannel" #js [string-channel string]])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound)
+      (((.-cwrap ^js @libcsound)
         "CsoundObj_setStringChannel"
         nil #js ["number" "string" "string"])
        @csound-instance string-channel string)
@@ -189,7 +189,7 @@
     (wrap-ipc-promise #js ["getScoreTime"])
     (let [callback
           (fn []
-            (((.-cwrap @libcsound)
+            (((.-cwrap ^js @libcsound)
               "CsoundObj_getScoreTime"
               nil #js ["number"])
              @csound-instance))]
@@ -217,7 +217,7 @@
     ((:post awn) #js ["reset"])
     (if @wasm-loaded?
       (do (reset! csound-running? :reset)
-          (((.-cwrap @libcsound) "CsoundObj_reset" nil #js ["number"])
+          (((.-cwrap ^js @libcsound) "CsoundObj_reset" nil #js ["number"])
            @csound-instance))
       (swap! event-queue conj #(reset)))))
 
@@ -225,7 +225,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["destroy"])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound) "CsoundObj_destroy" nil #js ["number"])
+      (((.-cwrap ^js @libcsound) "CsoundObj_destroy" nil #js ["number"])
        @csound-instance)
       (swap! event-queue conj #(destroy)))))
 
@@ -234,7 +234,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["compileCSD" csd])
     (if @wasm-loaded?
-      (do (((.-cwrap @libcsound) "CsoundObj_compileCSD" nil #js ["number" "string"])
+      (do (((.-cwrap ^js @libcsound) "CsoundObj_compileCSD" nil #js ["number" "string"])
            @csound-instance csd)
           (dispatch-event "csoundReady" nil))
       (swap! event-queue conj #(compile-csd csd)))))
@@ -244,7 +244,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["setTable" table-num index val])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound) "CsoundObj_setTable" nil #js ["number" "number" "number" "number"])
+      (((.-cwrap ^js @libcsound) "CsoundObj_setTable" nil #js ["number" "number" "number" "number"])
        @csound-instance table-num index val)
       (swap! event-queue conj #(set-table table-num index val)))))
 
@@ -252,7 +252,7 @@
   (if @audio-worklet-node
     (wrap-ipc-promise #js ["getTableLength" table-num])
     (let [callback (fn []
-                     (((.-cwrap @libcsound) "CsoundObj_getTableLength"
+                     (((.-cwrap ^js @libcsound) "CsoundObj_getTableLength"
                        #js ["number"] #js ["number" "number"])
                       @csound-instance table-num))]
       (wrap-promise callback))))
@@ -262,18 +262,18 @@
     (wrap-ipc-promise #js ["getTable" table-num])
     (wrap-promise
      (fn []
-       (let [buf (((.-cwrap @libcsound)
+       (let [buf (((.-cwrap ^js @libcsound)
                    "CsoundObj_getTable"
                    #js ["number"] #js ["number" "number"])
                   @csound-instance table-num)
-             len (((.-cwrap @libcsound) "CsoundObj_getTableLength"
+             len (((.-cwrap ^js @libcsound) "CsoundObj_getTableLength"
                    #js ["number"] #js ["number" "number"])
                   @csound-instance table-num)]
          (if (= -1 len)
            (.error js/console (str "Error: table number " table-num
                                    " doesn't exist, or hasn't been compiled yet."))
            (let [src (new js/Float64Array
-                          (.-buffer (.-HEAP8 @libcsound)) buf len)
+                          (.-buffer (.-HEAP8 ^js @libcsound)) buf len)
                  ret (new js/Float32Array src)]
              ret)))))))
 
@@ -281,7 +281,7 @@
   (if @audio-worklet-node
     (wrap-ipc-promise #js ["getKsmps"])
     (let [callback (fn []
-                     (((.-cwrap @libcsound)
+                     (((.-cwrap ^js @libcsound)
                        "CsoundObj_getKsmps"
                        #js ["number"] #js ["number"])
                       @csound-instance))]
@@ -291,7 +291,7 @@
   (if @audio-worklet-node
     (wrap-ipc-promise #js ["get0dbfs"])
     (let [callback (fn []
-                     (((.-cwrap @libcsound)
+                     (((.-cwrap ^js @libcsound)
                        "CsoundObj_getZerodBFS"
                        #js ["number"] #js ["number"])
                       @csound-instance))]
@@ -301,7 +301,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["setMidiCallbacks"])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound) "CsoundObj_setMidiCallbacks" nil #js ["number"])
+      (((.-cwrap ^js @libcsound) "CsoundObj_setMidiCallbacks" nil #js ["number"])
        @csound-instance)
       (swap! event-queue conj #(set-midi-callbacks)))))
 
@@ -309,7 +309,7 @@
   (if-let [awn @audio-worklet-node]
     ((:post awn) #js ["pushMidiMessage" byte1 byte2 byte3])
     (if @wasm-loaded?
-      (((.-cwrap @libcsound) "CsoundObj_pushMidiMessage" nil #js ["number" "number" "number" "number"])
+      (((.-cwrap ^js @libcsound) "CsoundObj_pushMidiMessage" nil #js ["number" "number" "number" "number"])
        @csound-instance byte1 byte2 byte3)
       (swap! event-queue conj #(push-midi-message byte1 byte2 byte3)))))
 

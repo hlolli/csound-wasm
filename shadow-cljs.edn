@@ -28,6 +28,7 @@
                  :output-dir       "release/browser"
                  :asset-path       "./"
                  :compiler-options {:optimizations  :advanced
+                                    :infer-externs  :auto
                                     :source-map     true
                                     :output-wrapper true
                                     :output-to      "release/browser/csound-wasm-browser.js"}
@@ -46,6 +47,7 @@
                  :output-dir       "release/browser"
                  :asset-path       "./"
                  :compiler-options {
+                                    :infer-externs  :auto
                                     :optimizations  :advanced
                                     :elide-strict   false
                                     :output-wrapper true

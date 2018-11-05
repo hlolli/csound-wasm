@@ -28,15 +28,15 @@
           audio-process-node (.createScriptProcessor
                               audio-context
                               buffer-size input-count output-count)
-          _                  (do (set! (.-inputCount audio-process-node) input-count)
-                                 (set! (.-outputCount audio-process-node) output-count))
+          _                  (do (set! (.-inputCount ^js audio-process-node) input-count)
+                                 (set! (.-outputCount ^js audio-process-node) output-count))
           buffer-size        (.-bufferSize audio-process-node)
           frame-len          (* ksmps output-count)
           output-pointer     ((libcsound.cwrap 
                                "CsoundObj_getOutputBuffer" 
                                #js ["number"] #js ["number"])
                               csound-instance)
-          output-buffer      (new js/Float64Array (.-buffer (.-HEAP8 libcsound))
+          output-buffer      (new js/Float64Array (.-buffer (.-HEAP8 ^js libcsound))
                                   ^js output-pointer frame-len)
           ;; TODO add microphone input buffer
           zerodbfs           ((libcsound.cwrap 

@@ -44,7 +44,7 @@
           ;; range-output-cnt (range output-count)
           perform-ksmps-fn
           (fn []
-            (let [res ((.cwrap @public/libcsound
+            (let [res ((.cwrap ^js @public/libcsound
                                "CsoundObj_performKsmps"
                                #js ["number"] #js ["number"])
                        csound-instance)]
