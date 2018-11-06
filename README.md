@@ -66,7 +66,7 @@ Download the latest `csound-wasm-browser.js` under [releases](https://github.com
 ```
 Or alternatively (preferably for development) refer directly to the gihub releases within the html, like so.
 ```html
-<script src="https://github.com/hlolli/csound-wasm/releases/download/6.10.0-4/csound-wasm-browser.js"></script>
+<script src="https://github.com/hlolli/csound-wasm/releases/download/6.12.0-2/csound-wasm-browser.js"></script>
 ```
 This file is minified via Google Closure Compiler and is intended to be used as is. If you're useing Webpack or Gulp, then add this file as a vendor resource.
 
@@ -86,7 +86,7 @@ require('csound-wasm/release/browser/csound-wasm-browser.js');
     <h5>Click Start realtime once, gotta love chrome's new autoplay ban policy</h5>
     <button id="start">Start realtime</button>
     <button id="beeper">Make beep!</button>
-    <script src="https://s3.amazonaws.com/hlolli/csound-wasm/6.12.0-0/csound-wasm-worklet-processor.js" />
+    <script src="https://s3.amazonaws.com/hlolli/csound-wasm/6.12.0-2/csound-wasm-worklet-processor.js" />
   <script>
     const beeper = `
     instr 1
