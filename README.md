@@ -87,6 +87,7 @@ require('csound-wasm/release/browser/csound-wasm-browser.js');
     <button id="start">Start realtime</button>
     <button id="beeper">Make beep!</button>
     <script src="https://github.com/hlolli/csound-wasm/releases/download/6.12.0-3/csound-wasm-browser.js">
+    </script>
   <script>
     const beeper = `
     instr 1

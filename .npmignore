@@ -3,6 +3,7 @@ target
 node_modules
 package-lock.json
 *~
+*#
 *.wav
 deps.cljs
 project.clj
