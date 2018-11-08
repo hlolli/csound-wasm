@@ -21,6 +21,7 @@
     "watch:browser": "npx shadow-cljs watch browser",
     "watch:node": "npx shadow-cljs watch node",
     "release": "npx shadow-cljs release browser node processor",
+    "release:processor": "npx shadow-cljs release processor",
     "test:node": "npx shadow-cljs compile node-test"
   },
   "dependencies": {

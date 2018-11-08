@@ -9,6 +9,7 @@
         ((:post (deref csound-wasm.core/audio-worklet-node))
          (.concat (js/Array "promise" promise-id#) ^js ~message))))))
 
+
 (defmacro wrap-promise [callback]
   `(if @csound-wasm.core/audio-worklet-processor
      (~callback)
@@ -17,3 +18,12 @@
         (if @csound-wasm.core/wasm-loaded?
           (resolve# (~callback))
           (vswap! csound-wasm.core/event-queue conj #(resolve# (~callback))))))))
+
+#_(defmacro assign-promise [promise callback]
+    `(if @csound-wasm.core/audio-worklet-processor
+       (~callback)
+       (set! ~promise
+             (fn [resolve# reject#]
+               (if @csound-wasm.core/wasm-loaded?
+                 (resolve# (~callback))
+                 (vswap! csound-wasm.core/event-queue conj #(resolve# (~callback))))))))

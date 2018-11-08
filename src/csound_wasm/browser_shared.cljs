@@ -1,22 +1,9 @@
 (ns csound-wasm.browser-shared
   (:require [csound-wasm.core :as public]))
 
-#_(defn fallback-load-sequence [Libcsound]
-    (let [libcsound (public/activate-init-callback Libcsound)]
-      (reset! public/libcsound libcsound)
-      (set! libcsound.print
-            (fn [log]
-              (public/log-event log)))
-      (set! libcsound.printErr
-            (fn [log]
-              (public/log-event log)
-              #_(.log js/console "%c%s" "font-size: 16px; color: #ba0fee" log)))
-      (set! libcsound.noExitRuntime true)))
 
-(defn enable-midi []
-  ;; if-let [awn @public/audio-worklet-node]
-  ;; ((:post awn) #js ["enableMidi"])
-  
+
+(defn enable-midi []  
   (letfn [(handle-midi-input [event]
             (public/push-midi-message
              (aget (.-data event) 0)
@@ -64,5 +51,6 @@
        :pushMidiMessage   csound-wasm.core/push-midi-message
        :enableMidi        enable-midi
        :pushMidi          csound-wasm.core/push-midi-message
+       :writeToFs         csound-wasm.core/write-to-fs
        :on                csound-wasm.core/on
        :removeListener    csound-wasm.core/remove-listener})

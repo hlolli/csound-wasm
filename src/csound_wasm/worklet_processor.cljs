@@ -90,13 +90,24 @@
 (defn apply-process [inputs outputs parameters]
   (@worklet-audio-fn inputs outputs parameters))
 
+(defn worklet-write-to-fs [binary-string root-dir filename]
+  (.createDataFile
+   (.-FS ^js @public/libcsound) root-dir
+   filename
+   binary-string
+   true true)
+  (if (= "/" root-dir)
+    filename (str root-dir "/" filename)))
+
 (def public-functions
   (-> (stringify-keys (js->clj shared/main))
       (assoc "csoundNew" public/csound-new-object
              "instanciateLibcsound"
              (fn []
                (reset! public/libcsound
-                       (public/instanciate-libcsound ^js Libcsound))))))
+                       (public/instanciate-libcsound ^js Libcsound)))
+             "writeToFs"
+             worklet-write-to-fs)))
 
 (def public-functions-keys
   (into #{} (keys public-functions)))
@@ -111,7 +122,7 @@
 (defn processor-event-handler [event]
   (let [data   (.-data event)
         key    (aget data 0)
-        params (aget data 1)]
+        params (.slice data 1)]
     (case key
       "promise"
       (handle-promise data)
@@ -122,9 +133,9 @@
                     "playCSD"       #(public/play-csd (aget data 2) (aget data 3))))
           (when @public/wasm-initialized? (@public/startup-fn)))
       (apply (get public-functions key)
-             (let [rest-data (if (vector? params)
-                               params (js->clj params))]
-               params))
+             (let [clj-params (if (vector? params)
+                                params (js->clj params))]
+               clj-params))
       ;;(.error js/console "Error unhandled key in processor: " key)
       )))
 

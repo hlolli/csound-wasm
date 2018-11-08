@@ -1,8 +1,7 @@
 (ns csound-wasm.core
+  (:require [goog.dom :refer [isElement]])
   (:require-macros
-   [csound-wasm.macros
-    :refer [wrap-promise
-            wrap-ipc-promise]]))
+   [csound-wasm.macros :refer [wrap-promise wrap-ipc-promise]]))
 
 (def libcsound (atom nil))
 
@@ -166,7 +165,7 @@
 
 (defn set-control-channel [ctrl-channel val]
   (if-let [awn @audio-worklet-node]
-    ((:post awn) #js ["setControlChannel" #js [ctrl-channel val]])
+    ((:post awn) #js ["setControlChannel" ctrl-channel val])
     (if @wasm-loaded?
       (((.-cwrap ^js @libcsound)
         "CsoundObj_setControlChannel"
@@ -176,7 +175,7 @@
 
 (defn set-string-channel [string-channel string]
   (if-let [awn @audio-worklet-node]
-    ((:post awn) #js ["setStringChannel" #js [string-channel string]])
+    ((:post awn) #js ["setStringChannel" string-channel string])
     (if @wasm-loaded?
       (((.-cwrap ^js @libcsound)
         "CsoundObj_setStringChannel"
@@ -194,6 +193,53 @@
               nil #js ["number"])
              @csound-instance))]
       (wrap-promise callback))))
+
+(defn write-to-fs [file-array & [root-dir]]
+  ;; let's be kind and allow an event to be passed
+  (let [file-array (if (isElement file-array)
+                     (.-files file-array) file-array)]
+    (if @audio-worklet-node
+      (js/Promise.all
+       (amap file-array i ret
+             (let [file        (aget file-array i)
+                   file-reader (new js/window.FileReader)
+                   resolver    (volatile! nil)
+                   promise-ret (js/Promise. (fn [resolve reject]
+                                              (vreset! resolver resolve)))
+                   file-ready-event
+                   (fn [evt]
+                     (-> (wrap-ipc-promise
+                          #js ["writeToFs" (.-result file-reader)
+                               (or root-dir "/") (.-name file)])
+                         (.then (fn [filename] (@resolver filename)))))]
+               (set! (.-onload file-reader) file-ready-event)
+               (.readAsBinaryString file-reader file)
+               promise-ret)))
+      (let [callback (fn []
+                       (when (< 0 (.-length file-array))
+                         (let [fs       (.-FS ^js @libcsound)
+                               root-dir (if root-dir root-dir "/")]
+                           (when (and (not= "/" root-dir)
+                                      (not (.includes (.readdir fs "/") root-dir)))
+                             (.createFolder fs "/" root-dir true true))
+                           (doseq [idx (range (.-length file-array))]
+                             (let [file        (aget file-array idx)
+                                   file-reader (new js/window.FileReader)
+                                   file-ready-event
+                                   (fn [evt]
+                                     (.createDataFile
+                                      fs root-dir (.-name file)
+                                      (.-result file-reader)
+                                      true true))]
+                               (set! (.-onload file-reader) file-ready-event)
+                               (.readAsBinaryString file-reader file)))
+                           (amap file-array i ret
+                                 (let [file     (aget file-array i)
+                                       filename (.-name file)]
+                                   (if (= "/" root-dir)
+                                     filename
+                                     (str root-dir "/" filename)))))))]
+        (wrap-promise callback)))))
 
 #_(defn get-score-time-sync []
     (when-let [awn @audio-worklet-node]
