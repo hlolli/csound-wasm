@@ -1,6 +1,6 @@
 {
   "name": "csound-wasm",
-  "version": "6.12.0-2",
+  "version": "6.12.0-3",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "GPL-3.0",
   "keywords": [
