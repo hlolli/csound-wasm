@@ -66,7 +66,7 @@ Download the latest `csound-wasm-browser.js` under [releases](https://github.com
 ```
 Or alternatively (preferably for development) refer directly to the gihub releases within the html, like so.
 ```html
-<script src="https://github.com/hlolli/csound-wasm/releases/download/6.12.0-3/csound-wasm-browser.js"></script>
+<script src="https://github.com/hlolli/csound-wasm/releases/download/6.12.0-4/csound-wasm-browser.js"></script>
 ```
 This file is minified via Google Closure Compiler and is intended to be used as is. If you're useing Webpack or Gulp, then add this file as a vendor resource.
 
@@ -86,7 +86,7 @@ require('csound-wasm/release/browser/csound-wasm-browser.js');
     <h5>Click Start realtime once, gotta love chrome's new autoplay ban policy</h5>
     <button id="start">Start realtime</button>
     <button id="beeper">Make beep!</button>
-    <script src="https://github.com/hlolli/csound-wasm/releases/download/6.12.0-3/csound-wasm-browser.js">
+    <script src="https://github.com/hlolli/csound-wasm/releases/download/6.12.0-4/csound-wasm-browser.js">
     </script>
   <script>
     const beeper = `
@@ -124,12 +124,24 @@ If you wish to host the needed AudioWorklet processor script yourself, you'll ne
 # API
 Many these functions are a direct implementation of the [Csound API](http://csound.com/docs/api/index.html). Some are `csound-wasm` specific.
 
+## Default config
+
+```json
+{ nchnls: 2,
+  nchnls_i: 1,
+  zerodbfs: 1,
+  sr: 44100,
+  ksmps: 128,
+  buffer: 2048
+  messagelevel: 39 }
+```
 
 ## Voids (without return values)
 
 | Public Function |  Parameters  |Description |
 | ----------------|-------------| -----------|
-| csound.startRealtime(config*)| config::Object default: { nchnls: 2, zerodbfs: 1, sr: 44100, ksmps: 256, buffer: 2048 }  | starts/initializes realtime as oppsed to rendering to file|
+| csound.startRealtime(config*)| config::Object default-config  | starts/initializes realtime as oppsed to rendering to file|
+|csound.playCSD(csd, config*) | csd::String  config::Object default-config  | starts/initializes realtime and plays csd string |
 |csound.compileOrc(orc)| orc::String | Compiles any orchestra code at k-rate without return value.|
 |csound.renderToFile(csd, file) | csd::String, file::String| Renders CSD string, filepath for the file output, currently only supported on node|
 |csound.evalCode(orc)|orc::String| like compileOrc but returns status number on i-rate (0 if successful)|
@@ -137,7 +149,6 @@ Many these functions are a direct implementation of the [Csound API](http://csou
 |csound.readScore(sco)| sco::String |like inputMessage but tries to pre-process the before emitting the event|
 |csound.setControlChannel
 |csound.setStringChannel
-|csound.playCSD
 |csound.reset
 |csound.destroy
 |csound.setOption

@@ -49,12 +49,13 @@
 (def csound-running? (atom false))
 
 ;; Default config
-(def audio-config (atom {:nchnls   2
-                         :nchnls_i 1
-                         :zerodbfs 1
-                         :sr       44100
-                         :ksmps    128
-                         :buffer   4096}))
+(def audio-config (atom {:nchnls       2
+                         :nchnls_i     1
+                         :zerodbfs     1
+                         :sr           44100
+                         :ksmps        128
+                         :buffer       2048
+                         :messagelevel 39}))
 
 (def node-event-emitter*
   (when nodejs?
@@ -117,30 +118,13 @@
        @csound-instance sco)
       (swap! event-queue conj #(input-message sco)))))
 
-#_(defn string-to-c [str]
-    (let [len (inc (bit-shift-left (.-length str) 2))]
-      (
-       str
-       (libcsound/stackAlloc )
-       len)))
 
 #_(defn input-message-async [sco]
     (((.-cwrap @libcsound) "CsoundObj_inputMessageAsync" "number" #js ["number" "string"])
      @csound-instance sco)
     #_(if @wasm-loaded?
-        (libcsound/_CsoundObj_inputMessageAsync (libcsound/JSfuncs.stringToC sco))
-        
+        (libcsound/_CsoundObj_inputMessageAsync (libcsound/JSfuncs.stringToC sco))        
         (swap! event-queue conj (fn [] (js/setTimeout #(input-message sco)) 1))))
-
-#_(def input-message-async*
-    (libcsound/cwrap "CsoundObj_inputMessageAsync" nil #js ["number" "string"]))
-
-#_(defn input-message-async [sco]
-    ;; (libcsound/_CsoundObj_inputMessageAsync @csound-instance (.stringToC libcsound/JSfuncs sco))
-    (libcsound/ccall "CsoundObj_inputMessageAsync" "number" #js ["number" "string"]
-                     #js [@csound-instance sco] nil)
-    ;; (input-message-async* @csound-instance sco)
-    )
 
 (defn read-score [sco]
   (if-let [awn @audio-worklet-node]
@@ -197,7 +181,8 @@
 (defn write-to-fs [file-array & [root-dir]]
   ;; let's be kind and allow an event to be passed
   (let [file-array (if (isElement file-array)
-                     (.-files file-array) file-array)]
+                     (.-files file-array)
+                     file-array)]
     (if @audio-worklet-node
       (js/Promise.all
        (amap file-array i ret
@@ -211,7 +196,14 @@
                      (-> (wrap-ipc-promise
                           #js ["writeToFs" (.-result file-reader)
                                (or root-dir "/") (.-name file)])
-                         (.then (fn [filename] (@resolver filename)))))]
+                         (.then (fn [filename]
+                                  (println (str "Adding "
+                                                (if (or (= "/" root-dir)
+                                                        (empty? root-dir))
+                                                  (subs filename 1)
+                                                  filename)
+                                                " to filesystem."))
+                                  (@resolver filename)))))]
                (set! (.-onload file-reader) file-ready-event)
                (.readAsBinaryString file-reader file)
                promise-ret)))
@@ -219,7 +211,7 @@
                        (when (< 0 (.-length file-array))
                          (let [fs       (.-FS ^js @libcsound)
                                root-dir (if root-dir root-dir "/")]
-                           (when (and (not= "/" root-dir)
+                           (when (and (or (empty? root-dir) (not= "/" root-dir))
                                       (not (.includes (.readdir fs "/") root-dir)))
                              (.createFolder fs "/" root-dir true true))
                            (doseq [idx (range (.-length file-array))]
@@ -232,7 +224,13 @@
                                       (.-result file-reader)
                                       true true))]
                                (set! (.-onload file-reader) file-ready-event)
-                               (.readAsBinaryString file-reader file)))
+                               (.readAsBinaryString file-reader file)
+                               (println (str "Adding "
+                                             (if (= "/" root-dir)
+                                               (.-name file)
+                                               (str root-dir "/"
+                                                    (.-name file)))
+                                             " to filesystem."))))
                            (amap file-array i ret
                                  (let [file     (aget file-array i)
                                        filename (.-name file)]
@@ -364,6 +362,8 @@
 (def ^:private csound-event-listeners
   (atom []))
 
+;; (def ^:private logger-callback)
+
 (defn- get-event-name [event]
   (case event
     "log"     "csoundLog"
@@ -373,13 +373,18 @@
     "end"     "csoundEnd"
     event))
 
-(defn on [event callback]
+(defn on
+  "All callback are outside of processor,
+   processor just echoes events back."
+  [event callback]
   (let [full-event-name (get-event-name event)
         callback        (case event
-                          "log" (fn [e] (if nodejs?
-                                          (callback e)
-                                          (callback e.detail)))
+                          "log" (fn [e]
+                                  (if nodejs?
+                                    (callback e)
+                                    (callback e.detail)))
                           callback)]
+    (swap! csound-event-listeners conj [full-event-name callback])
     (if nodejs?
       (.on node-event-emitter full-event-name callback)
       (.addEventListener js/window full-event-name callback))))
@@ -388,12 +393,16 @@
   (dispatch-event "performKsmps" nil))
 
 (defn- log-event [log]
-  (if (exists? js/window)
-    (.log js/console "%c%s" "font-size: 13px;" (str log))
-    (.log js/console (str log)))
-  #_(when (or (not worker-threads)
-              (.-isMainThread worker-threads))
-      (dispatch-event "csoundLog" log)))
+  (dispatch-event "csoundLog" log))
+
+;; Default logger
+(when-not @audio-worklet-processor
+  (on "log"
+      (fn [log]
+        (if (exists? js/window)
+          (.log js/console "%c%s" "font-size: 13px;" (str log))
+          (.log js/console (str log))))))
+
 
 (defn remove-listener [event]
   (let [full-event-name (get-event-name event)
@@ -403,7 +412,7 @@
                       (if (= full-event-name event)
                         (do (if nodejs?
                               (.removeListener node-event-emitter full-event-name cb)
-                              (.removeListener js/window full-event-name cb))
+                              (.removeEventListener js/window full-event-name cb))
                             i)
                         (conj i [event cb])))
                     [] @csound-event-listeners))
@@ -414,7 +423,7 @@
               (str 
                " event listeners of type "
                event
-               "were removed."))))))
+               " were removed."))))))
 
 ;;;; Initializers
 
@@ -429,7 +438,8 @@
               #js ["number"] nil)))))
 
 (defn reset-sequence
-  [{:keys [sr buffer nchnls nchnls_i zerodbfs ksmps]}]
+  [{:keys [sr buffer nchnls nchnls_i zerodbfs ksmps
+           messagelevel]}]
   (set-option (str "-b" (/ buffer 2)))
   (set-option (str "-B" buffer))
   (set-option (str "--nchnls=" nchnls))
@@ -437,6 +447,7 @@
   (set-option (str "--ksmps=" ksmps))
   (set-option (str "--sample-rate=" sr))
   (set-option (str "--0dbfs=" zerodbfs))
+  (set-option (str "--messagelevel=" messagelevel))
   (set-option "-M0")
   (set-option "-idac")
   (set-option "-odac")
@@ -524,6 +535,7 @@
                       :print         log-event
                       :printErr      log-event})
       (when-let [awn @audio-worklet-node]
+        (run-event-queue)
         ((:post awn) #js ["instanciateLibcsound"])))))
 
 (defn activate-init-callback [Libcsound]

@@ -17,7 +17,7 @@
       (fn [resolve# reject#]
         (if @csound-wasm.core/wasm-loaded?
           (resolve# (~callback))
-          (vswap! csound-wasm.core/event-queue conj #(resolve# (~callback))))))))
+          (swap! csound-wasm.core/event-queue conj #(resolve# (~callback))))))))
 
 #_(defmacro assign-promise [promise callback]
     `(if @csound-wasm.core/audio-worklet-processor

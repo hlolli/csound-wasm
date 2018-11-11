@@ -1,6 +1,38 @@
 (ns csound-wasm.browser-shared
-  (:require [csound-wasm.core :as public]))
+  (:require [csound-wasm.core :as public]
+            [clojure.string :as string])
+  (:require-macros [csound-wasm.macros :refer [wrap-promise wrap-ipc-promise]]))
 
+
+;; if @public/audio-worklet-node
+;; (wrap-ipc-promise #js ["getScoreTime"])
+
+(defn fetch-to-fs [urls & [ root-dir ]]
+  (let [resolver       (volatile! nil)
+        promise-return (js/Promise.
+                        (fn [resolve reject]
+                          (vreset! resolver resolve)))
+        callback
+        (fn []
+          (let [urls-clj (js->clj urls)]
+            (-> (js/Promise.all
+                 (clj->js
+                  (mapv
+                   #(-> (js/fetch %)
+                        (.then
+                         (fn [resp]
+                           (-> (.blob ^js resp)
+                               (.then (fn [blob]
+                                        (let [filename (last (string/split % "/"))]
+                                          (set! (.-name blob) filename)) blob)))))
+                        (.catch (fn [err] (.error js/console err))))
+                   urls-clj)))
+                (.then (fn [blobs]
+                         (-> (public/write-to-fs blobs root-dir)
+                             (.then (fn [filenames]
+                                      (@resolver filenames)))))))))]
+    (-> (wrap-promise callback)
+        (.then (fn [res] promise-return)))))
 
 
 (defn enable-midi []  
@@ -52,5 +84,6 @@
        :enableMidi        enable-midi
        :pushMidi          csound-wasm.core/push-midi-message
        :writeToFs         csound-wasm.core/write-to-fs
+       :fetchToFs         fetch-to-fs
        :on                csound-wasm.core/on
        :removeListener    csound-wasm.core/remove-listener})

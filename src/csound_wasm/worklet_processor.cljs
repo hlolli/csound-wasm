@@ -91,13 +91,16 @@
   (@worklet-audio-fn inputs outputs parameters))
 
 (defn worklet-write-to-fs [binary-string root-dir filename]
-  (.createDataFile
-   (.-FS ^js @public/libcsound) root-dir
-   filename
-   binary-string
-   true true)
-  (if (= "/" root-dir)
-    filename (str root-dir "/" filename)))
+  (let [fs (.-FS ^js @public/libcsound)]
+    (when (and (and (not (empty? root-dir)) (not= "/" root-dir))
+               (not (.includes (.readdir fs "/") root-dir)))
+      (.createFolder fs "/" root-dir true true))
+    (.createDataFile fs
+                     root-dir filename
+                     binary-string
+                     true true)
+    (if (= "/" root-dir)
+      filename (str root-dir "/" filename))))
 
 (def public-functions
   (-> (stringify-keys (js->clj shared/main))

@@ -5,9 +5,17 @@
 
 (declare audio-context)
 
+(def audio-process-node-atom (atom nil))
+
 (defn start-audio [config]
-  (if @public/csound-running?
-    (.err js/console "Csound already running, can't start audio again.")
+  (when (= :reset @public/csound-running?)
+    (.disconnect @audio-process-node-atom)
+    (js-delete @audio-process-node-atom "onaudioprocess")
+    (set! (.-onaudioprocess @audio-process-node-atom) nil)
+    (reset! audio-process-node-atom nil)
+    (reset! public/csound-running? false))
+  (if (and (not (= :reset @public/csound-running?)) @public/csound-running?)
+    (.error js/console "Csound already running, can't start audio again.")
     (let [csound-instance    @public/csound-instance
           libcsound          @public/libcsound
           buffer-size        (:buffer config)
@@ -54,12 +62,12 @@
                                    (reset! public/csound-running? true))
                                  (when (zero? res)
                                    (public/perform-ksmps-event))
-                                 res))]
+                                 res))
+          debug              @public/csound-running?]
       (set! (.-onaudioprocess audio-process-node)
             (fn [e]
               (let [output (.-outputBuffer e)
                     len    (.-length (.getChannelData output 0))]
-                ;; (prn "len" len frame-len)
                 (loop [res (perform-ksmps-fn)
                        i   0
                        cnt 0]
@@ -80,6 +88,7 @@
                                  i
                                  0))))))
                 true )))
+      (reset! audio-process-node-atom audio-process-node)
       (.connect audio-process-node (.-destination audio-context))
       nil)))
 
@@ -105,7 +114,7 @@
                     (if (exists? ^js js/window.csound_worklet_processor_url)
                       ^js js/window.csound_worklet_processor_url
                       (str "https://s3.amazonaws.com/hlolli/csound-wasm/"
-                           "6.12.0-3"
+                           "6.12.0-4"
                            "/csound-wasm-worklet-processor.js")))
         (.then
          (fn []
@@ -133,18 +142,22 @@
                                       :context audio-context}))
                          (println "unhandled message: " event))))))))
         (.catch (fn [err]
+                  (js-delete component "prototype")
+                  (js-delete audio-context "audioWorklet")
+                  (js-delete js/AudioWorkletNode "prototype")
                   (.warn js/console
                          (str "Error fetching AudioWorklet processor, "
                               "falling back to WebAudio's script processor.\n")
                          err)
-                  (reset! public/audio-worklet-node nil)
+                  (reset! public/audio-worklet-node false)
                   (reset! public/start-audio-fn
                           (fn [config]
                             (when-not @public/audio-started?
                               (reset! public/audio-started? true))
                             (start-audio config)))
-                  (let [libcsound (public/activate-init-callback Libcsound)]
-                    (reset! public/libcsound libcsound))))))
+                  (js/setTimeout
+                   #(let [libcsound (public/activate-init-callback Libcsound)]
+                      (reset! public/libcsound libcsound)) 1000)))))
   (do
     (.warn js/console
            (str "No AudioWorklet support found"))
