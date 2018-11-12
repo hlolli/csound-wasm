@@ -1,6 +1,6 @@
 {
   "name": "csound-wasm",
-  "version": "6.12.0-5",
+  "version": "6.12.0-6",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "GPL-3.0",
   "keywords": [
@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "bufferutil": "^4.0.0",
-    "libcsound": "^6.12.0-0",
+    "libcsound": "^6.12.0-1",
     "midi": "^0.9.5",
     "speaker": "^0.4.1",
     "strip-ansi": "^5.0.0",

@@ -142,7 +142,7 @@
                     (if (exists? ^js js/window.csound_worklet_processor_url)
                       ^js js/window.csound_worklet_processor_url
                       (str "https://s3.amazonaws.com/hlolli/csound-wasm/"
-                           "6.12.0-5"
+                           "6.12.0-6"
                            "/csound-wasm-worklet-processor.js")))
         (.then
          (fn []

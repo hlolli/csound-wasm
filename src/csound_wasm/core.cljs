@@ -229,8 +229,6 @@
                                       fs root-dir (.-name file)
                                       (.-result file-reader)
                                       true true))]
-                               (prn "INCLUDES?" (.readdir fs root-dir)
-                                    (.includes (.readdir fs root-dir) (.-name file)))
                                (when (.includes (.readdir fs root-dir) (.-name file))
                                  (.unlink fs (str root-dir "/" (.-name file))))
                                (set! (.-onload file-reader) file-ready-event)
@@ -479,21 +477,21 @@
         {:keys [nchnls nchnls_i zerodbfs sr ksmps buffer]}
         config-clj]
     (reset! audio-config config-clj)
-    (if-let [awn @audio-worklet-node]
-      ((:post awn) #js ["setStartupFn" "playCSD" csd config-js])
-      (if @wasm-loaded?
-        (if-not @audio-started?
-          (do (reset! audio-config config-clj)
-              (reset-sequence config-clj)
-              (compile-csd csd)
-              (@start-audio-fn config-clj))
-          (do (reset)
-              (prepareRT) ;; this prevents cannot open idac errors
-              (reset-sequence config-clj)
-              (compile-csd csd)
-              (@start-audio-fn config-clj)))
-        (do
-          (swap! event-queue conj #(play-csd csd config-js)))))))
+    (when-let [awn @audio-worklet-node]
+      ((:post awn) #js ["setStartupFn" "playCSD" csd config-js]))
+    (if (and @wasm-loaded? (not @audio-worklet-node))
+      (if-not @audio-started?
+        (do (reset! audio-config config-clj)
+            (reset-sequence config-clj)
+            (compile-csd csd)
+            (@start-audio-fn config-clj))
+        (do (reset)
+            (prepareRT) ;; this prevents cannot open idac errors
+            (reset-sequence config-clj)
+            (compile-csd csd)
+            (@start-audio-fn config-clj)))
+      (do
+        (swap! event-queue conj #(play-csd csd config-js))))))
 
 (defn start-realtime [& [config]]
   (let [config (merge @audio-config
