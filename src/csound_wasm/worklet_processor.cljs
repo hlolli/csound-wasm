@@ -24,6 +24,10 @@
                             "CsoundObj_getInputChannelCount"
                             #js ["number"] #js ["number"])
                            csound-instance)
+          input-pointer   ((libcsound.cwrap
+                            "CsoundObj_getInputBuffer"
+                            #js ["number"] #js ["number"])
+                           csound-instance)
           output-count    ((libcsound.cwrap
                             "CsoundObj_getOutputChannelCount"
                             #js ["number"] #js ["number"])
@@ -59,6 +63,7 @@
       (reset! worklet-audio-fn
               (fn [inputs outputs parameters]
                 (let [output (aget outputs 0)
+                      input  (aget inputs 0)
                       len    (.-length (aget output 0))]
                   (loop [res (perform-ksmps-fn)
                          i   0
@@ -74,6 +79,10 @@
                               (aset (aget output chn)
                                     i
                                     (/ (aget output-buffer (+ chn (* cnt (.-length output)))) zerodbfs)))
+                            #_(dotimes [chn-in input-count]
+                                (aset (aget input chn-in)
+                                      i
+                                      (/ (aget output-buffer (+ chn (* cnt (.-length output)))) zerodbfs)))
                             (recur res (inc i) (inc cnt)))
                           (let [res (perform-ksmps-fn)]
                             (recur res
@@ -95,6 +104,8 @@
     (when (and (and (not (empty? root-dir)) (not= "/" root-dir))
                (not (.includes (.readdir fs "/") root-dir)))
       (.createFolder fs "/" root-dir true true))
+    (when (.includes (.readdir fs root-dir) filename)
+      (.unlink fs (str root-dir "/" filename)))
     (.createDataFile fs
                      root-dir filename
                      binary-string
@@ -119,6 +130,7 @@
   (let [promise-id (second data)
         params     (.slice data 3)
         return-val (apply (get public-functions (aget data 2)) params)]
+    ;; (prn "RET VAL" promise-id params (aget data 2) return-val)
     ((:post @public/audio-worklet-processor)
      #js ["promise" promise-id return-val])))
 

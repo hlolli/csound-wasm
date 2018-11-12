@@ -31,8 +31,9 @@
                          (-> (public/write-to-fs blobs root-dir)
                              (.then (fn [filenames]
                                       (@resolver filenames)))))))))]
-    (-> (wrap-promise callback)
-        (.then (fn [res] promise-return)))))
+    (wrap-promise callback)
+    ;; (-> (.then (fn [res] promise-return)))
+    promise-return))
 
 
 (defn enable-midi []  

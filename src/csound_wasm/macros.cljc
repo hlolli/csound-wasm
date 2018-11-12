@@ -9,7 +9,6 @@
         ((:post (deref csound-wasm.core/audio-worklet-node))
          (.concat (js/Array "promise" promise-id#) ^js ~message))))))
 
-
 (defmacro wrap-promise [callback]
   `(if @csound-wasm.core/audio-worklet-processor
      (~callback)
