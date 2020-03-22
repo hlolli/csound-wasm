@@ -2,7 +2,15 @@
 import worker from "workerize-loader?ready&inline!./worker";
 import * as worklet from "./csound.worklet.js";
 import { AUDIO_STATE } from "./constants";
-import { audioState, audioStreamIn, audioStreamOut } from "./sab";
+import {
+  audioState,
+  audioStreamIn,
+  audioStreamOut,
+  callbackBuffer
+} from "./sab";
+
+const audioStateMainThread = new Int32Array(audioState);
+const callbackBufferMainThread = new Uint8Array(callbackBuffer);
 
 let messageCallback = () => {};
 const setMessageCallback = callback => {
@@ -25,10 +33,19 @@ const setCsoundPlayStateChangeCallback = callback => {
 };
 
 let messageEventListener = null;
-let onWorkerMessageEvent = event => {
+const onWorkerMessageEvent = event => {
   const data = event["data"] || {};
   if (typeof data === "object") {
     switch (data.type) {
+      case "returnValue": {
+        const promiseReturn = mainThreadCallbackQueue[queueId];
+        if (
+          typeof promiseReturn === "object" &&
+          typeof promiseReturn.resolve === "function"
+        ) {
+          promiseReturn.resolve(data.returnValue);
+        }
+      }
       case "log": {
         if (typeof messageCallback === "function") {
           messageCallback(data.data);
@@ -47,8 +64,6 @@ let onWorkerMessageEvent = event => {
     }
   }
 };
-
-const audioStateMainThread = new Int32Array(audioState);
 
 const csoundPause = () => {
   Atomics.store(audioStateMainThread, AUDIO_STATE.IS_PAUSED, 1);
@@ -94,6 +109,40 @@ const startWebAudio = async () => {
   }
 };
 
+const encoder = new TextEncoder();
+let queueId = -1;
+const mainThreadCallbackQueue = {};
+
+const getQueueId = () => {
+  queueId += 1;
+  const nextQueueId = queueId % 1024;
+  const maybeZombie = mainThreadCallbackQueue[nextQueueId];
+  maybeZombie && maybeZombie.reject();
+  return nextQueueId;
+};
+
+function maybeUnlockThread(fn, fnName) {
+  return async function(...args) {
+    if (Atomics.load(audioStateMainThread, AUDIO_STATE.IS_PERFORMING)) {
+      return new Promise((resolve, reject) => {
+        // maybe reject on timeout?
+        const thisQueueId = getQueueId();
+        mainThreadCallbackQueue[thisQueueId] = { resolve, reject };
+        Atomics.add(audioStateMainThread, AUDIO_STATE.AVAIL_CALLBACKS, 1);
+        const jsonDebug = JSON.stringify({
+          queueId: thisQueueId,
+          fnName,
+          args
+        });
+        const encodeDebug = encoder.encode(jsonDebug);
+        callbackBufferMainThread.set(encodeDebug, thisQueueId * 1024, 1024);
+      });
+    } else {
+      return await fn.apply(null, args);
+    }
+  };
+}
+
 /**
  * The default entry for libcsound es7 module
  * @async
@@ -103,11 +152,21 @@ export default async function init() {
   const csoundWorker = worker();
   await csoundWorker.ready;
   csoundWorker.addEventListener("message", onWorkerMessageEvent, false);
-  await csoundWorker.initWasm({ audioState, audioStreamIn, audioStreamOut });
+  await csoundWorker.initWasm({
+    audioState,
+    audioStreamIn,
+    audioStreamOut,
+    callbackBuffer
+  });
   csoundWorker["startWebAudio"] = startWebAudio;
   csoundWorker["csoundPause"] = csoundPause;
   csoundWorker["csoundResume"] = csoundResume;
   csoundWorker["setMessageCallback"] = setMessageCallback;
+  csoundWorker["csoundStop"] = maybeUnlockThread(
+    csoundWorker["csoundStop"],
+    "csoundStop"
+  );
+
   csoundWorker[
     "setCsoundPlayStateChangeCallback"
   ] = setCsoundPlayStateChangeCallback;

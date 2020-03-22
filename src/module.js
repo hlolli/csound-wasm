@@ -39,7 +39,6 @@ const stdErrCallback = data => {
     }
     outstr += firstEl;
     // here the actual callback takes place
-    console.log(outstr);
     postMessage({ type: "log", data: outstr });
     next.forEach(s => stdErrBuffer.push(s));
   } else {
@@ -75,7 +74,7 @@ const stdOutCallback = data => {
     outstr += firstEl;
     // here the actual callback takes place
     postMessage({ type: "log", data: outstr });
-    console.log(outstr);
+    // console.log(outstr);
     next.forEach(s => stdOutBuffer.push(s));
   } else {
     stdOutBuffer.push(cleanString);

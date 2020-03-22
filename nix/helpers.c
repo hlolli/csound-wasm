@@ -49,7 +49,7 @@ int csoundPerformKsmpsWasi(CSOUND *csound)
     return CSOUND_ERROR;
   }
   done = sensevents(csound);
-  if (done) {
+  if (done || csound->performState == -1) {
     csoundMessage(csound, Str("Score finished in csoundPerformKsmps() with %d.\n"), done);
     return done;
   } else {

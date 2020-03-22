@@ -9,13 +9,22 @@ import {
   initialSharedState
 } from "./constants.js";
 
+// put all the realtime thread dependant functions here
+const thisNamespace = {};
+
+const decoder = new TextDecoder();
+
 let wasm;
 let audioStateSab;
 let audioStreamInSab;
 let audioStreamOutSab;
+let callbackBufferSab;
+
+let audioState;
 
 const pipeAudioStream = async csound => {
-  const audioState = new Int32Array(audioStateSab);
+  audioState = new Int32Array(audioStateSab);
+  const callbackBuffer = new Uint8Array(callbackBufferSab);
 
   // In case of multiple performances, let's reset the sab state
   initialSharedState.forEach((value, index) => {
@@ -27,6 +36,8 @@ const pipeAudioStream = async csound => {
   Atomics.store(audioState, AUDIO_STATE.NCHNLS, nchnls);
 
   const ksmps = csoundGetKsmps(csound);
+
+  const zeroDbFs = csoundGet0dBFS(csound);
   // Hardware buffer size
   const _B = audioState[AUDIO_STATE.HW_BUFFER_SIZE];
   // Software buffer size
@@ -53,6 +64,46 @@ const pipeAudioStream = async csound => {
   postMessage({ type: "playStateChange", data: "realtimePerformanceStarted" });
 
   while (Atomics.wait(audioState, AUDIO_STATE.ATOMIC_NOFITY, 0) === "ok") {
+    if (Atomics.load(audioState, AUDIO_STATE.IS_PERFORMING) !== 1) {
+      return;
+    }
+    const availCallbacks = Atomics.load(
+      audioState,
+      AUDIO_STATE.AVAIL_CALLBACKS
+    );
+    if (availCallbacks) {
+      const callbackBufferIndex = Atomics.load(
+        audioState,
+        AUDIO_STATE.CALLBACK_BUFFER_INDEX
+      );
+      for (let x = 0; x < availCallbacks; x++) {
+        const callbackBufferData = callbackBuffer.slice(
+          callbackBufferIndex * x,
+          1024
+        );
+        let jzon;
+        try {
+          jzon = JSON.parse(
+            decoder.decode(callbackBufferData).replace(/\0.*$/g, "")
+          );
+        } catch (e) {}
+
+        if (jzon) {
+          const ret = thisNamespace[jzon["fnName"]].apply(null, jzon["args"]);
+          postMessage({
+            type: "returnValue",
+            queueId: jzon["queueId"],
+            returnValue: ret
+          });
+        }
+      }
+      Atomics.store(
+        audioState,
+        AUDIO_STATE.CALLBACK_BUFFER_INDEX,
+        (callbackBufferIndex + availCallbacks) % 1024
+      );
+      Atomics.sub(audioState, AUDIO_STATE.AVAIL_CALLBACKS, availCallbacks);
+    }
     const { buffer } = wasm.exports.memory;
     const framesRequested = _b;
     const bufferPtr = csoundGetSpout(csound);
@@ -81,7 +132,8 @@ const pipeAudioStream = async csound => {
       }
       channels.forEach((channel, channelIndex) => {
         channel[currentOutputWriteIndex] =
-          csoundBuffer[currentCsoundBufferPos * nchnls + channelIndex] || 0;
+          (csoundBuffer[currentCsoundBufferPos * nchnls + channelIndex] || 0) /
+          zeroDbFs;
       });
       Atomics.add(audioState, AUDIO_STATE.OUTPUT_WRITE_INDEX, 1);
 
@@ -90,18 +142,21 @@ const pipeAudioStream = async csound => {
       }
     }
     Atomics.add(audioState, AUDIO_STATE.AVAIL_OUT_BUFS, framesRequested);
-    Atomics.store(audioState, AUDIO_STATE.REQUEST_RENDER, 0);
+    Atomics.load(audioState, AUDIO_STATE.IS_PERFORMING) &&
+      Atomics.store(audioState, AUDIO_STATE.REQUEST_RENDER, 0);
   }
 };
 
 export const initWasm = async ({
   audioState,
   audioStreamIn,
-  audioStreamOut
+  audioStreamOut,
+  callbackBuffer
 }) => {
   audioStateSab = audioState;
   audioStreamInSab = audioStreamIn;
   audioStreamOutSab = audioStreamOut;
+  callbackBufferSab = callbackBuffer;
   wasm = await getLibcsoundWasm();
   return 0;
 };
@@ -183,8 +238,10 @@ export function csoundPerformBuffer(...args) {
   return L.csoundPerformBuffer(wasm).apply(null, args);
 }
 export function csoundStop(...args) {
+  csoundInputMessage(args[0], "e 0 0");
   return L.csoundStop(wasm).apply(null, args);
 }
+thisNamespace["csoundStop"] = csoundStop;
 export function csoundCleanup(...args) {
   return L.csoundCleanup(wasm).apply(null, args);
 }
@@ -228,6 +285,16 @@ export function csoundGetSpin(...args) {
 export function csoundGetSpout(...args) {
   return L.csoundGetSpout(wasm).apply(null, args);
 }
+
+// @module/control_events
+export function csoundInputMessage(...args) {
+  return L.csoundInputMessage(wasm).apply(null, args);
+}
+thisNamespace["csoundInputMessage"] = csoundInputMessage;
+export function csoundInputMessageAsync(...args) {
+  return L.csoundInputMessageAsync(wasm).apply(null, args);
+}
+thisNamespace["csoundInputMessageAsync"] = csoundInputMessageAsync;
 
 // @module/helpers
 export function csoundPrepareRT(...args) {

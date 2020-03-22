@@ -3,7 +3,7 @@
    https://csound.com/docs/api/modules.html
 */
 
-import { string2ptr } from "@root/utils";
+import { freeStringPtr, string2ptr } from "@root/utils";
 
 /**
  * Parses a csound orchestra string
@@ -47,8 +47,12 @@ export const csoundCompileTree = wasm => (csound, tree) =>
  * @param {Object} wasm
  * @return {csoundCompileOrc}
  */
-export const csoundCompileOrc = wasm => (csound, orc) =>
-  wasm.exports.csoundCompileOrc(csound, string2ptr(wasm, orc));
+export const csoundCompileOrc = wasm => (csound, orc) => {
+  const strPtr = string2ptr(wasm, orc);
+  const res = wasm.exports.csoundCompileOrc(csound, strPtr);
+  freeStringPtr(wasm, strPtr);
+  return res;
+};
 
 /**
  * Compiles a csound orchestra string
@@ -61,8 +65,12 @@ export const csoundCompileOrc = wasm => (csound, orc) =>
  * @param {Object} wasm
  * @return {csoundEvalCode}
  */
-export const csoundEvalCode = wasm => (csound, orc) =>
-  wasm.exports.csoundEvalCode(csound, orc);
+export const csoundEvalCode = wasm => (csound, orc) => {
+  const strPtr = string2ptr(wasm, orc);
+  const res = wasm.exports.csoundEvalCode(csound, strPtr);
+  freeStringPtr(wasm, strPtr);
+  return res;
+};
 
 // TODO
 // csoundInitializeCscore (CSOUND *, FILE *insco, FILE *outsco)
@@ -80,8 +88,7 @@ export const csoundEvalCode = wasm => (csound, orc) =>
  * @param {Object} wasm
  * @return {csoundStart}
  */
-export const csoundStart = wasm => (csound, orc) =>
-  wasm.exports.csoundStart(csound, orc);
+export const csoundStart = wasm => csound => wasm.exports.csoundStart(csound);
 
 // TODO
 // csoundCompile (CSOUND *, int argc, const char **argv)
@@ -97,8 +104,12 @@ export const csoundStart = wasm => (csound, orc) =>
  * @param {Object} wasm
  * @return {csoundCompileCsd}
  */
-export const csoundCompileCsd = wasm => (csound, path) =>
-  wasm.exports.csoundCompileCsd(csound, path);
+export const csoundCompileCsd = wasm => (csound, path) => {
+  const strPtr = string2ptr(wasm, path);
+  const res = wasm.exports.csoundCompileCsd(csound, strPtr);
+  freeStringPtr(wasm, strPtr);
+  return res;
+};
 
 /**
  * Compiles a CSD string but does not perform it.
@@ -111,8 +122,12 @@ export const csoundCompileCsd = wasm => (csound, path) =>
  * @param {Object} wasm
  * @return {csoundCompileCsdText}
  */
-export const csoundCompileCsdText = wasm => (csound, orc) =>
-  wasm.exports.csoundCompileCsdText(csound, string2ptr(wasm, orc));
+export const csoundCompileCsdText = wasm => (csound, orc) => {
+  const strPtr = string2ptr(wasm, orc);
+  const res = wasm.exports.csoundCompileCsdText(csound, strPtr);
+  freeStringPtr(wasm, strPtr);
+  return res;
+};
 
 /**
  * Performs(plays) audio until end is reached

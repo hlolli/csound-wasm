@@ -18,7 +18,9 @@ export const initialSharedState = [
   0, // n = buffer read index of input buffer
   0, // n = buffer read index of output buffer
   0, // n = buffer write index of input buffer
-  0 // n = buffer write index of output buffer
+  0, // n = buffer write index of output buffer
+  0, // n = the read index of the callback buffer
+  0 // n = amount of callbacks waiting from main thread
 ];
 
 // Enum helper
@@ -35,5 +37,7 @@ export const AUDIO_STATE = {
   INPUT_READ_INDEX: 9,
   OUTPUT_READ_INDEX: 10,
   INPUT_WRITE_INDEX: 11,
-  OUTPUT_WRITE_INDEX: 12
+  OUTPUT_WRITE_INDEX: 12,
+  CALLBACK_BUFFER_INDEX: 13,
+  AVAIL_CALLBACKS: 14
 };
