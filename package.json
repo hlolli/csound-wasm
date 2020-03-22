@@ -1,40 +1,50 @@
 {
   "name": "csound-wasm",
-  "version": "6.12.0-6",
+  "version": "6.14.0-alpha1",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
-  "license": "GPL-3.0",
+  "license": "LGPL-3.0",
   "keywords": [
     "csound",
     "csound-wasm",
     "wasm",
     "webassembly",
     "audio",
-    "webaudio"
+    "webaudio",
+    "wasi"
   ],
-  "main": "release/node/index.js",
-  "browser": "release/browser/csound-wasm-browser.js",
-  "build": {
-    "appId": "csound-wasm"
-  },
   "scripts": {
-    "watch": "npx shadow-cljs watch browser node",
-    "watch:browser": "npx shadow-cljs watch browser",
-    "watch:node": "npx shadow-cljs watch node",
-    "release": "npx shadow-cljs release browser node processor",
-    "release:processor": "npx shadow-cljs release processor",
-    "test:node": "npx shadow-cljs compile node-test"
-  },
-  "dependencies": {
-    "bufferutil": "^4.0.0",
-    "libcsound": "^6.12.0-1",
-    "midi": "^0.9.5",
-    "speaker": "^0.4.1",
-    "strip-ansi": "^5.0.0",
-    "utf-8-validate": "^5.0.1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "compile": "nix-shell nix/compile.nix",
+    "lint": "eslint 'src/**/*.js'",
+    "watch": "webpack --watch --mode develop",
+    "dev": "webpack-dev-server  --hot-only",
+    "build": "NODE_ENV=production webpack --mode production",
+    "build:deps": "./node_modules/google-closure-library/closure/bin/build/depswriter.py --root_with_prefix 'src ../../../src' > deps.js",
+    "build:node": "NODE_ENV=production TARGET=node webpack --mode production"
   },
   "devDependencies": {
-    "nan": "^2.11.1",
-    "shadow-cljs": "^2.6.19",
-    "source-map-support": "^0.5.9"
+    "arraybuffer-loader": "^1.0.8",
+    "clean-webpack-plugin": "^3.0.0",
+    "closure-webpack-plugin": "^2.3.0",
+    "eslint": "^6.8.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-config-prettier": "^6.10.0",
+    "eslint-loader": "^3.0.3",
+    "eslint-plugin-closure": "^0.1.1",
+    "html-webpack-plugin": "^3.2.0",
+    "raw-loader": "^4.0.0",
+    "terser-webpack-plugin": "^2.3.5",
+    "url-loader": "^4.0.0",
+    "webpack": "^4.42.0",
+    "webpack-cli": "^3.3.11",
+    "webpack-dev-server": "^3.10.3",
+    "workerize-loader": "^1.1.0"
+  },
+  "dependencies": {
+    "@wasmer/wasi": "^0.10.1",
+    "@wasmer/wasm-transformer": "^0.10.1",
+    "@wasmer/wasmfs": "^0.10.1",
+    "pako": "^1.0.11",
+    "path-browserify": "^1.0.1"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "env": { "es6": true, "node": true, "browser": true },
+  "extends": ["google", "prettier"],
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "module"
+  },
+  "plugins": ["closure"]
+}

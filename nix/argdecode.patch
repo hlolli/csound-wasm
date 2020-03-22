@@ -1,0 +1,57 @@
+diff --git a/Top/argdecode.c b/Top/argdecode.c
+index 3c0face95..f3ea810fd 100644
+--- a/Top/argdecode.c
++++ b/Top/argdecode.c
+@@ -296,8 +296,7 @@ static const char *longUsageList[] = {
+   Str_noop("--sinesize              length of internal sine table"),
+   Str_noop("--daemon                daemon mode: do not exit if CSD/orchestra is "
+                                     "not given, is empty or does not compile"),
+-  Str_noop("--port=N                listen to UDP port N for instruments/orchestra "
+-                                    "code (implies --daemon)"),
++
+   Str_noop("--vbr-quality=Ft        set quality of variable bit-rate compression"),
+   Str_noop("--devices[=in|out]      list available audio devices and exit"),
+   Str_noop("--midi-devices[=in|out] list available MIDI devices and exit"),
+@@ -308,7 +307,7 @@ static const char *longUsageList[] = {
+   Str_noop("--ksmps=N               override ksmps"),
+   Str_noop("--fftlib=N              actual FFT lib to use (FFTLIB=0, "
+                                    "PFFFT = 1, vDSP =2)"),
+-  Str_noop("--udp-echo              echo UDP commands on terminal"),
++
+   Str_noop("--aft-zero              set aftertouch to zero, not 127 (default)"),
+   " ",
+   Str_noop("--help                  long help"),
+@@ -1096,33 +1095,6 @@ static int decode_long(CSOUND *csound, char *s, int argc, char **argv)
+       O->daemon = atoi(s);
+       return 1;
+     }
+-    else if (!(strncmp(s, "udp-echo",8))) {
+-      s += 8;
+-      O->echo = 1;
+-      return 1;
+-    }
+-    else if (!(strncmp(s, "udp-console=",12))) {
+-      char *ports;
+-      s += 12;
+-      ports = strchr(s, ':');
+-      if(*s != '\0' && ports != NULL) {
+-        *ports = '\0';
+-        csoundUDPConsole(csound, s, atoi(ports+1),0);
+-      } else
+-        csound->Warning(csound, "UDP console: needs address and port\n");
+-      return 1;
+-    }
+-    else if (!(strncmp(s, "udp-mirror-console=",19))) {
+-      char *ports;
+-      s += 19;
+-      ports = strchr(s, ':');
+-      if(*s != '\0' && ports != NULL) {
+-        *ports = '\0';
+-        csoundUDPConsole(csound, s, atoi(ports+1),1);
+-      } else
+-        csound->Warning(csound, "UDP console: needs address and port\n");
+-      return 1;
+-    }
+     else if (!(strncmp(s, "fftlib=",7))) {
+       s += 7;
+       O->fft_lib = atoi(s);

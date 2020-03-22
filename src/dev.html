@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/consolejs@1.2.12/lib/console.min.js"></script>
+  </head>
+  <body>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #2c3e50;
+      }
+
+      div.container {
+        position: absolute;
+        top: 30%;
+        margin-top: -120px;
+        text-align: center;
+        left: 50%;
+        max-width: 600px;
+        background: #3498db;
+        color: white;
+        margin-left: -315px;
+        padding: 30px;
+        border-bottom: 11px solid white;
+        width: 580px;
+      }
+
+      div.container h1 {
+        font-size: 64px;
+        margin: -10px;
+        border-bottom: 5px solid white;
+        border-top: 5px solid white;
+      }
+
+      div.container h2.small {
+        font-size: 20px;
+      }
+
+      pre.console {
+        background: rgba(300, 300, 300, 0.7);
+        color: black;
+        text-align: left;
+        padding: 15px;
+        font-family: "Monaco", monospace;
+        font-weight: bold;
+        white-space: normal;
+      }
+
+      textarea.js-code-to-run {
+        border: none;
+        padding: 10px 10px 0px 10px;
+        width: 560px;
+        resize: vertical;
+        font-family: "Monaco", monospace;
+        font-size: 16px;
+        height: 30px;
+      }
+
+      pre span {
+        display: block;
+      }
+      /* console colors */
+      pre span.info {
+        color: #004aa0;
+      }
+      pre span.debug {
+        color: #004aa0;
+      }
+      pre span.error {
+        color: red;
+      }
+      pre span.warn {
+        color: rgb(255, 133, 0);
+      }
+    </style>
+    <script>
+      window.addEventListener("load", function() {
+        // ConsoleJS.init({
+        //   selector: "pre.console",
+        //   input: "textarea.js-code-to-run"
+        // });
+      });
+    </script>
+    <div class="container" id="gesture-sensor">
+      <h1>libcsound-wasm</h1>
+      <h2 class="small">
+        console.logs
+      </h2>
+      <pre class="console"></pre>
+      <textarea class="js-code-to-run"></textarea>
+    </div>
+  </body>
+</html>
