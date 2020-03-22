@@ -1,6 +1,5 @@
 const webpack = require("webpack");
 const path = require("path");
-const TerserPlugin = require("terser-webpack-plugin");
 const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const isProduction = process.env.NODE_ENV === "production";
@@ -16,8 +15,7 @@ module.exports = {
       ? path.resolve(__dirname, "dist")
       : path.resolve(__dirname, "public"),
     filename: isNode ? "libcsound.node.js" : "libcsound.js",
-    globalObject: "this", //isProduction ? "window" : "this",
-    // module: true,
+    globalObject: "this",
     library: "libcsound",
     libraryTarget: "umd",
     libraryExport: "default"
@@ -28,20 +26,6 @@ module.exports = {
       "@module": path.resolve(__dirname, "src/modules/")
     }
   },
-  // optimization: {
-  //   minimize: isProduction,
-  //   // concatenateModules: false,
-  //   minimizer: [
-  //     new TerserPlugin({
-  //       // exclude: /worker\.js$/i,
-  //       test: /\.js$/i,
-  //       terserOptions: { module: true, ecma: 7, mangle: false }
-  //     })
-  //   ],
-  //   splitChunks: {
-  //     minSize: 0
-  //   }
-  // },
   devtool: "hidden-source-map",
   devServer: {
     lazy: false,
@@ -81,26 +65,6 @@ module.exports = {
           options: { esModule: false, mimetype: "text/javascript" }
         }
       }
-      // {
-      //   test: /\.m?js$/,
-      //   exclude: /(node_modules|bower_components|csound\.worklet.js$)/,
-      //   use: {
-      //     loader: "babel-loader",
-      //     options: {
-      //       presets: [
-      //         [
-      //           "@babel/preset-env",
-      //           {
-      //             targets: {
-      //               esmodules: true
-      //             }
-      //           }
-      //         ]
-      //       ],
-      //       plugins: ["@babel/plugin-syntax-async-generators"]
-      //     }
-      //   }
-      // }
     ]
   },
   plugins: [
