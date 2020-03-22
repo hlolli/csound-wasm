@@ -5,7 +5,8 @@ import { makeLibcsoundFrontEnd } from "./utils";
 import {
   AUDIO_STATE,
   MAX_HARDWARE_BUFFER_SIZE,
-  MAX_CHANNELS
+  MAX_CHANNELS,
+  initialSharedState
 } from "./constants.js";
 
 let wasm;
@@ -15,9 +16,15 @@ let audioStreamOutSab;
 
 const pipeAudioStream = async csound => {
   const audioState = new Int32Array(audioStateSab);
+
+  // In case of multiple performances, let's reset the sab state
+  initialSharedState.forEach((value, index) => {
+    Atomics.store(audioState, index, value);
+  });
+
   // Share the Csound channel num
   const nchnls = csoundGetNchnls(csound);
-  audioState[AUDIO_STATE.NCHNLS] = nchnls;
+  Atomics.store(audioState, AUDIO_STATE.NCHNLS, nchnls);
 
   const ksmps = csoundGetKsmps(csound);
   // Hardware buffer size
@@ -63,7 +70,8 @@ const pipeAudioStream = async csound => {
         if (lastReturn !== 0) {
           // Let's notify that performance has ended
           Atomics.store(audioState, AUDIO_STATE.IS_PERFORMING, 0);
-          break;
+          Atomics.store(audioState, AUDIO_STATE.REQUEST_RENDER, 0);
+          return;
         }
       }
       channels.forEach((channel, channelIndex) => {
@@ -151,9 +159,11 @@ export function csoundEvalCode(...args) {
   return L.csoundEvalCode(wasm).apply(null, args);
 }
 export function csoundStart(...args) {
-  const res = L.csoundStart(wasm).apply(null, args);
-  pipeAudioStream(args[0]);
-  return res;
+  setTimeout(() => {
+    L.csoundStart(wasm).apply(null, args);
+    pipeAudioStream(args[0]);
+  }, 0);
+  return null;
 }
 export function csoundCompileCsd(...args) {
   return L.csoundCompileCsd(wasm).apply(null, args);

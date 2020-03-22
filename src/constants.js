@@ -7,7 +7,8 @@ export const MAX_CHANNELS = 32;
 
 export const initialSharedState = [
   0, // 1 = Worklet requests new buffer data (atomic notify)
-  0, // 1 = Csound has completed 1 ring buffer amount of render (atomic notify)
+  0, // 1 = Csound is currently performing
+  0, // 1 = Csound is currently paused
   2, // n = nchnls
   0, // n = ncnls_i
   DEFAULT_HARDWARE_BUFFER_SIZE, // n = [hardware -B] bufferSize
@@ -24,14 +25,15 @@ export const initialSharedState = [
 export const AUDIO_STATE = {
   ATOMIC_NOFIFY: 0,
   IS_PERFORMING: 1,
-  NCHNLS: 2,
-  NCHNLS_I: 3,
-  HW_BUFFER_SIZE: 4,
-  SW_BUFFER_SIZE: 5,
-  AVAIL_IN_BUFS: 6,
-  AVAIL_OUT_BUFS: 7,
-  INPUT_READ_INDEX: 8,
-  OUTPUT_READ_INDEX: 9,
-  INPUT_WRITE_INDEX: 10,
-  OUTPUT_WRITE_INDEX: 11
+  IS_PAUSED: 2,
+  NCHNLS: 3,
+  NCHNLS_I: 4,
+  HW_BUFFER_SIZE: 5,
+  SW_BUFFER_SIZE: 6,
+  AVAIL_IN_BUFS: 7,
+  AVAIL_OUT_BUFS: 8,
+  INPUT_READ_INDEX: 9,
+  OUTPUT_READ_INDEX: 10,
+  INPUT_WRITE_INDEX: 11,
+  OUTPUT_WRITE_INDEX: 12
 };

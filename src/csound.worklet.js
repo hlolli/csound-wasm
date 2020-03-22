@@ -8,16 +8,17 @@ const MAX_CHANNELS = 32;
 export const AUDIO_STATE = {
   ATOMIC_NOFIFY: 0,
   IS_PERFORMING: 1,
-  NCHNLS: 2,
-  NCHNLS_I: 3,
-  HW_BUFFER_SIZE: 4,
-  SW_BUFFER_SIZE: 5,
-  AVAIL_IN_BUFS: 6,
-  AVAIL_OUT_BUFS: 7,
-  INPUT_READ_INDEX: 8,
-  OUTPUT_READ_INDEX: 9,
-  INPUT_WRITE_INDEX: 10,
-  OUTPUT_WRITE_INDEX: 11
+  IS_PAUSED: 2,
+  NCHNLS: 3,
+  NCHNLS_I: 4,
+  HW_BUFFER_SIZE: 5,
+  SW_BUFFER_SIZE: 6,
+  AVAIL_IN_BUFS: 7,
+  AVAIL_OUT_BUFS: 8,
+  INPUT_READ_INDEX: 9,
+  OUTPUT_READ_INDEX: 10,
+  INPUT_WRITE_INDEX: 11,
+  OUTPUT_WRITE_INDEX: 12
 };
 
 const handleMessage = that => event => {
@@ -47,6 +48,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
   audioState = null;
   channels = [];
   dummy = 0;
+  isPerformingLastTime = false;
   constructor(params, params2) {
     super();
     this.port.onmessage = handleMessage(this);
@@ -87,13 +89,26 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs, parameters) {
+    const isPerforming =
+      Atomics.load(this.audioState, AUDIO_STATE.IS_PERFORMING) === 1;
     if (
       !this.audioState ||
-      Atomics.load(this.audioState, AUDIO_STATE.IS_PERFORMING) === 0
+      Atomics.load(this.audioState, AUDIO_STATE.IS_PAUSED) === 1 ||
+      !isPerforming
     ) {
+      if (!isPerforming && this.isPerformingLastTime) {
+        // Not sure if this is working, but it seems to
+        // at minimum unblock the atomic wait in the while loop
+        // by giving it another number than 0, in turn, returning
+        // "not-equal" instead of "ok"
+        Atomics.store(this.audioState, AUDIO_STATE.ATOMIC_NOFITY, 666);
+        Atomics.notify(this.audioState, AUDIO_STATE.ATOMIC_NOFITY);
+      }
+      this.isPerformingLastTime = isPerforming;
       return true;
     }
 
+    this.isPerformingLastTime = isPerforming;
     const inputChannels = inputs[0];
     const outputChannels = outputs[0];
     // Hardware buffer size

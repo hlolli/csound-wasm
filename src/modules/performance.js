@@ -112,7 +112,7 @@ export const csoundCompileCsd = wasm => (csound, path) =>
  * @return {csoundCompileCsdText}
  */
 export const csoundCompileCsdText = wasm => (csound, orc) =>
-  wasm.exports.csoundCompileCsdText(csound, orc);
+  wasm.exports.csoundCompileCsdText(csound, string2ptr(wasm, orc));
 
 /**
  * Performs(plays) audio until end is reached

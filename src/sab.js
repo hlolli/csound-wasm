@@ -10,9 +10,9 @@ export const audioState = new SharedArrayBuffer(
 
 export const audioStateBuffer = new Int32Array(audioState);
 
-initialSharedState.forEach((val, index) => {
-  audioStateBuffer[index] = val;
-});
+// initialSharedState.forEach((val, index) => {
+//   audioStateBuffer[index] = val;
+// });
 
 export const audioStreamIn = new SharedArrayBuffer(
   MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float32Array.BYTES_PER_ELEMENT

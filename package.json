@@ -3,6 +3,7 @@
   "version": "6.14.0-alpha1",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "LGPL-3.0",
+  "main": "./dist/libcsound.js",
   "keywords": [
     "csound",
     "csound-wasm",
@@ -18,10 +19,12 @@
     "lint": "eslint 'src/**/*.js'",
     "watch": "webpack --watch --mode develop",
     "dev": "webpack-dev-server  --hot-only",
+    "prepublish": "NODE_ENV=production webpack --mode production",
     "build": "NODE_ENV=production webpack --mode production",
     "build:node": "NODE_ENV=production TARGET=node webpack --mode production"
   },
   "devDependencies": {
+    "@babel/plugin-syntax-async-generators": "^7.8.4",
     "arraybuffer-loader": "^1.0.8",
     "clean-webpack-plugin": "^3.0.0",
     "eslint": "^6.8.0",
@@ -34,14 +37,18 @@
     "terser-webpack-plugin": "^2.3.5",
     "url-loader": "^4.0.0",
     "webpack": "^4.42.0",
+    "webpack-babel-multi-target-plugin": "^2.3.3",
     "webpack-cli": "^3.3.11",
     "webpack-dev-server": "^3.10.3",
     "workerize-loader": "^1.1.0"
   },
   "dependencies": {
+    "@babel/core": "^7.9.0",
+    "@babel/preset-env": "^7.9.0",
     "@wasmer/wasi": "^0.10.1",
     "@wasmer/wasm-transformer": "^0.10.1",
     "@wasmer/wasmfs": "^0.10.1",
+    "babel-loader": "^8.1.0",
     "pako": "^1.0.11",
     "path-browserify": "^1.0.1"
   }

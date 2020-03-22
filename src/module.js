@@ -6,7 +6,6 @@ import { inflate } from "pako";
 import browserBindings from "@wasmer/wasi/lib/bindings/browser";
 import { lowerI64Imports } from "@wasmer/wasm-transformer";
 import { cleanStdout, uint2Str } from "./utils";
-import { LineReader } from "line-reader-browser";
 import * as path from "path";
 
 export const wasmFs = new WasmFs();
