@@ -50,6 +50,7 @@ const pipeAudioStream = async csound => {
 
   // Let's notify that performance has started
   Atomics.store(audioState, AUDIO_STATE.IS_PERFORMING, 1);
+  postMessage({ type: "playStateChange", data: "realtimePerformanceStarted" });
 
   while (Atomics.wait(audioState, AUDIO_STATE.ATOMIC_NOFITY, 0) === "ok") {
     const { buffer } = wasm.exports.memory;
@@ -69,6 +70,10 @@ const pipeAudioStream = async csound => {
         lastReturn = csoundPerformKsmps(csound);
         if (lastReturn !== 0) {
           // Let's notify that performance has ended
+          postMessage({
+            type: "playStateChange",
+            data: "realtimePerformanceEnded"
+          });
           Atomics.store(audioState, AUDIO_STATE.IS_PERFORMING, 0);
           Atomics.store(audioState, AUDIO_STATE.REQUEST_RENDER, 0);
           return;
