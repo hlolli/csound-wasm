@@ -1,4 +1,3 @@
-# Ignore everything
-*
-!package.json
-!lib
+yarn.lock
+nix
+node_modules
