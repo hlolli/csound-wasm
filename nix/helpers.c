@@ -5,8 +5,8 @@
 #include <limits.h>
 #include "csound.h"
 #include "csoundCore.h"
-
-#include <sys/stat.h>
+#include "Opcodes/emugens/emugens_common.h"
+#include "Opcodes/scansyn.h"
 
 // returns the address of a string
 // pointer which is writable from js
@@ -32,8 +32,13 @@ void freeCsoundParams(CSOUND_PARAMS* ptr) {
   free(ptr);
 }
 
-void csoundPrepareRT(CSOUND *csound) {
-  csoundSetHostImplementedAudioIO(csound, 1, 0);
+int csoundStartWasi(CSOUND *csound) {
+  const char* outputDev = csoundGetOutputName(csound);
+  // detect realtime mode automatically
+  if (strcmp("dac", outputDev) == 0) {
+    csoundSetHostImplementedAudioIO(csound, 1, 0);
+  }
+  return csoundStart(csound);
 }
 
 
@@ -58,14 +63,34 @@ int csoundPerformKsmpsWasi(CSOUND *csound)
   }
 }
 
+extern int32_t emugens_init_(CSOUND *);
+extern int32_t scansyn_init_(CSOUND *);
+extern int32_t scansynx_init_(CSOUND *);
+
+
+void _wasi_init_csound_modules(CSOUND *csound) {
+  emugens_init_(csound);
+  scansyn_init_(csound);
+  scansynx_init_(csound);
+}
+
+// same as csoundCreate but also loads
+// opcodes which need initialization to
+// be callable (aka static_modules)
+CSOUND *csoundCreateWasi() {
+  CSOUND *csound = csoundCreate(NULL);
+  _wasi_init_csound_modules(csound);
+  return csound;
+}
+
+// same as csoundReset but also loads
+// opcodes which need re-initialization to
+// be callable (aka static_modules)
+void csoundResetWasi(CSOUND *csound) {
+  csoundReset(csound);
+  _wasi_init_csound_modules(csound);
+}
+
+
 // DUMMY MAIN (never called, but is needed)
 int main (int argc, char *argv[] ) {}
-
-/* int sizeofCsoundParams () { */
-/*   return sizeof(CSOUND_PARAMS); */
-/* } */
-
-/* // get the sizeof int */
-/* int sizeofInt () { */
-/*   return sizeof(int); */
-/* } */

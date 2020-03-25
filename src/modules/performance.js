@@ -88,7 +88,8 @@ export const csoundEvalCode = wasm => (csound, orc) => {
  * @param {Object} wasm
  * @return {csoundStart}
  */
-export const csoundStart = wasm => csound => wasm.exports.csoundStart(csound);
+export const csoundStart = wasm => csound =>
+  wasm.exports.csoundStartWasi(csound);
 
 // TODO
 // csoundCompile (CSOUND *, int argc, const char **argv)
@@ -205,4 +206,5 @@ export const csoundCleanup = wasm => csound =>
  * @param {Object} wasm
  * @return {csoundReset}
  */
-export const csoundReset = wasm => csound => wasm.exports.csoundReset(csound);
+export const csoundReset = wasm => csound =>
+  wasm.exports.csoundResetWasi(csound);

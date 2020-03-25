@@ -38,6 +38,9 @@ const stdErrCallback = data => {
       stdErrBuffer.shift();
     }
     outstr += firstEl;
+    if (process.env.NODE_ENV !== "production") {
+      console.log(outstr);
+    }
     // here the actual callback takes place
     postMessage({ type: "log", data: outstr });
     next.forEach(s => stdErrBuffer.push(s));
@@ -74,7 +77,9 @@ const stdOutCallback = data => {
     outstr += firstEl;
     // here the actual callback takes place
     postMessage({ type: "log", data: outstr });
-    // console.log(outstr);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(outstr);
+    }
     next.forEach(s => stdOutBuffer.push(s));
   } else {
     stdOutBuffer.push(cleanString);
@@ -97,7 +102,7 @@ const createStdOutStream = () => {
 
 const load = async () => {
   const { default: response } = await import("../lib/libcsound.wasm.zlib");
-  await wasmFs.volume.mkdirpBase("/csound");
+  await wasmFs.volume.mkdirSync("/csound");
   const wasmZlib = new Uint8Array(response);
   const wasmBytes = inflate(wasmZlib);
   const transformedBinary = await lowerI64Imports(wasmBytes);

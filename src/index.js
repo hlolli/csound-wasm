@@ -1,4 +1,8 @@
 /* eslint-disable */
+if (process.env.NODE_ENV !== "production") {
+  require("./development.js");
+}
+// import * as worker from "./worker";
 import worker from "workerize-loader?ready&inline!./worker";
 import * as worklet from "./csound.worklet.js";
 import { AUDIO_STATE } from "./constants";
@@ -149,6 +153,7 @@ function maybeUnlockThread(fn, fnName) {
  * @return {Promise.<Object>}
  */
 export default async function init() {
+  // const csoundWorker = worker;
   const csoundWorker = worker();
   await csoundWorker.ready;
   csoundWorker.addEventListener("message", onWorkerMessageEvent, false);
@@ -166,7 +171,6 @@ export default async function init() {
     csoundWorker["csoundStop"],
     "csoundStop"
   );
-
   csoundWorker[
     "setCsoundPlayStateChangeCallback"
   ] = setCsoundPlayStateChangeCallback;

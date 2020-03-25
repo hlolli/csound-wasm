@@ -19,7 +19,7 @@
  * @param {Object} wasm
  * @return {csoundCreate}
  */
-export const csoundCreate = wasm => () => wasm.exports.csoundCreate(null);
+export const csoundCreate = wasm => () => wasm.exports.csoundCreateWasi(null);
 
 /**
  * Destroys an instance of Csound and frees memory

@@ -83,7 +83,7 @@ pkgs.callPackage
         fetchFromGitHub = pkgs.fetchFromGitHub;
         lib = pkgs.lib;
       };
-      csoundRev = "2d1d5eece2e532026f9b98f22e24662acb2fde90";
+      csoundRev = "93cb3ebc344043a7ee828a85191293da36200d82";
       preprocFlags = ''
         -DGIT_HASH_VALUE=${csoundRev} \
         -DUSE_DOUBLE=1 \
@@ -102,7 +102,7 @@ pkgs.callPackage
           owner = "csound";
           repo = "csound";
           rev = csoundRev;
-          sha256 = "1v0pai5n1ajl033ck59nby295p7gk14f1ag0529jy6pvmsyfiidp";
+          sha256 = "1zslpgs5m9q9gn7xqpmzxpbkvsirijwb8gg2dbdffpkhf4xdpqdz";
         };
 
         buildInputs = [ libsndfileP pkgsOrig.flex pkgsOrig.bison ];
@@ -153,6 +153,11 @@ pkgs.callPackage
           # don't open .csound6rc
           substituteInPlace Top/main.c \
             --replace 'checkOptions(csound);' ""
+
+          # follow same preproc defs as emscripten
+          # when it come to filesystem calls
+          substituteInPlace OOps/diskin2.c \
+            --replace '__EMSCRIPTEN__' '__wasi__'
 
           substituteInPlace Top/one_file.c \
             --replace '#include "corfile.h"' \
@@ -206,6 +211,16 @@ pkgs.callPackage
             --replace 'strcpy(s, "alsa");' 'strcpy(s, "dummy");'
 
           substituteInPlace Engine/envvar.c \
+            --replace 'return name;' \
+                      'char* fsPrefix = csound->Malloc(
+                         csound, (size_t) strlen(name) + 9);
+                       strcpy(fsPrefix, (name[0] == DIRSEP) ? "/csound" : "/csound/");
+                       strcat(fsPrefix, name);
+                       return fsPrefix;' \
+            --replace 'fd = open(name, RD_OPTS);' \
+                      'fd = open(name, O_RDONLY); printf("FD IS %d for %s \n", fd, name);' \
+            --replace '#define RD_OPTS  O_RDONLY | O_BINARY, 0' \
+                      '#define RD_OPTS  O_RDONLY' \
             --replace 'UNLIKELY(getcwd(cwd, len)==NULL)' '0' \
             --replace '#include <math.h>' \
                       '#include <math.h>
@@ -224,6 +239,26 @@ pkgs.callPackage
           substituteInPlace Engine/new_orc_parser.c \
             --replace 'csound_orcdebug = O->odebug;' ""
 
+          # expose scansyn_init_ via extern
+          # also hardcode away graph console logs
+          # as they seem to freeze the browser environment
+          substituteInPlace Opcodes/scansyn.c \
+            --replace 'static int32_t scansyn_init_' \
+                      'int32_t scansyn_init_' \
+            --replace '*p->i_disp' '0'
+          substituteInPlace Opcodes/scansyn.h \
+            --replace 'extern int32_t' \
+                      'extern int32_t scansyn_init_(CSOUND *);
+                       extern int32_t'
+
+          # link emugens statically
+          substituteInPlace Opcodes/emugens/emugens.c \
+            --replace 'LINKAGE' \
+             'int32_t emugens_init_(CSOUND *csound) {
+                 return csound->AppendOpcodes(csound,
+                   &(localops[0]), (int32_t) (sizeof(localops) / sizeof(OENTRY))); }'
+          echo 'extern int32_t emugens_init_(CSOUND *);' >> \
+            Opcodes/emugens/emugens_common.h
 
           rm CMakeLists.txt
         '';

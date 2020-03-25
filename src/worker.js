@@ -1,13 +1,16 @@
 /* eslint-disable */
 import L from "@root/libcsound";
 import getLibcsoundWasm, { wasmFs } from "./module";
-import { makeLibcsoundFrontEnd } from "./utils";
+import { makeLibcsoundFrontEnd, uint2Str } from "./utils";
+import * as path from "path";
 import {
   AUDIO_STATE,
   MAX_HARDWARE_BUFFER_SIZE,
   MAX_CHANNELS,
   initialSharedState
 } from "./constants.js";
+
+const Buffer = require("buffer/").Buffer;
 
 // put all the realtime thread dependant functions here
 const thisNamespace = {};
@@ -296,7 +299,21 @@ export function csoundInputMessageAsync(...args) {
 }
 thisNamespace["csoundInputMessageAsync"] = csoundInputMessageAsync;
 
-// @module/helpers
-export function csoundPrepareRT(...args) {
-  return L.csoundPrepareRT(wasm).apply(null, args);
+// FileSystem wrappers
+export async function copyToFs(arrayBuffer, filePath) {
+  const realPath = path.join("/csound", filePath);
+  const buf = Buffer.from(new Uint8Array(arrayBuffer));
+  wasmFs.fs.writeFileSync(realPath, buf);
+  return null;
+}
+
+// All folders are stored under /csound, it seems as if
+// sanboxing security increases, we are safer to have all assets
+// nested from 1 and same root
+// This implementation is hidden from the Csound runtime itself with a hack.
+export async function mkdirp(filePath) {
+  const result = wasmFs.volume.mkdirpSync(path.join("/csound", filePath), {
+    mode: "0o777"
+  });
+  return null;
 }
