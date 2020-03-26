@@ -42,6 +42,8 @@ int csoundStartWasi(CSOUND *csound) {
 }
 
 
+extern int sensevents(CSOUND *);
+
 // The built-in performKsmps has mutex and setjmp
 // which we don't have in wasi based wasm
 int csoundPerformKsmpsWasi(CSOUND *csound)
@@ -63,23 +65,30 @@ int csoundPerformKsmpsWasi(CSOUND *csound)
   }
 }
 
-extern int32_t emugens_init_(CSOUND *);
-extern int32_t scansyn_init_(CSOUND *);
-extern int32_t scansynx_init_(CSOUND *);
+// c
+/* extern int32_t emugens_init_(CSOUND *); */
+/* extern int32_t scansyn_init_(CSOUND *); */
+/* extern int32_t scansynx_init_(CSOUND *); */
+// c++
+/* extern int csoundModuleCreate_signalflowgraph(CSOUND *); */
+/* extern int csoundModuleInit_signalflowgraph(CSOUND* ); */
+/* extern int csoundModuleInit_ampmidid(CSOUND* csound); */
 
-
-void _wasi_init_csound_modules(CSOUND *csound) {
-  emugens_init_(csound);
-  scansyn_init_(csound);
-  scansynx_init_(csound);
-}
+/* void _wasi_init_csound_modules(CSOUND *csound) { */
+/*   emugens_init_(csound); */
+/*   scansyn_init_(csound); */
+/*   scansynx_init_(csound); */
+/*   /\* csoundModuleCreate_signalflowgraph(csound); *\/ */
+/*   csoundModuleInit_signalflowgraph(csound); */
+/*   csoundModuleInit_ampmidid(csound); */
+/* } */
 
 // same as csoundCreate but also loads
 // opcodes which need initialization to
 // be callable (aka static_modules)
 CSOUND *csoundCreateWasi() {
   CSOUND *csound = csoundCreate(NULL);
-  _wasi_init_csound_modules(csound);
+  /* _wasi_init_csound_modules(csound); */
   return csound;
 }
 
@@ -88,9 +97,17 @@ CSOUND *csoundCreateWasi() {
 // be callable (aka static_modules)
 void csoundResetWasi(CSOUND *csound) {
   csoundReset(csound);
-  _wasi_init_csound_modules(csound);
+  /* _wasi_init_csound_modules(csound); */
 }
 
 
+#if defined(CSOUND_EXE_WASM)
+// csound.exe main entry
+int main (int argc, const char **argv ) {
+  CSOUND *csound = csoundCreateWasi(NULL);
+  csoundCompileArgs(csound, argc, argv);
+}
+#else
 // DUMMY MAIN (never called, but is needed)
 int main (int argc, char *argv[] ) {}
+#endif

@@ -1,6 +1,6 @@
 {
   "name": "csound-wasm",
-  "version": "6.14.0-alpha6",
+  "version": "6.14.0-alpha7",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "LGPL-3.0",
   "main": "./dist/libcsound.js",
@@ -18,7 +18,7 @@
     "compile": "nix-shell nix/compile.nix",
     "lint": "eslint 'src/**/*.js'",
     "watch": "webpack --watch --mode develop",
-    "dev": "webpack-dev-server  --hot-only",
+    "dev": "webpack-dev-server",
     "prepublish": "NODE_ENV=production webpack --mode production",
     "build": "NODE_ENV=production webpack --mode production",
     "build:node": "NODE_ENV=production TARGET=node webpack --mode production"
@@ -45,6 +45,7 @@
     "@wasmer/wasmfs": "^0.10.1",
     "buffer": "^5.5.0",
     "pako": "^1.0.11",
-    "path-browserify": "^1.0.1"
+    "path-browserify": "^1.0.1",
+    "web-midi-api": "^2.0.7"
   }
 }
