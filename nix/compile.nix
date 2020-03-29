@@ -1,3 +1,5 @@
+{ debug ? false, dev ? false }:
+
 with import <nixpkgs> {
   # overlays = [ overlay ];
   config = { allowUnsupportedSystem = true; };
@@ -244,6 +246,7 @@ pkgs.callPackage
       csoundRev = "93cb3ebc344043a7ee828a85191293da36200d82";
       preprocFlags = ''
         -DGIT_HASH_VALUE=${csoundRev} \
+        -DINIT_STATIC_MODULES=1 \
         -DUSE_DOUBLE=1 \
         -DLINUX=0 \
         -DO_NDELAY=O_NONBLOCK \
@@ -270,6 +273,7 @@ pkgs.callPackage
 
           # Experimental setjmp patching
           find ./ -type f -exec sed -i -e 's/#include <setjmp.h>//g' {} \;
+          find ./ -type f -exec sed -i -e 's/csound->LongJmp(csound, retval);/return retval;/g' {} \;
           find ./ -type f -exec sed -i -e 's/csound->LongJmp(.*)//g' {} \;
           find ./ -type f -exec sed -i -e 's/longjmp(.*)//g' {} \;
           find ./ -type f -exec sed -i -e 's/jmp_buf/int/g' {} \;
@@ -294,7 +298,7 @@ pkgs.callPackage
 
           # Don't initialize static_modules which are not compiled in wasm env
           substituteInPlace Top/csmodule.c \
-            --replace '#ifndef NACL' '#ifndef __wasi__'
+            --replace '#ifndef NACL' '#ifndef WASM_BUILD'
 
           # Patch 64bit integer clock
           ${patchClock}/bin/patchClock Top/csound.c
@@ -309,7 +313,7 @@ pkgs.callPackage
             --replace 'csound_orcnerrs' "0"
           substituteInPlace include/sysdep.h \
             --replace '#if defined(HAVE_GCC3) && !defined(SWIG)' \
-          '#if defined(HAVE_GCC3) && !defined(__wasi__)'
+          '#if defined(HAVE_GCC3) && !defined(WASM_BUILD)'
 
           # don't open .csound6rc
           substituteInPlace Top/main.c \
@@ -318,7 +322,7 @@ pkgs.callPackage
           # follow same preproc defs as emscripten
           # when it come to filesystem calls
           substituteInPlace OOps/diskin2.c \
-            --replace '__EMSCRIPTEN__' '__wasi__'
+            --replace '__EMSCRIPTEN__' 'WASM_BUILD'
 
           substituteInPlace Top/one_file.c \
             --replace '#include "corfile.h"' \
@@ -346,7 +350,7 @@ pkgs.callPackage
 
           substituteInPlace Opcodes/urandom.c \
             --replace '__HAIKU__' \
-              '__wasi__
+              'WASM_BUILD
                #include <unistd.h>'
 
           substituteInPlace InOut/libmpadec/mp3dec.c \
@@ -393,12 +397,17 @@ pkgs.callPackage
                      '
 
           substituteInPlace Top/main.c \
-            --replace 'csoundUDPServerStart(csound,csound->oparms->daemon);' ""
-                       substituteInPlace Engine/musmon.c \
+            --replace 'csoundUDPServerStart(csound,csound->oparms->daemon);' "" \
+            --replace 'static void put_sorted_score' \
+                      'extern void put_sorted_score'
+          substituteInPlace Engine/musmon.c \
             --replace 'csoundUDPServerClose(csound);' ""
 
           substituteInPlace Engine/new_orc_parser.c \
             --replace 'csound_orcdebug = O->odebug;' ""
+
+          substituteInPlace Top/init_static_modules.c \
+            --replace 'csoundMessage(csound, "init_static_modules...\n");' ""
 
           # expose scansyn_init_ via extern
           # also hardcode away graph console logs
@@ -432,298 +441,316 @@ pkgs.callPackage
         ";
 
           buildPhase = ''
+            mkdir -p build && cd build
             cp ${./csound_wasm.c} ./csound_wasm.c
+            cp ${./csound_wasm.c} ./csound_wasm_exe.c
 
             echo "Compile c++ modules"
             ${libcxxClang}/bin/clang++ \
+              ${if debug then "-g -DDEBUG=1" else ""} \
               --sysroot=${wasilibc} \
               -Wall \
-              --std=c++11 -Os -flto \
+              --std=c++14 -flto \
               -fvisibility=default \
               -fno-exceptions \
               -emit-llvm --target=wasm32-unknown-wasi \
                -c -S \
-              -I./H -I./Engine -I./include -I./ \
+              -I../H -I../Engine -I../include -I../ \
               -I${libcxx}/include/c++/v1 \
               -I${libsndfileP.dev}/include \
               -I${wasilibc}/include \
               -D_LIBCPP_HAS_NO_THREADS \
               -D_LIBCPP_NO_EXCEPTIONS \
               -D__BUILDING_LIBCSOUND \
-              -DINIT_STATIC_MODULES=1 \
-              -DWASM_BUILD \
-              -DPUBLIC='extern "C++"' \
-              -D__wasi__=1 ${preprocFlags} \
-              Opcodes/ampmidid.cpp \
-              Opcodes/doppler.cpp \
-              Opcodes/tl/fractalnoise.cpp \
-              Opcodes/ftsamplebank.cpp \
-              Opcodes/mixer.cpp \
-              Opcodes/signalflowgraph.cpp
+              -DWASM_BUILD=1 \
+              -DPUBLIC='extern "C"' \
+              ${preprocFlags} \
+              ../Opcodes/ampmidid.cpp \
+              ../Opcodes/doppler.cpp \
+              ../Opcodes/tl/fractalnoise.cpp \
+              ../Opcodes/ftsamplebank.cpp \
+              ../Opcodes/mixer.cpp \
+              ../Opcodes/signalflowgraph.cpp
 
-            echo "Compile core csound"
-            ${libcxxClang}/bin/clang -Os -flto \
+            echo "Compile csound.wasm (csound.exe entrypoint)"
+            ${libcxxClang}/bin/clang -flto \
+              ${if debug then "-g -DDEBUG=1" else ""} \
               --sysroot=${wasilibc} \
               -emit-llvm --target=wasm32-unknown-wasi \
                -c -S \
-              -I./H -I./Engine -I./include -I./ \
-              -I./InOut/libmpadec \
+              -I../H -I../Engine -I../include -I../ \
               -I${libsndfileP.dev}/include \
               -I${wasilibc}/include \
               -D_WASI_EMULATED_MMAN \
               -D__BUILDING_LIBCSOUND \
-              -DINIT_STATIC_MODULES=1 \
-              -D__wasi__=1 ${preprocFlags} \
+              -DCSOUND_EXE_WASM=1 \
+              -DWASM_BUILD=1 ${preprocFlags} \
+              csound_wasm_exe.c
+
+            echo "Compile libcsound.wasm"
+            ${libcxxClang}/bin/clang -flto \
+              ${if debug then "-g -DDEBUG=1" else ""} \
+              --sysroot=${wasilibc} \
+              -emit-llvm --target=wasm32-unknown-wasi \
+               -c -S \
+              -I../H -I../Engine -I../include -I../ \
+              -I../InOut/libmpadec \
+              -I${libsndfileP.dev}/include \
+              -I${wasilibc}/include \
+              -D_WASI_EMULATED_MMAN \
+              -D__BUILDING_LIBCSOUND \
+              -DWASM_BUILD=1 ${preprocFlags} \
               ${wasilibc}/share/wasm32-wasi/include-all.c \
+              ${wasilibc}/share/wasm32-wasi/predefined-macros.txt \
               csound_wasm.c \
-              Engine/auxfd.c \
-              Engine/cfgvar.c \
-              Engine/corfiles.c \
-              Engine/cs_new_dispatch.c \
-              Engine/cs_par_base.c \
-              Engine/cs_par_orc_semantic_analysis.c \
-              Engine/csound_data_structures.c \
-              Engine/csound_orc.c \
-              Engine/csound_orc_compile.c \
-              Engine/csound_orc_expressions.c \
-              Engine/csound_orc_optimize.c \
-              Engine/csound_orc_semantics.c \
-              Engine/csound_orcparse.c \
-              Engine/csound_pre.c \
-              Engine/csound_prs.c \
-              Engine/csound_standard_types.c \
-              Engine/csound_type_system.c \
-              Engine/entry1.c \
-              Engine/envvar.c \
-              Engine/extract.c \
-              Engine/fgens.c \
-              Engine/insert.c \
-              Engine/linevent.c \
-              Engine/memalloc.c \
-              Engine/memfiles.c \
-              Engine/musmon.c \
-              Engine/namedins.c \
-              Engine/new_orc_parser.c \
-              Engine/new_orc_parser.c \
-              Engine/pools.c \
-              Engine/rdscor.c \
-              Engine/scope.c \
-              Engine/scsort.c \
-              Engine/scxtract.c \
-              Engine/sort.c \
-              Engine/sread.c \
-              Engine/swritestr.c \
-              Engine/symbtab.c \
-              Engine/symbtab.c \
-              Engine/twarp.c \
-              InOut/circularbuffer.c \
-              InOut/libmpadec/layer1.c \
-              InOut/libmpadec/layer2.c \
-              InOut/libmpadec/layer3.c \
-              InOut/libmpadec/mp3dec.c \
-              InOut/libmpadec/mpadec.c \
-              InOut/libmpadec/synth.c \
-              InOut/libmpadec/tables.c \
-              InOut/libsnd.c \
-              InOut/libsnd_u.c \
-              InOut/midifile.c \
-              InOut/midirecv.c \
-              InOut/midisend.c \
-              InOut/winEPS.c \
-              InOut/winascii.c \
-              InOut/windin.c \
-              InOut/window.c \
-              OOps/aops.c \
-              OOps/bus.c \
-              OOps/cmath.c \
-              OOps/compile_ops.c \
-              OOps/diskin2.c \
-              OOps/disprep.c \
-              OOps/dumpf.c \
-              OOps/fftlib.c \
-              OOps/goto_ops.c \
-              OOps/midiinterop.c \
-              OOps/midiops.c \
-              OOps/midiout.c \
-              OOps/mxfft.c \
-              OOps/oscils.c \
-              OOps/pffft.c \
-              OOps/pstream.c \
-              OOps/pvfileio.c \
-              OOps/pvsanal.c \
-              OOps/random.c \
-              OOps/remote.c \
-              OOps/schedule.c \
-              OOps/sndinfUG.c \
-              OOps/str_ops.c \
-              OOps/ugens1.c \
-              OOps/ugens2.c \
-              OOps/ugens3.c \
-              OOps/ugens4.c \
-              OOps/ugens5.c \
-              OOps/ugens6.c \
-              OOps/ugrw1.c \
-              OOps/ugtabs.c \
-              OOps/vdelay.c \
-              Opcodes/Vosim.c \
-              Opcodes/afilters.c \
-              Opcodes/ambicode.c \
-              Opcodes/ambicode1.c \
-              Opcodes/arrays.c \
-              Opcodes/babo.c \
-              Opcodes/bbcut.c \
-              Opcodes/bilbar.c \
-              Opcodes/biquad.c \
-              Opcodes/bowedbar.c \
-              Opcodes/buchla.c \
-              Opcodes/butter.c \
-              Opcodes/cellular.c \
-              Opcodes/clfilt.c \
-              Opcodes/compress.c \
-              Opcodes/cpumeter.c \
-              Opcodes/cross2.c \
-              Opcodes/crossfm.c \
-              Opcodes/dam.c \
-              Opcodes/date.c \
-              Opcodes/dcblockr.c \
-              Opcodes/dsputil.c \
-              Opcodes/emugens/beosc.c \
-              Opcodes/emugens/emugens.c \
-              Opcodes/emugens/scugens.c \
-              Opcodes/eqfil.c \
-              Opcodes/exciter.c \
-              Opcodes/fareygen.c \
-              Opcodes/fareyseq.c \
-              Opcodes/filter.c \
-              Opcodes/flanger.c \
-              Opcodes/fm4op.c \
-              Opcodes/follow.c \
-              Opcodes/fout.c \
-              Opcodes/framebuffer/Framebuffer.c \
-              Opcodes/framebuffer/OLABuffer.c \
-              Opcodes/framebuffer/OpcodeEntries.c \
-              Opcodes/freeverb.c \
-              Opcodes/ftconv.c \
-              Opcodes/ftest.c \
-              Opcodes/ftgen.c \
-              Opcodes/gab/gab.c \
-              Opcodes/gab/hvs.c \
-              Opcodes/gab/newgabopc.c \
-              Opcodes/gab/sliderTable.c \
-              Opcodes/gab/tabmorph.c \
-              Opcodes/gab/vectorial.c \
-              Opcodes/gammatone.c \
-              Opcodes/gendy.c \
-              Opcodes/getftargs.c \
-              Opcodes/grain.c \
-              Opcodes/grain4.c \
-              Opcodes/harmon.c \
-              Opcodes/hrtfearly.c \
-              Opcodes/hrtferX.c \
-              Opcodes/hrtfopcodes.c \
-              Opcodes/hrtfreverb.c \
-              Opcodes/ifd.c \
-              Opcodes/liveconv.c \
-              Opcodes/locsig.c \
-              Opcodes/loscilx.c \
-              Opcodes/lowpassr.c \
-              Opcodes/mandolin.c \
-              Opcodes/metro.c \
-              Opcodes/midiops2.c \
-              Opcodes/midiops3.c \
-              Opcodes/minmax.c \
-              Opcodes/modal4.c \
-              Opcodes/modmatrix.c \
-              Opcodes/moog1.c \
-              Opcodes/mp3in.c \
-              Opcodes/newfils.c \
-              Opcodes/nlfilt.c \
-              Opcodes/oscbnk.c \
-              Opcodes/pan2.c \
-              Opcodes/partials.c \
-              Opcodes/partikkel.c \
-              Opcodes/paulstretch.c \
-              Opcodes/phisem.c \
-              Opcodes/physmod.c \
-              Opcodes/physutil.c \
-              Opcodes/pinker.c \
-              Opcodes/pitch.c \
-              Opcodes/pitch0.c \
-              Opcodes/pitchtrack.c \
-              Opcodes/platerev.c \
-              Opcodes/pluck.c \
-              Opcodes/psynth.c \
-              Opcodes/pvadd.c \
-              Opcodes/pvinterp.c \
-              Opcodes/pvlock.c \
-              Opcodes/pvoc.c \
-              Opcodes/pvocext.c \
-              Opcodes/pvread.c \
-              Opcodes/pvs_ops.c \
-              Opcodes/pvsband.c \
-              Opcodes/pvsbasic.c \
-              Opcodes/pvsbuffer.c \
-              Opcodes/pvscent.c \
-              Opcodes/pvsdemix.c \
-              Opcodes/pvsgendy.c \
-              Opcodes/quadbezier.c \
-              Opcodes/repluck.c \
-              Opcodes/reverbsc.c \
-              Opcodes/scansyn.c \
-              Opcodes/scansynx.c \
-              Opcodes/scoreline.c \
-              Opcodes/select.c \
-              Opcodes/seqtime.c \
-              Opcodes/sfont.c \
-              Opcodes/shaker.c \
-              Opcodes/shape.c \
-              Opcodes/singwave.c \
-              Opcodes/sndloop.c \
-              Opcodes/sndwarp.c \
-              Opcodes/space.c \
-              Opcodes/spat3d.c \
-              Opcodes/spectra.c \
-              Opcodes/squinewave.c \
-              Opcodes/stackops.c \
-              Opcodes/stdopcod.c \
-              Opcodes/syncgrain.c \
-              Opcodes/tabaudio.c \
-              Opcodes/tabsum.c \
-              Opcodes/tl/sc_noise.c \
-              Opcodes/ugakbari.c \
-              Opcodes/ugens7.c \
-              Opcodes/ugens8.c \
-              Opcodes/ugens9.c \
-              Opcodes/ugensa.c \
-              Opcodes/uggab.c \
-              Opcodes/ugmoss.c \
-              Opcodes/ugnorman.c \
-              Opcodes/ugsc.c \
-              Opcodes/urandom.c \
-              Opcodes/vaops.c \
-              Opcodes/vbap.c \
-              Opcodes/vbap1.c \
-              Opcodes/vbap_n.c \
-              Opcodes/vbap_zak.c \
-              Opcodes/vpvoc.c \
-              Opcodes/wave-terrain.c \
-              Opcodes/wpfilters.c \
-              Opcodes/zak.c \
-              Top/argdecode.c \
-              Top/cscore_internal.c \
-              Top/cscorfns.c \
-              Top/csdebug.c \
-              Top/csmodule.c \
-              Top/getstring.c \
-              Top/init_static_modules.c \
-              Top/main.c \
-              Top/new_opts.c \
-              Top/one_file.c \
-              Top/opcode.c \
-              Top/threads.c \
-              Top/threadsafe.c \
-              Top/utility.c \
-              Top/csound.c
+              ../Engine/auxfd.c \
+              ../Engine/cfgvar.c \
+              ../Engine/corfiles.c \
+              ../Engine/cs_new_dispatch.c \
+              ../Engine/cs_par_base.c \
+              ../Engine/cs_par_orc_semantic_analysis.c \
+              ../Engine/csound_data_structures.c \
+              ../Engine/csound_orc.c \
+              ../Engine/csound_orc_compile.c \
+              ../Engine/csound_orc_expressions.c \
+              ../Engine/csound_orc_optimize.c \
+              ../Engine/csound_orc_semantics.c \
+              ../Engine/csound_orcparse.c \
+              ../Engine/csound_pre.c \
+              ../Engine/csound_prs.c \
+              ../Engine/csound_standard_types.c \
+              ../Engine/csound_type_system.c \
+              ../Engine/entry1.c \
+              ../Engine/envvar.c \
+              ../Engine/extract.c \
+              ../Engine/fgens.c \
+              ../Engine/insert.c \
+              ../Engine/linevent.c \
+              ../Engine/memalloc.c \
+              ../Engine/memfiles.c \
+              ../Engine/musmon.c \
+              ../Engine/namedins.c \
+              ../Engine/new_orc_parser.c \
+              ../Engine/new_orc_parser.c \
+              ../Engine/pools.c \
+              ../Engine/rdscor.c \
+              ../Engine/scope.c \
+              ../Engine/scsort.c \
+              ../Engine/scxtract.c \
+              ../Engine/sort.c \
+              ../Engine/sread.c \
+              ../Engine/swritestr.c \
+              ../Engine/symbtab.c \
+              ../Engine/symbtab.c \
+              ../Engine/twarp.c \
+              ../InOut/circularbuffer.c \
+              ../InOut/libmpadec/layer1.c \
+              ../InOut/libmpadec/layer2.c \
+              ../InOut/libmpadec/layer3.c \
+              ../InOut/libmpadec/mp3dec.c \
+              ../InOut/libmpadec/mpadec.c \
+              ../InOut/libmpadec/synth.c \
+              ../InOut/libmpadec/tables.c \
+              ../InOut/libsnd.c \
+              ../InOut/libsnd_u.c \
+              ../InOut/midifile.c \
+              ../InOut/midirecv.c \
+              ../InOut/midisend.c \
+              ../InOut/winEPS.c \
+              ../InOut/winascii.c \
+              ../InOut/windin.c \
+              ../InOut/window.c \
+              ../OOps/aops.c \
+              ../OOps/bus.c \
+              ../OOps/cmath.c \
+              ../OOps/compile_ops.c \
+              ../OOps/diskin2.c \
+              ../OOps/disprep.c \
+              ../OOps/dumpf.c \
+              ../OOps/fftlib.c \
+              ../OOps/goto_ops.c \
+              ../OOps/midiinterop.c \
+              ../OOps/midiops.c \
+              ../OOps/midiout.c \
+              ../OOps/mxfft.c \
+              ../OOps/oscils.c \
+              ../OOps/pffft.c \
+              ../OOps/pstream.c \
+              ../OOps/pvfileio.c \
+              ../OOps/pvsanal.c \
+              ../OOps/random.c \
+              ../OOps/remote.c \
+              ../OOps/schedule.c \
+              ../OOps/sndinfUG.c \
+              ../OOps/str_ops.c \
+              ../OOps/ugens1.c \
+              ../OOps/ugens2.c \
+              ../OOps/ugens3.c \
+              ../OOps/ugens4.c \
+              ../OOps/ugens5.c \
+              ../OOps/ugens6.c \
+              ../OOps/ugrw1.c \
+              ../OOps/ugtabs.c \
+              ../OOps/vdelay.c \
+              ../Opcodes/Vosim.c \
+              ../Opcodes/afilters.c \
+              ../Opcodes/ambicode.c \
+              ../Opcodes/ambicode1.c \
+              ../Opcodes/arrays.c \
+              ../Opcodes/babo.c \
+              ../Opcodes/bbcut.c \
+              ../Opcodes/bilbar.c \
+              ../Opcodes/biquad.c \
+              ../Opcodes/bowedbar.c \
+              ../Opcodes/buchla.c \
+              ../Opcodes/butter.c \
+              ../Opcodes/cellular.c \
+              ../Opcodes/clfilt.c \
+              ../Opcodes/compress.c \
+              ../Opcodes/cpumeter.c \
+              ../Opcodes/cross2.c \
+              ../Opcodes/crossfm.c \
+              ../Opcodes/dam.c \
+              ../Opcodes/date.c \
+              ../Opcodes/dcblockr.c \
+              ../Opcodes/dsputil.c \
+              ../Opcodes/emugens/beosc.c \
+              ../Opcodes/emugens/emugens.c \
+              ../Opcodes/emugens/scugens.c \
+              ../Opcodes/eqfil.c \
+              ../Opcodes/exciter.c \
+              ../Opcodes/fareygen.c \
+              ../Opcodes/fareyseq.c \
+              ../Opcodes/filter.c \
+              ../Opcodes/flanger.c \
+              ../Opcodes/fm4op.c \
+              ../Opcodes/follow.c \
+              ../Opcodes/fout.c \
+              ../Opcodes/framebuffer/Framebuffer.c \
+              ../Opcodes/framebuffer/OLABuffer.c \
+              ../Opcodes/framebuffer/OpcodeEntries.c \
+              ../Opcodes/freeverb.c \
+              ../Opcodes/ftconv.c \
+              ../Opcodes/ftest.c \
+              ../Opcodes/ftgen.c \
+              ../Opcodes/gab/gab.c \
+              ../Opcodes/gab/hvs.c \
+              ../Opcodes/gab/newgabopc.c \
+              ../Opcodes/gab/sliderTable.c \
+              ../Opcodes/gab/tabmorph.c \
+              ../Opcodes/gab/vectorial.c \
+              ../Opcodes/gammatone.c \
+              ../Opcodes/gendy.c \
+              ../Opcodes/getftargs.c \
+              ../Opcodes/grain.c \
+              ../Opcodes/grain4.c \
+              ../Opcodes/harmon.c \
+              ../Opcodes/hrtfearly.c \
+              ../Opcodes/hrtferX.c \
+              ../Opcodes/hrtfopcodes.c \
+              ../Opcodes/hrtfreverb.c \
+              ../Opcodes/ifd.c \
+              ../Opcodes/liveconv.c \
+              ../Opcodes/locsig.c \
+              ../Opcodes/loscilx.c \
+              ../Opcodes/lowpassr.c \
+              ../Opcodes/mandolin.c \
+              ../Opcodes/metro.c \
+              ../Opcodes/midiops2.c \
+              ../Opcodes/midiops3.c \
+              ../Opcodes/minmax.c \
+              ../Opcodes/modal4.c \
+              ../Opcodes/modmatrix.c \
+              ../Opcodes/moog1.c \
+              ../Opcodes/mp3in.c \
+              ../Opcodes/newfils.c \
+              ../Opcodes/nlfilt.c \
+              ../Opcodes/oscbnk.c \
+              ../Opcodes/pan2.c \
+              ../Opcodes/partials.c \
+              ../Opcodes/partikkel.c \
+              ../Opcodes/paulstretch.c \
+              ../Opcodes/phisem.c \
+              ../Opcodes/physmod.c \
+              ../Opcodes/physutil.c \
+              ../Opcodes/pinker.c \
+              ../Opcodes/pitch.c \
+              ../Opcodes/pitch0.c \
+              ../Opcodes/pitchtrack.c \
+              ../Opcodes/platerev.c \
+              ../Opcodes/pluck.c \
+              ../Opcodes/psynth.c \
+              ../Opcodes/pvadd.c \
+              ../Opcodes/pvinterp.c \
+              ../Opcodes/pvlock.c \
+              ../Opcodes/pvoc.c \
+              ../Opcodes/pvocext.c \
+              ../Opcodes/pvread.c \
+              ../Opcodes/pvs_ops.c \
+              ../Opcodes/pvsband.c \
+              ../Opcodes/pvsbasic.c \
+              ../Opcodes/pvsbuffer.c \
+              ../Opcodes/pvscent.c \
+              ../Opcodes/pvsdemix.c \
+              ../Opcodes/pvsgendy.c \
+              ../Opcodes/quadbezier.c \
+              ../Opcodes/repluck.c \
+              ../Opcodes/reverbsc.c \
+              ../Opcodes/scansyn.c \
+              ../Opcodes/scansynx.c \
+              ../Opcodes/scoreline.c \
+              ../Opcodes/select.c \
+              ../Opcodes/seqtime.c \
+              ../Opcodes/sfont.c \
+              ../Opcodes/shaker.c \
+              ../Opcodes/shape.c \
+              ../Opcodes/singwave.c \
+              ../Opcodes/sndloop.c \
+              ../Opcodes/sndwarp.c \
+              ../Opcodes/space.c \
+              ../Opcodes/spat3d.c \
+              ../Opcodes/spectra.c \
+              ../Opcodes/squinewave.c \
+              ../Opcodes/stackops.c \
+              ../Opcodes/stdopcod.c \
+              ../Opcodes/syncgrain.c \
+              ../Opcodes/tabaudio.c \
+              ../Opcodes/tabsum.c \
+              ../Opcodes/tl/sc_noise.c \
+              ../Opcodes/ugakbari.c \
+              ../Opcodes/ugens7.c \
+              ../Opcodes/ugens8.c \
+              ../Opcodes/ugens9.c \
+              ../Opcodes/ugensa.c \
+              ../Opcodes/uggab.c \
+              ../Opcodes/ugmoss.c \
+              ../Opcodes/ugnorman.c \
+              ../Opcodes/ugsc.c \
+              ../Opcodes/urandom.c \
+              ../Opcodes/vaops.c \
+              ../Opcodes/vbap.c \
+              ../Opcodes/vbap1.c \
+              ../Opcodes/vbap_n.c \
+              ../Opcodes/vbap_zak.c \
+              ../Opcodes/vpvoc.c \
+              ../Opcodes/wave-terrain.c \
+              ../Opcodes/wpfilters.c \
+              ../Opcodes/zak.c \
+              ../Top/argdecode.c \
+              ../Top/cscore_internal.c \
+              ../Top/cscorfns.c \
+              ../Top/csdebug.c \
+              ../Top/csmodule.c \
+              ../Top/getstring.c \
+              ../Top/main.c \
+              ../Top/new_opts.c \
+              ../Top/one_file.c \
+              ../Top/opcode.c \
+              ../Top/threads.c \
+              ../Top/threadsafe.c \
+              ../Top/utility.c \
+              ../Top/init_static_modules.c \
+              ../Top/csound.c
 
               echo "Compile to wasm objects"
               for f in *.s
@@ -732,13 +759,13 @@ pkgs.callPackage
               done
 
               echo "Link togeather libcsound"
+              mv csound_wasm_exe.s.o csound_wasm_exe.s.o_bak
               ${pkgsOrig.lld_9}/bin/wasm-ld \
                 --lto-O3 \
                 --demangle \
                 -entry=_start \
                 -error-limit=0 \
                 --allow-undefined \
-                --stack-first \
                 -z stack-size=5242880 \
                 --initial-memory=536870912 \
                 -L${wasilibc}/lib \
@@ -750,6 +777,27 @@ pkgs.callPackage
                 --export-all \
                 ${wasilibc}/lib/crt1.o *.o \
                 -o libcsound.wasm
+
+              echo "Link togeather csound.exe[wasm]"
+              mv csound_wasm_exe.s.o_bak csound_wasm_exe.s.o
+              mv csound_wasm.s.o csound_wasm.s.o_bak
+              ${pkgsOrig.lld_9}/bin/wasm-ld \
+                --lto-O3 \
+                --demangle \
+                -entry=_start \
+                -error-limit=0 \
+                --allow-undefined \
+                -z stack-size=5242880 \
+                --initial-memory=536870912 \
+                -L${libcxx}/lib \
+                -L${libcxxabi}/lib \
+                -L${wasilibc}/lib \
+                -L${libsndfileP.out}/lib \
+                -lc -lm -ldl -lsndfile -lc++ -lc++abi \
+                -lwasi-emulated-mman \
+                --export-all \
+                ${wasilibc}/lib/crt1.o *.o \
+                -o csound_exe.wasm
           '';
 
           installPhase = ''
@@ -762,16 +810,23 @@ pkgs.callPackage
         {
           nativeBuildInputs = [];
           buildInputs = [ csoundP ];
-          shellHook = ''
-            rm -f .lib/libcsound.wasm
-            rm -rf lib/*
+          BUILD_DIR = "${csoundP}";
+          shellHook = if dev then ''
+            rm -rf tmp
+            mkdir -p tmp
+            cp -r ${csoundP}/* tmp
+            sudo find ./tmp -type f -exec chmod 755 {} \;
+            cd tmp
+          '' else ''
+            rm -rf lib
             mkdir -p lib
             cp ${csoundP}/libcsound.wasm lib
+            cp ${csoundP}/csound_exe.wasm lib
             # make a compressed version for the browser bundle
             ${pkgsOrig.zopfli}/bin/zopfli --zlib -c \
               ${csoundP}/libcsound.wasm > lib/libcsound.wasm.zlib
-            chmod 0600 lib/libcsound.wasm
-            exit 0
+            chmod 0600 lib/*.wasm
+            [[ $dev = 1 ]] && echo "use BUILD_DIR" || exit 0
           '';
         }
   ) {}

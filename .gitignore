@@ -20,3 +20,4 @@ dist
 deps.js
 *.log
 .envrc
+test.csd
