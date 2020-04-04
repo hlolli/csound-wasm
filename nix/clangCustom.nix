@@ -1,9 +1,53 @@
-{ stdenv, pkgsLinux, pkgsWasi, wasilibc }:
-let
-  llvmPrefix = pkgsLinux.llvmPackages_10;
-in
+{ pkgsOrig ? import <nixpkgs> {} }:
+
+with import <nixpkgs> {
+  config = { allowUnsupportedSystem = true; };
+  crossSystem = {
+    config = "wasm32-unknown-wasi";
+    libc = "wasilibc";
+    cc = (import <nixpkgs> {}).llvmPackages_10.lldClang;
+    useLLVM = true;
+  };
+};
+
 rec {
+  wasilibc = pkgs.callPackage ./wasilibc.nix {
+    stdenv = pkgs.stdenv;
+    fetchFromGitHub = pkgs.fetchFromGitHub;
+    lib = pkgs.lib;
+  };
+  llvmPrefix = pkgsOrig.llvmPackages_10;
   llvm = llvmPrefix.llvm;
+  llvm_ = llvmPrefix.llvm.overrideAttrs
+    (oldAttrs: {
+      doCheck = false;
+      checkTarget = "true";
+      cmakeFlags = oldAttrs.cmakeFlags ++ [
+        "-DLIBCXX_INCLUDE_TESTS:BOOL=OFF"
+        "-DLLVM_INCLUDE_TESTS:BOOL=OFF"
+        "-DCOMPILER_RT_INCLUDE_TESTS=OFF"
+        "-DCMAKE_CROSSCOMPILING:BOOL=ON"
+        "-DLLVM_TARGETS_TO_BUILD=WebAssembly"
+        "-DLLVM_DEFAULT_TARGET_TRIPLE=wasm32-wasi"
+        "-DDEFAULT_SYSROOT=${wasilibc}"
+        "-DLLVM_TABLEGEN=${llvmPrefix.llvm}/bin/llvm-tblgen"
+      ];
+      patches = oldAttrs.patches ++ [
+        (pkgsOrig.fetchpatch {
+          url = "https://raw.githubusercontent.com/NixOS/nixpkgs/c08d6d55dc9a899f11bff2c5d545b56577b9c949/pkgs/development/compilers/llvm/TLI-musl.patch";
+          sha256 = "172s9ilkkss9fva7a0qqvsnairjc8wpq1x3dnykv8hdxzd67ps62";
+        }
+        )
+      ];
+      preConfigure = ''
+        substituteInPlace unittests/Support/CMakeLists.txt \
+          --replace "add_subdirectory(DynamicLibrary)" ""
+        rm unittests/Support/DynamicLibrary/DynamicLibraryTest.cpp
+        rm test/CodeGen/AArch64/wineh4.mir
+      '';
+
+    }
+    );
   compiler-rt = llvmPrefix.libunwind.overrideAttrs
     (oldAttrs: {
       cmakeFlags = [
@@ -16,6 +60,7 @@ rec {
         "-DCOMPILER_RT_DEFAULT_TARGET_ONLY=On"
         "-DCOMPILER_RT_OS_DIR=wasi"
       ];
+
     }
     );
   libunwind = llvmPrefix.libunwind.overrideAttrs
@@ -62,7 +107,7 @@ rec {
       ];
     }
     );
-  libcxx = pkgsWasi.llvmPackages_10.libcxx.overrideAttrs
+  libcxx = pkgs.llvmPackages_10.libcxx.overrideAttrs
     (oldAttrs: rec {
       preConfigure = oldAttrs.preConfigure + ''
         substituteInPlace include/__mutex_base \
@@ -73,14 +118,14 @@ rec {
         export LIBCXXABI_INCLUDE_DIR="$PWD/$(ls -d libcxxabi-${llvm.version}*)/include"
       '';
       patches = [
-        (pkgsLinux.fetchpatch {
+        (pkgsOrig.fetchpatch {
           url = "https://raw.githubusercontent.com/NixOS/nixpkgs/c08d6d55dc9a899f11bff2c5d545b56577b9c949/pkgs/development/compilers/llvm/libcxx-0001-musl-hacks.patch";
           sha256 = "19nm1gwhvlfk726ckg89km5jdcr0a2cdkm78rcnrh1wyg6j4mxma";
         }
         )
       ];
       buildInputs = [ libcxxabi ];
-      nativeBuildInputs = [ pkgsLinux.python3 pkgsLinux.cmake ];
+      nativeBuildInputs = [ pkgsOrig.python3 pkgsOrig.cmake ];
       cmakeFlags = [
         "-DCMAKE_SYSROOT=${wasilibc}"
         "-DLIBCXX_SYSROOT=${wasilibc}"
@@ -104,7 +149,7 @@ rec {
       ];
     }
     );
-  libcxxClang = pkgsLinux.wrapCCWith
+  libcxxClang = pkgsOrig.wrapCCWith
     rec {
       cc = llvmPrefix.tools.clang-unwrapped;
       inherit libcxx;
@@ -115,35 +160,3 @@ rec {
       ];
     };
 }
-
-
-# llvm_ = llvmPrefix.llvm.overrideAttrs
-#   (oldAttrs: {
-#     doCheck = false;
-#     checkTarget = "true";
-#     cmakeFlags = oldAttrs.cmakeFlags ++ [
-#       "-DLIBCXX_INCLUDE_TESTS:BOOL=OFF"
-#       "-DLLVM_INCLUDE_TESTS:BOOL=OFF"
-#       "-DCOMPILER_RT_INCLUDE_TESTS=OFF"
-#       "-DCMAKE_CROSSCOMPILING:BOOL=ON"
-#       "-DLLVM_TARGETS_TO_BUILD=WebAssembly"
-#       "-DLLVM_DEFAULT_TARGET_TRIPLE=wasm32-wasi"
-#       "-DDEFAULT_SYSROOT=${wasilibc}"
-#       "-DLLVM_TABLEGEN=${llvmPrefix.llvm}/bin/llvm-tblgen"
-#     ];
-#     patches = oldAttrs.patches ++ [
-#       (pkgsOrig.fetchpatch {
-#         url = "https://raw.githubusercontent.com/NixOS/nixpkgs/c08d6d55dc9a899f11bff2c5d545b56577b9c949/pkgs/development/compilers/llvm/TLI-musl.patch";
-#         sha256 = "172s9ilkkss9fva7a0qqvsnairjc8wpq1x3dnykv8hdxzd67ps62";
-#       }
-#       )
-#     ];
-#     preConfigure = ''
-#           substituteInPlace unittests/Support/CMakeLists.txt \
-#             --replace "add_subdirectory(DynamicLibrary)" ""
-#           rm unittests/Support/DynamicLibrary/DynamicLibraryTest.cpp
-#           rm test/CodeGen/AArch64/wineh4.mir
-#         '';
-
-#   }
-#   );
