@@ -1,4 +1,4 @@
-{}:
+{ pkgs ? import <nixpkgs> {} }:
 
 with import <nixpkgs> {
   config = { allowUnsupportedSystem = true; };
@@ -9,19 +9,19 @@ with import <nixpkgs> {
     useLLVM = true;
   };
 };
+
 pkgs.callPackage
   (
     { mkShell }:
     let
       exports = with builtins; (fromJSON (readFile ./exports.json));
-      pkgsOrig = import <nixpkgs> {};
-      clangCustom = import ./clangCustom.nix { inherit pkgsOrig; };
-      patchClock = pkgsOrig.writeTextFile {
+      wasi-sdk = pkgs.callPackage ./wasi-sdk.nix {};
+      patchClock = pkgs.writeTextFile {
         name = "patchClock";
         executable = true;
         destination = "/bin/patchClock";
         text = ''
-          #!${pkgsOrig.nodejs}/bin/node
+          #!${pkgs.nodejs}/bin/node
           const myArgs = process.argv.slice(2);
           const myFile = myArgs[0];
           const fs = require('fs')
@@ -48,12 +48,12 @@ pkgs.callPackage
         '';
       };
 
-      patchGetCWD = pkgsOrig.writeTextFile {
+      patchGetCWD = pkgs.writeTextFile {
         name = "patchGetCWD";
         executable = true;
         destination = "/bin/patchGetCWD";
         text = ''
-          #!${pkgsOrig.nodejs}/bin/node
+          #!${pkgs.nodejs}/bin/node
 
           const myArgs = process.argv.slice(2);
           const myFile = myArgs[0];
@@ -73,14 +73,12 @@ pkgs.callPackage
             fs.writeFile(myFile, result, 'utf8', function (err) {
               if (err) return console.log(err);
             });
-                          });
+           });
         '';
       };
-      libsndfileP = import ./sndfileWasi.nix {
-        inherit pkgs;
-      };
+      libsndfileP = import ./sndfileWasi.nix;
 
-      csoundModLoadPatch = pkgsOrig.writeTextFile
+      csoundModLoadPatch = pkgs.writeTextFile
         {
           name = "csoundModLoadPatch";
           text = ''
@@ -110,14 +108,14 @@ pkgs.callPackage
       csoundP = pkgs.stdenv.mkDerivation
         {
           name = "csound-wasi";
-          src = fetchFromGitHub {
+          src = pkgs.fetchFromGitHub {
             owner = "csound";
             repo = "csound";
             rev = csoundRev;
             sha256 = "089ayqjzkqvwmv25p0vg20x0112blm16a74b95qrx0g9307njw95";
           };
 
-          buildInputs = [ libsndfileP pkgsOrig.flex pkgsOrig.bison ];
+          buildInputs = [ libsndfileP pkgs.flex pkgs.bison ];
           patches = [ ./argdecode.patch ];
           postPatch = ''
 
@@ -264,7 +262,7 @@ pkgs.callPackage
           # as they seem to freeze the browser environment
           substituteInPlace Opcodes/scansyn.c \
             --replace 'static int32_t scansyn_init_' \
-                      'int32_t scansyn_init_' \
+                      'extern int32_t scansyn_init_' \
             --replace '*p->i_disp' '0'
           substituteInPlace Opcodes/scansyn.h \
             --replace 'extern int32_t' \
@@ -283,11 +281,11 @@ pkgs.callPackage
           rm CMakeLists.txt
         '';
           configurePhase = "
-          ${pkgsOrig.flex}/bin/flex -B ./Engine/csound_orc.lex > ./Engine/csound_orc.c
-          ${pkgsOrig.flex}/bin/flex -B ./Engine/csound_pre.lex > ./Engine/csound_pre.c
-          ${pkgsOrig.flex}/bin/flex -B ./Engine/csound_prs.lex > ./Engine/csound_prs.c
-          ${pkgsOrig.flex}/bin/flex -B ./Engine/csound_sco.lex > ./Engine/csound_sco.c
-          ${pkgsOrig.bison}/bin/bison -pcsound_orc -d --report=itemset ./Engine/csound_orc.y -o ./Engine/csound_orcparse.c
+          ${pkgs.flex}/bin/flex -B ./Engine/csound_orc.lex > ./Engine/csound_orc.c
+          ${pkgs.flex}/bin/flex -B ./Engine/csound_pre.lex > ./Engine/csound_pre.c
+          ${pkgs.flex}/bin/flex -B ./Engine/csound_prs.lex > ./Engine/csound_prs.c
+          ${pkgs.flex}/bin/flex -B ./Engine/csound_sco.lex > ./Engine/csound_sco.c
+          ${pkgs.bison}/bin/bison -pcsound_orc -d --report=itemset ./Engine/csound_orc.y -o ./Engine/csound_orcparse.c
         ";
 
           buildPhase = ''
@@ -295,60 +293,19 @@ pkgs.callPackage
             cp ${../c/csound_wasm.c} ./csound_wasm.c
             cp ${../c/csound_wasm.c} ./csound_wasm_exe.c
 
-            echo "Compile c++ modules"
-            ${clangCustom.libcxxClang}/bin/clang++ \
-              --sysroot=${clangCustom.wasilibc} \
-              -Wall \
-              --std=c++14 -flto \
-              -fvisibility=default \
-              -fno-exceptions \
-              -emit-llvm --target=wasm32-unknown-wasi \
-               -c -S \
-              -I../H -I../Engine -I../include -I../ \
-              -I${clangCustom.libcxx}/include/c++/v1 \
-              -I${libsndfileP.dev}/include \
-              -I${clangCustom.wasilibc}/include \
-              -D_LIBCPP_HAS_NO_THREADS \
-              -D_LIBCPP_NO_EXCEPTIONS \
-              -D__BUILDING_LIBCSOUND \
-              -DWASM_BUILD=1 \
-              -DPUBLIC='extern "C"' \
-              ${preprocFlags} \
-              ../Opcodes/ampmidid.cpp \
-              ../Opcodes/doppler.cpp \
-              ../Opcodes/tl/fractalnoise.cpp \
-              ../Opcodes/ftsamplebank.cpp \
-              ../Opcodes/mixer.cpp \
-              ../Opcodes/signalflowgraph.cpp
-
-            echo "Compile csound.wasm (csound.exe entrypoint)"
-            ${clangCustom.libcxxClang}/bin/clang -flto \
-              --sysroot=${clangCustom.wasilibc} \
-              -emit-llvm --target=wasm32-unknown-wasi \
-               -c -S \
-              -I../H -I../Engine -I../include -I../ \
-              -I${libsndfileP.dev}/include \
-              -I${clangCustom.wasilibc}/include \
-              -D_WASI_EMULATED_MMAN \
-              -D__BUILDING_LIBCSOUND \
-              -DCSOUND_EXE_WASM=1 \
-              -DWASM_BUILD=1 ${preprocFlags} \
-              csound_wasm_exe.c
-
             echo "Compile libcsound.wasm"
-            ${clangCustom.libcxxClang}/bin/clang -flto \
-              --sysroot=${clangCustom.wasilibc} \
-              -emit-llvm --target=wasm32-unknown-wasi \
-               -c -S \
+            ${wasi-sdk}/bin/clang \
+              --sysroot=${wasi-sdk}/share/wasi-sysroot \
+              -fno-exceptions \
+              -flto \
+              -mno-float128 \
+              -O2 -c \
               -I../H -I../Engine -I../include -I../ \
               -I../InOut/libmpadec \
               -I${libsndfileP.dev}/include \
-              -I${clangCustom.wasilibc}/include \
               -D_WASI_EMULATED_MMAN \
               -D__BUILDING_LIBCSOUND \
               -DWASM_BUILD=1 ${preprocFlags} \
-              ${clangCustom.wasilibc}/share/wasm32-wasi/include-all.c \
-              ${clangCustom.wasilibc}/share/wasm32-wasi/predefined-macros.txt \
               csound_wasm.c \
               ../Engine/auxfd.c \
               ../Engine/cfgvar.c \
@@ -597,50 +554,32 @@ pkgs.callPackage
               ../Top/threadsafe.c \
               ../Top/utility.c \
               ../Top/init_static_modules.c \
+              ../Opcodes/ampmidid.cpp \
+              ../Opcodes/doppler.cpp \
+              ../Opcodes/tl/fractalnoise.cpp \
+              ../Opcodes/ftsamplebank.cpp \
+              ../Opcodes/mixer.cpp \
+              ../Opcodes/signalflowgraph.cpp \
               ../Top/csound.c
 
-              echo "Compile to wasm objects"
-              for f in *.s
-                do
-                ${clangCustom.llvm}/bin/llc -march=wasm32 -filetype=obj $f
-              done
 
               echo "Link togeather libcsound"
-              mv csound_wasm_exe.s.o csound_wasm_exe.s.o_bak
-              ${pkgsOrig.lld_10}/bin/wasm-ld \
-                --lto-O3 \
-                --demangle \
+              # mv csound_wasm_exe.s.o csound_wasm_exe.s.o_bak
+              ${wasi-sdk}/bin/wasm-ld \
                 -entry=_start \
+                --lto-O2 \
+                -z stack-size=5242880 \
+                --initial-memory=536870912 \
+                --demangle \
                 -error-limit=0 \
-                --allow-undefined \
-                -L${clangCustom.wasilibc}/lib \
-                -L${clangCustom.libcxx}/lib \
-                -L${clangCustom.libcxxabi}/lib \
+                -L${wasi-sdk}/share/wasi-sysroot/lib/wasm32-wasi \
                 -L${libsndfileP.out}/lib \
                 -lc -lm -ldl -lsndfile -lc++ -lc++abi \
                 -lwasi-emulated-mman \
                 --export-all \
-                ${clangCustom.wasilibc}/lib/crt1.o *.o \
+                ${wasi-sdk}/share/wasi-sysroot/lib/wasm32-wasi/crt1.o \
+                 *.o \
                 -o libcsound.wasm
-
-              echo "Link togeather csound.exe[wasm]"
-              mv csound_wasm_exe.s.o_bak csound_wasm_exe.s.o
-              mv csound_wasm.s.o csound_wasm.s.o_bak
-              ${pkgsOrig.lld_10}/bin/wasm-ld \
-                --lto-O3 \
-                --demangle \
-                -entry=_start \
-                -error-limit=0 \
-                --allow-undefined \
-                -L${clangCustom.libcxx}/lib \
-                -L${clangCustom.libcxxabi}/lib \
-                -L${clangCustom.wasilibc}/lib \
-                -L${libsndfileP.out}/lib \
-                -lc -lm -ldl -lsndfile -lc++ -lc++abi \
-                -lwasi-emulated-mman \
-                --export-all \
-                ${clangCustom.wasilibc}/lib/crt1.o *.o \
-                -o csound_exe.wasm
           '';
 
           installPhase = ''
@@ -659,7 +598,6 @@ pkgs.callPackage
     }
   ) {}
 
-# -z stack-size=5242880 \
-#   --initial-memory=536870912 \
+
 # -z stack-size=5242880 \
 #   --initial-memory=536870912 \

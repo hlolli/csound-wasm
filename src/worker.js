@@ -241,7 +241,7 @@ export function csoundPerformBuffer(...args) {
   return L.csoundPerformBuffer(wasm).apply(null, args);
 }
 export function csoundStop(...args) {
-  csoundInputMessage(args[0], "e 0 0");
+  // csoundInputMessage(args[0], "e 0 0");
   return L.csoundStop(wasm).apply(null, args);
 }
 thisNamespace["csoundStop"] = csoundStop;

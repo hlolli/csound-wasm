@@ -1,4 +1,13 @@
-{ pkgs }:
+with import <nixpkgs> {
+  config = { allowUnsupportedSystem = true; };
+  crossSystem = {
+    config = "wasm32-unknown-wasi";
+    libc = "wasilibc";
+    cc = (import <nixpkgs> {}).llvmPackages_10.lldClang;
+    useLLVM = true;
+  };
+};
+# { pkgs }:
 (pkgs.libsndfile.override { flac = null; }).overrideAttrs
   (old: {
     buildInputs = [];

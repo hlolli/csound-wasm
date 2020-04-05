@@ -10,7 +10,7 @@ pkgs.mkShell
       rm -rf lib
       mkdir -p lib
       cp ${L.csoundP}/lib/libcsound.wasm lib
-      cp ${L.csoundP}/lib/csound_exe.wasm lib
+      # cp ${L.csoundP}/lib/csound_exe.wasm lib
       # make a compressed version for the browser bundle
       ${pkgs.zopfli}/bin/zopfli --zlib -c \
         ${L.csoundP}/lib/libcsound.wasm > lib/libcsound.wasm.zlib
