@@ -7,68 +7,57 @@ const orcTest = `
 <CsOptions>
 </CsOptions>
 <CsInstruments>
+
 sr = 44100
-ksmps = 32
+ksmps = 128
 nchnls = 2
-0dbfs = 1
+0dbfs = 1.0
+A4 = 440
 
-    instr 1 ;harmonic additive synthesis
-;receive general pitch and volume from the score
-ibasefrq  =         cpspch(p4) ;convert pitch values to frequency
-ibaseamp  =         ampdbfs(p5) ;convert dB to amplitude
-;create 8 harmonic partials
-aOsc1     poscil    ibaseamp, ibasefrq
-aOsc2     poscil    ibaseamp/2, ibasefrq*2
-aOsc3     poscil    ibaseamp/3, ibasefrq*3
-aOsc4     poscil    ibaseamp/4, ibasefrq*4
-aOsc5     poscil    ibaseamp/5, ibasefrq*5
-aOsc6     poscil    ibaseamp/6, ibasefrq*6
-aOsc7     poscil    ibaseamp/7, ibasefrq*7
-aOsc8     poscil    ibaseamp/8, ibasefrq*8
-;apply simple envelope
-kenv      linen     1, p3/4, p3, p3/4
-;add partials and write to output
-aOut = aOsc1 + aOsc2 + aOsc3 + aOsc4 + aOsc5 + aOsc6 + aOsc7 + aOsc8
-          outs      aOut*kenv, aOut*kenv
-    endin
+instr 1
+  kfreq = mtof(69)
+  printks2 "midi 69   -> %f\n", kfreq
 
-    instr 2 ;inharmonic additive synthesis
-ibasefrq  =         cpspch(p4)
-ibaseamp  =         ampdbfs(p5)
-;create 8 inharmonic partials
-aOsc1     poscil    ibaseamp, ibasefrq
-aOsc2     poscil    ibaseamp/2, ibasefrq*1.02
-aOsc3     poscil    ibaseamp/3, ibasefrq*1.1
-aOsc4     poscil    ibaseamp/4, ibasefrq*1.23
-aOsc5     poscil    ibaseamp/5, ibasefrq*1.26
-aOsc6     poscil    ibaseamp/6, ibasefrq*1.31
-aOsc7     poscil    ibaseamp/7, ibasefrq*1.39
-aOsc8     poscil    ibaseamp/8, ibasefrq*1.41
-kenv      linen     1, p3/4, p3, p3/4
-aOut = aOsc1 + aOsc2 + aOsc3 + aOsc4 + aOsc5 + aOsc6 + aOsc7 + aOsc8
-          outs aOut*kenv, aOut*kenv
-    endin
+  kmidi = ftom(442)
+  printks2 "freq 442  -> %f\n", kmidi
+
+  kmidi = ftom(442,1)
+  printks2 "freq 442  -> %f rounded\n", kmidi
+
+  kfreq = mtof(kmidi)
+  printks "midi %f -> %f\n", 1, kmidi, kfreq
+
+  imidi = ftom:i(440)
+  print imidi
+
+  ifreq = mtof:i(60)
+  print ifreq
+
+  turnoff
+endin
+
+instr 2
+  imidis0[] fillarray 60, 62, 64, 69
+  ifreqs0[] mtof imidis0
+  printarray ifreqs0, "", "ifreqs0"
+
+  kfreqs[] fillarray 220, 440, 880
+  kmidis[] ftom kfreqs
+  puts "kfreqs", 1
+  printarray kmidis, 1, "%.2f", "kmidis"
+  turnoff
+endin
 
 </CsInstruments>
 <CsScore>
-;          pch       amp
-i 1 0 5    8.00      -13
-i 1 3 5    9.00      -17
-i 1 5 8    9.02      -15
-i 1 6 9    7.01      -15
-i 1 7 10   6.00      -13
-s
-i 2 0 5    8.00      -13
-i 2 3 5    9.00      -17
-i 2 5 8    9.02      -15
-i 2 6 9    7.01      -15
-i 2 7 10   6.00      -13
+i 1 0 1
+i 2 0 1
 </CsScore>
 </CsoundSynthesizer>
-;example by Andrés Cabrera
 `;
 
 const onGesture = async () => {
+  console.log("ONG");
   if (window.audioCtx === null) {
     window.audioCtx = new AudioContext({
       latencyHint: "playback",
@@ -96,14 +85,17 @@ export default async function init() {
     .addEventListener("click", onGesture);
   const csound = await c.csoundCreate();
   await c.csoundInitialize(0);
-  await c.csoundSetOption(csound, "-o/csound/nesting/test111.wav");
+  await c.setMessageCallback(log => {
+    console.log(log);
+  });
+  // await c.csoundSetOption(csound, "-o/csound/nesting/test111.wav");
   await c.csoundSetOption(csound, "--0dbfs=1");
   await c.csoundSetOption(csound, "--nchnls=2");
   await c.csoundSetOption(csound, "--ksmps=1");
   await c.csoundCompileCsd(csound, orcTest);
   // let cnt = 0;
   // await c.csoundPrepareRT(csound);
-  c.csoundStart(csound);
+  await c.csoundStart(csound);
   // const sr = await csoundWorker.csoundGetSr(csound);
   // return 0;
 }
