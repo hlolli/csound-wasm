@@ -12,6 +12,7 @@ extern int init_static_modules(CSOUND *csound);
 extern int scansyn_init_(CSOUND *csound);
 extern int scansynx_init_(CSOUND *csound);
 extern int emugens_init_(CSOUND *csound);
+extern int pvsops_init_(CSOUND *csound);
 #endif
 
 // returns the address of a string
@@ -79,6 +80,7 @@ CSOUND *csoundCreateWasi() {
   scansyn_init_(csound);
   scansynx_init_(csound);
   emugens_init_(csound);
+  pvsops_init_(csound);
   return csound;
 }
 
@@ -91,6 +93,7 @@ void csoundResetWasi(CSOUND *csound) {
   scansyn_init_(csound);
   scansynx_init_(csound);
   emugens_init_(csound);
+  pvsops_init_(csound);
 }
 
 

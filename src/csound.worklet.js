@@ -29,9 +29,18 @@ const handleMessage = that => event => {
     case "initializeSab": {
       const { audioState, audioStreamIn, audioStreamOut } = payload;
       that["audioState"] = new Int32Array(audioState);
+      const channels_i = [];
       const channels = [];
+      that["audioStreamIn"] = audioStreamIn;
       that["audioStreamOut"] = audioStreamOut;
       for (let channelIndex = 0; channelIndex < MAX_CHANNELS; ++channelIndex) {
+        channels_i.push(
+          new Float64Array(
+            audioStreamIn,
+            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+            MAX_HARDWARE_BUFFER_SIZE
+          )
+        );
         channels.push(
           new Float64Array(
             audioStreamOut,
@@ -40,6 +49,7 @@ const handleMessage = that => event => {
           )
         );
       }
+      that["channels_i"] = channels_i;
       that["channels"] = channels;
       break;
     }
@@ -48,9 +58,13 @@ const handleMessage = that => event => {
 
 class CsoundWorkletProcessor extends AudioWorkletProcessor {
   audioState = null;
+  channels_i = [];
   channels = [];
-  dummy = 0;
+  nchnls_i = 0;
+  nchnls = 2;
+
   isPerformingLastTime = false;
+
   constructor(params, params2) {
     super();
     this.port.onmessage = handleMessage(this);
@@ -90,6 +104,11 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     }
   }
 
+  nullifyBuffers(inputChannels, outputChannels) {
+    inputChannels.forEach(b => b.fill(0));
+    outputChannels.forEach(b => b.fill(0));
+  }
+
   process(inputs, outputs, parameters) {
     const isPerforming =
       Atomics.load(this.audioState, AUDIO_STATE.IS_PERFORMING) === 1;
@@ -107,6 +126,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
         Atomics.notify(this.audioState, AUDIO_STATE.ATOMIC_NOFITY);
       }
       this.isPerformingLastTime = isPerforming;
+      this.nullifyBuffers(inputs[0], outputs[0]);
       return true;
     }
 
@@ -133,8 +153,9 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
         AUDIO_STATE.AVAIL_OUT_BUFS,
         outputChannels[0].length
       );
+    } else {
+      this.nullifyBuffers(inputChannels, outputChannels);
     }
-    this.dummy += 1;
 
     return true;
   }

@@ -68,6 +68,24 @@ export const structBuffer2Object = (jsStruct, buffer) => {
   return result;
 };
 
+// const enableMicrophone = (onSuccess, onFailure) => {
+//   const getUserMedia = (navigator.getUserMedia =
+//     navigator.getUserMedia ||
+//     navigator.webkitGetUserMedia ||
+//     navigator.mozGetUserMedia ||
+//     null);
+//   if (getUserMedia) {
+//     getUserMedia(
+//       {
+//         audio: true,
+//         video: false
+//       },
+//       onSuccess,
+//       onFailure
+//     );
+//   }
+// };
+
 // export const struct2ptr = (wasm, jsStruct) => {
 //   const structSize = sizeofStruct(jsStruct);
 //   const { buffer } = wasm.exports.memory;

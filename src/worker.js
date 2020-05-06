@@ -36,7 +36,9 @@ const pipeAudioStream = async csound => {
 
   // Share the Csound channel num
   const nchnls = csoundGetNchnls(csound);
+  const nchnls_i = csoundGetNchnlsInput(csound);
   Atomics.store(audioState, AUDIO_STATE.NCHNLS, nchnls);
+  Atomics.store(audioState, AUDIO_STATE.NCHNLS_I, nchnls_i);
 
   const ksmps = csoundGetKsmps(csound);
 

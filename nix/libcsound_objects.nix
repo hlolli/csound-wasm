@@ -278,6 +278,13 @@ pkgs.callPackage
           echo 'extern int32_t emugens_init_(CSOUND *);' >> \
             Opcodes/emugens/emugens_common.h
 
+          echo 'extern "C" {
+           extern int pvsops_init_(CSOUND *csound) {
+             csnd::on_load((csnd::Csound *)csound);
+             return 0;
+           }
+          }' >>  Opcodes/pvsops.cpp
+
           rm CMakeLists.txt
         '';
           configurePhase = "
@@ -560,6 +567,7 @@ pkgs.callPackage
               ../Opcodes/ftsamplebank.cpp \
               ../Opcodes/mixer.cpp \
               ../Opcodes/signalflowgraph.cpp \
+              ../Opcodes/pvsops.cpp \
               ../Top/csound.c
 
 
@@ -567,7 +575,7 @@ pkgs.callPackage
               # mv csound_wasm_exe.s.o csound_wasm_exe.s.o_bak
               ${wasi-sdk}/bin/wasm-ld \
                 -entry=_start \
-                --lto-O2 \
+                --lto-O3 \
                 -z stack-size=5242880 \
                 --initial-memory=536870912 \
                 --demangle \
@@ -576,7 +584,8 @@ pkgs.callPackage
                 -L${libsndfileP.out}/lib \
                 -lc -lm -ldl -lsndfile -lc++ -lc++abi \
                 -lwasi-emulated-mman \
-                --export-all \
+                ${lib.concatMapStrings (x: " --export=" + x + " ")
+                  (with builtins; fromJSON (readFile ./exports.json))} \
                 ${wasi-sdk}/share/wasi-sysroot/lib/wasm32-wasi/crt1.o \
                  *.o \
                 -o libcsound.wasm
@@ -601,3 +610,4 @@ pkgs.callPackage
 
 # -z stack-size=5242880 \
 #   --initial-memory=536870912 \
+#                 --export-all \
