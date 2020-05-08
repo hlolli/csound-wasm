@@ -46,7 +46,7 @@ module.exports = {
       {
         test: /\.js$/,
         loader: "eslint-loader",
-        exclude: /node_modules|csound\.worklet.js$/,
+        exclude: /node_modules|\.worklet.js|worklet.bundle.js/,
         enforce: "pre",
         options: {
           configFile: path.resolve(__dirname, ".eslintrc"),
@@ -59,7 +59,7 @@ module.exports = {
         use: "arraybuffer-loader"
       },
       {
-        test: /\.worklet.js$/i,
+        test: /worklet.bundle.js$/i,
         use: {
           loader: "url-loader",
           options: { esModule: false, mimetype: "text/javascript" }

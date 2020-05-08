@@ -1,7 +1,7 @@
 /* eslint-disable */
 import L from "@root/libcsound";
 import getLibcsoundWasm, { wasmFs } from "./module";
-import { makeLibcsoundFrontEnd, uint2Str } from "./utils";
+import { makeLibcsoundFrontEnd, nearestPowerOf2, uint2Str } from "./utils";
 import * as path from "path";
 import {
   AUDIO_STATE,
@@ -36,11 +36,27 @@ const pipeAudioStream = async csound => {
 
   // Share the Csound channel num
   const nchnls = csoundGetNchnls(csound);
-  const nchnls_i = csoundGetNchnlsInput(csound);
-  Atomics.store(audioState, AUDIO_STATE.NCHNLS, nchnls);
-  Atomics.store(audioState, AUDIO_STATE.NCHNLS_I, nchnls_i);
+  const isExpectingInput = csoundGetInputName(csound).indexOf("adc") > -1;
+  const nchnls_i = isExpectingInput ? 1 : 0;
 
-  const ksmps = csoundGetKsmps(csound);
+  Atomics.store(audioState, AUDIO_STATE.NCHNLS, nchnls);
+
+  // FIXME: support more than 1 input
+  Atomics.store(audioState, AUDIO_STATE.NCHNLS_I, nchnls_i);
+  Atomics.store(audioState, AUDIO_STATE.SAMPLE_RATE, csoundGetSr(csound));
+
+  let ksmps = csoundGetKsmps(csound);
+  const ksmps2 = nearestPowerOf2(ksmps);
+
+  if (ksmps !== ksmps2) {
+    console.warn(
+      `ksmps value ${ksmps} is not 2^n number, the audio will sound choppy`
+    );
+    postMessage({
+      type: "log",
+      data: `ksmps value ${ksmps} is not 2^n number, the audio will sound choppy`
+    });
+  }
 
   const zeroDbFs = csoundGet0dBFS(csound);
   // Hardware buffer size
@@ -50,6 +66,7 @@ const pipeAudioStream = async csound => {
 
   // Get the Worklet channels
   const channels = [];
+  const channels_i = [];
   for (let channelIndex = 0; channelIndex < nchnls; ++channelIndex) {
     channels.push(
       new Float64Array(
@@ -59,6 +76,19 @@ const pipeAudioStream = async csound => {
       )
     );
   }
+
+  for (let channelIndex = 0; channelIndex < nchnls_i; ++channelIndex) {
+    channels_i.push(
+      new Float64Array(
+        audioStreamInSab,
+        MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+        MAX_HARDWARE_BUFFER_SIZE
+      )
+    );
+  }
+
+  // FIXME: non-realtime
+  L.csoundStart(wasm)(csound);
 
   // Indicator for csound performance
   // != 0 would mean the performance has ended
@@ -111,8 +141,22 @@ const pipeAudioStream = async csound => {
     }
     const { buffer } = wasm.exports.memory;
     const framesRequested = _b;
-    const bufferPtr = csoundGetSpout(csound);
-    const csoundBuffer = new Float64Array(buffer, bufferPtr, ksmps * nchnls);
+
+    const inputBufferPtr = csoundGetSpin(csound);
+    // const inputBufferSize = csoundGetInputBufferSize(csound);
+    const outputBufferPtr = csoundGetSpout(csound);
+
+    const csoundInputBuffer = new Float64Array(
+      buffer,
+      inputBufferPtr,
+      ksmps * nchnls
+    );
+
+    const csoundOutputBuffer = new Float64Array(
+      buffer,
+      outputBufferPtr,
+      ksmps * nchnls
+    );
     const outputWriteIndex = Atomics.load(
       audioState,
       AUDIO_STATE.OUTPUT_WRITE_INDEX
@@ -137,9 +181,17 @@ const pipeAudioStream = async csound => {
       }
       channels.forEach((channel, channelIndex) => {
         channel[currentOutputWriteIndex] =
-          (csoundBuffer[currentCsoundBufferPos * nchnls + channelIndex] || 0) /
-          zeroDbFs;
+          (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] ||
+            0) / zeroDbFs;
       });
+
+      // (nchnls_i * i + channelIndex) % csoundInputBuffer.length
+
+      channels_i.forEach((channel, channelIndex) => {
+        csoundInputBuffer[currentCsoundBufferPos * nchnls + channelIndex] =
+          (channel[currentOutputWriteIndex] || 0) * zeroDbFs;
+      });
+
       Atomics.add(audioState, AUDIO_STATE.OUTPUT_WRITE_INDEX, 1);
 
       if (audioState[AUDIO_STATE.OUTPUT_WRITE_INDEX] >= _B) {
@@ -224,11 +276,7 @@ export function csoundEvalCode(...args) {
   return L.csoundEvalCode(wasm).apply(null, args);
 }
 export function csoundStart(...args) {
-  setTimeout(() => {
-    L.csoundStart(wasm).apply(null, args);
-    pipeAudioStream(args[0]);
-  }, 0);
-  return null;
+  pipeAudioStream(args[0]);
 }
 export function csoundCompileCsd(...args) {
   return L.csoundCompileCsd(wasm).apply(null, args);
@@ -243,7 +291,6 @@ export function csoundPerformBuffer(...args) {
   return L.csoundPerformBuffer(wasm).apply(null, args);
 }
 export function csoundStop(...args) {
-  // csoundInputMessage(args[0], "e 0 0");
   return L.csoundStop(wasm).apply(null, args);
 }
 thisNamespace["csoundStop"] = csoundStop;
@@ -300,6 +347,15 @@ export function csoundInputMessageAsync(...args) {
   return L.csoundInputMessageAsync(wasm).apply(null, args);
 }
 thisNamespace["csoundInputMessageAsync"] = csoundInputMessageAsync;
+
+// @module/general_io
+export function csoundGetInputName(...args) {
+  return L.csoundGetInputName(wasm).apply(null, args);
+}
+
+export function csoundGetOutputName(...args) {
+  return L.csoundGetOutputName(wasm).apply(null, args);
+}
 
 // FileSystem wrappers
 export async function copyToFs(arrayBuffer, filePath) {

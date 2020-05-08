@@ -91,7 +91,7 @@ pkgs.callPackage
             #endif
           '';
         };
-      csoundRev = "6093d7eeb003d8f89a966fd36d3bc33a6f4e7fbe";
+      csoundRev = "515e9459ee6b01e50b5d8181c3641ca144f0b94b";
       preprocFlags = ''
         -DGIT_HASH_VALUE=${csoundRev} \
         -DINIT_STATIC_MODULES=1 \
@@ -112,7 +112,7 @@ pkgs.callPackage
             owner = "csound";
             repo = "csound";
             rev = csoundRev;
-            sha256 = "089ayqjzkqvwmv25p0vg20x0112blm16a74b95qrx0g9307njw95";
+            sha256 = "0r01932qjbplbq6k7h9dmlrmlxrfk52v2lax2rza4jyqrdli2qkf";
           };
 
           buildInputs = [ libsndfileP pkgs.flex pkgs.bison ];
@@ -243,6 +243,14 @@ pkgs.callPackage
                        #include <fcntl.h>
                        #include <errno.h>
                      '
+
+          # since we recommend n^2 number,
+          # let's make sure that it's default too
+          substituteInPlace include/csoundCore.h \
+            --replace '#define DFLT_KSMPS 10' \
+                      '#define DFLT_KSMPS 16' \
+            --replace '#define DFLT_KR    FL(4410.0)' \
+                      '#define DFLT_KR    FL(2756.25)'
 
           substituteInPlace Top/main.c \
             --replace 'csoundUDPServerStart(csound,csound->oparms->daemon);' "" \

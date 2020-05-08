@@ -3,11 +3,20 @@ const sizeOf = {
   MYFLT: 4
 };
 
-const decoder = new TextDecoder("utf8");
+const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder("utf-8");
 
 export const uint2Str = uint => decoder.decode(uint);
 // String.fromCharCode.apply(null, uint);
+
+// smth I found on stackoverflow
+export const trimNull = a => {
+  const c = a.indexOf("\0");
+  if (c > -1) {
+    return a.substr(0, c);
+  }
+  return a;
+};
 
 // eslint-disable-next-line no-unused-vars
 export const cleanStdout = stdout => {
@@ -68,23 +77,9 @@ export const structBuffer2Object = (jsStruct, buffer) => {
   return result;
 };
 
-// const enableMicrophone = (onSuccess, onFailure) => {
-//   const getUserMedia = (navigator.getUserMedia =
-//     navigator.getUserMedia ||
-//     navigator.webkitGetUserMedia ||
-//     navigator.mozGetUserMedia ||
-//     null);
-//   if (getUserMedia) {
-//     getUserMedia(
-//       {
-//         audio: true,
-//         video: false
-//       },
-//       onSuccess,
-//       onFailure
-//     );
-//   }
-// };
+export const nearestPowerOf2 = n => {
+  return 1 << (31 - Math.clz32(n));
+};
 
 // export const struct2ptr = (wasm, jsStruct) => {
 //   const structSize = sizeofStruct(jsStruct);

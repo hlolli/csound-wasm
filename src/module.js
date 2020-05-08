@@ -39,7 +39,7 @@ const stdErrCallback = data => {
     }
     outstr += firstEl;
     if (process.env.NODE_ENV !== "production") {
-      console.log(outstr);
+      outstr && console.log(outstr);
     }
     // here the actual callback takes place
     postMessage({ type: "log", data: outstr });
@@ -78,7 +78,7 @@ const stdOutCallback = data => {
     // here the actual callback takes place
     postMessage({ type: "log", data: outstr });
     if (process.env.NODE_ENV !== "production") {
-      console.log(outstr);
+      outstr && console.log(outstr);
     }
     next.forEach(s => stdOutBuffer.push(s));
   } else {

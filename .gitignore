@@ -13,6 +13,7 @@ libcsound.js
 libcsound_browser.js
 libcsound.wasm
 github-prefetch.json
+src/worklet.bundle.js
 result
 result-dev
 lib

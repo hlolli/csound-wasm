@@ -3,9 +3,12 @@ if (process.env.NODE_ENV !== "production") {
   require("./development.js");
 }
 // import * as worker from "./worker";
-import worker from "workerize-loader?ready&inline!./worker";
-import * as worklet from "./csound.worklet.js";
+import Worker from "workerize-loader?ready&inline!./worker";
+import * as worklet from "./worklet.bundle";
 import { AUDIO_STATE } from "./constants";
+import * as getUserMedia from "get-user-media-promise";
+import MicrophoneStream from "microphone-stream";
+
 import {
   audioState,
   audioStreamIn,
@@ -13,6 +16,7 @@ import {
   callbackBuffer
 } from "./sab";
 
+let hackyCsnd;
 const audioStateMainThread = new Int32Array(audioState);
 const callbackBufferMainThread = new Uint8Array(callbackBuffer);
 
@@ -60,6 +64,12 @@ const onWorkerMessageEvent = event => {
         if (typeof csoundPlayStateChangeCallback === "function") {
           csoundPlayStateChangeCallback(data.data);
         }
+        // starting csound is 2 step process
+        // because of atomic wait, we need to trigger
+        // all webaudio stuff from event
+        if (data.data === "realtimePerformanceStarted") {
+          hackyCsnd && startWebAudio(hackyCsnd);
+        }
         return;
       }
       default: {
@@ -89,26 +99,55 @@ let audioCtx;
 let audioModule;
 let audioWorker;
 
-const startWebAudio = async () => {
-  if (!audioCtx) {
-    audioCtx = new AudioContext({
-      latencyHint: "playback",
-      sampleRate: 44100
+const startWebAudio = async csound => {
+  const nchnls = Atomics.load(audioStateMainThread, AUDIO_STATE.NCHNLS);
+  const nchnls_i = Atomics.load(audioStateMainThread, AUDIO_STATE.NCHNLS_I);
+  const sampleRate = Atomics.load(
+    audioStateMainThread,
+    AUDIO_STATE.SAMPLE_RATE
+  );
+  let micStream;
+
+  if (nchnls_i > 0) {
+    const stream = await getUserMedia({ video: false, audio: true });
+    micStream = new MicrophoneStream({
+      sampleRate,
+      channels: 1,
+      bitDepth: 64,
+      signed: true,
+      float: true
     });
+    micStream.setStream(stream);
+  } else {
+    micStream = null;
   }
 
-  if (!audioModule) {
-    audioModule = await audioCtx.audioWorklet.addModule(worklet);
+  if (audioCtx) {
+    audioCtx.close();
+    audioWorker.disconnect();
   }
 
-  if (!audioWorker) {
-    audioWorker = new AudioWorkletNode(audioCtx, "csound-worklet-processor", {
-      numberOfOutputs: 2
-    });
-    audioWorker.port.postMessage([
-      "initializeSab",
-      { audioState, audioStreamIn, audioStreamOut }
-    ]);
+  audioCtx = new AudioContext({
+    latencyHint: "interactive",
+    sampleRate
+  });
+
+  audioModule = await audioCtx.audioWorklet.addModule(worklet);
+
+  audioWorker = new AudioWorkletNode(audioCtx, "csound-worklet-processor", {
+    numberOfOutputs: nchnls,
+    numberOfInputs: nchnls_i
+  });
+  audioWorker.port.postMessage([
+    "initializeSab",
+    { audioState, audioStreamIn, audioStreamOut }
+  ]);
+  if (micStream) {
+    audioCtx
+      .createMediaStreamSource(micStream.stream)
+      .connect(audioWorker)
+      .connect(audioCtx.destination);
+  } else {
     audioWorker.connect(audioCtx.destination);
   }
 };
@@ -153,8 +192,7 @@ function maybeUnlockThread(fn, fnName) {
  * @return {Promise.<Object>}
  */
 export default async function init() {
-  // const csoundWorker = worker;
-  const csoundWorker = worker();
+  const csoundWorker = new Worker();
   await csoundWorker.ready;
   csoundWorker.addEventListener("message", onWorkerMessageEvent, false);
   await csoundWorker.initWasm({
@@ -163,16 +201,25 @@ export default async function init() {
     audioStreamOut,
     callbackBuffer
   });
-  csoundWorker["startWebAudio"] = startWebAudio;
-  csoundWorker["csoundPause"] = csoundPause;
-  csoundWorker["csoundResume"] = csoundResume;
-  csoundWorker["setMessageCallback"] = setMessageCallback;
-  csoundWorker["csoundStop"] = maybeUnlockThread(
+
+  const exportedLib = {};
+  Object.keys(csoundWorker).forEach(k => {
+    exportedLib[k] = csoundWorker[k];
+  });
+  const originalCsoundStart = csoundWorker["csoundStart"];
+  exportedLib["csoundStart"] = async csnd => {
+    hackyCsnd = csnd;
+    originalCsoundStart(csnd);
+  };
+  exportedLib["csoundPause"] = csoundPause;
+  exportedLib["csoundResume"] = csoundResume;
+  exportedLib["setMessageCallback"] = setMessageCallback;
+  exportedLib["csoundStop"] = maybeUnlockThread(
     csoundWorker["csoundStop"],
     "csoundStop"
   );
-  csoundWorker[
+  exportedLib[
     "setCsoundPlayStateChangeCallback"
   ] = setCsoundPlayStateChangeCallback;
-  return csoundWorker;
+  return exportedLib;
 }

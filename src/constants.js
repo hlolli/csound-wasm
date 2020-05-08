@@ -1,7 +1,8 @@
 export const MAX_HARDWARE_BUFFER_SIZE = 16384;
 // const MAX_SOFTWARE_BUFFER_SIZE = 8192;
 export const DEFAULT_HARDWARE_BUFFER_SIZE = 4096;
-export const DEFAULT_SOFTWARE_BUFFER_SIZE = 1024;
+// export const DEFAULT_SOFTWARE_BUFFER_SIZE = 1024;
+export const DEFAULT_SOFTWARE_BUFFER_SIZE = 512;
 export const MAX_CHANNELS = 32;
 // const DEFAULT_SR = 44100;
 
@@ -20,7 +21,8 @@ export const initialSharedState = [
   0, // n = buffer write index of input buffer
   0, // n = buffer write index of output buffer
   0, // n = the read index of the callback buffer
-  0 // n = amount of callbacks waiting from main thread
+  0, // n = amount of callbacks waiting from main thread
+  44100 // sample rate
 ];
 
 // Enum helper
@@ -39,5 +41,6 @@ export const AUDIO_STATE = {
   INPUT_WRITE_INDEX: 11,
   OUTPUT_WRITE_INDEX: 12,
   CALLBACK_BUFFER_INDEX: 13,
-  AVAIL_CALLBACKS: 14
+  AVAIL_CALLBACKS: 14,
+  SAMPLE_RATE: 15
 };

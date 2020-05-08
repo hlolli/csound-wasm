@@ -1,47 +1,24 @@
 /* eslint-disable */
 
-// Somehow es import don't work :(
-const MAX_HARDWARE_BUFFER_SIZE = 16384;
-const MAX_CHANNELS = 32;
-
-// Enum helper
-export const AUDIO_STATE = {
-  ATOMIC_NOFIFY: 0,
-  IS_PERFORMING: 1,
-  IS_PAUSED: 2,
-  NCHNLS: 3,
-  NCHNLS_I: 4,
-  HW_BUFFER_SIZE: 5,
-  SW_BUFFER_SIZE: 6,
-  AVAIL_IN_BUFS: 7,
-  AVAIL_OUT_BUFS: 8,
-  INPUT_READ_INDEX: 9,
-  OUTPUT_READ_INDEX: 10,
-  INPUT_WRITE_INDEX: 11,
-  OUTPUT_WRITE_INDEX: 12,
-  CALLBACK_BUFFER_INDEX: 13,
-  AVAIL_CALLBACKS: 14
-};
-
 const handleMessage = that => event => {
   const [type, payload] = event.data;
   switch (type) {
     case "initializeSab": {
       const { audioState, audioStreamIn, audioStreamOut } = payload;
       that["audioState"] = new Int32Array(audioState);
-      const channels_i = [];
-      const channels = [];
+      that["channels"] = [];
+      that["channels_i"] = [];
       that["audioStreamIn"] = audioStreamIn;
       that["audioStreamOut"] = audioStreamOut;
       for (let channelIndex = 0; channelIndex < MAX_CHANNELS; ++channelIndex) {
-        channels_i.push(
+        that["channels_i"].push(
           new Float64Array(
             audioStreamIn,
             MAX_HARDWARE_BUFFER_SIZE * channelIndex,
             MAX_HARDWARE_BUFFER_SIZE
           )
         );
-        channels.push(
+        that["channels"].push(
           new Float64Array(
             audioStreamOut,
             MAX_HARDWARE_BUFFER_SIZE * channelIndex,
@@ -49,69 +26,55 @@ const handleMessage = that => event => {
           )
         );
       }
-      that["channels_i"] = channels_i;
-      that["channels"] = channels;
+      that["nchnls_i"] = Atomics.load(that["audioState"], AUDIO_STATE.NCHNLS_I);
+      that["nchnls"] = Atomics.load(that["audioState"], AUDIO_STATE.NCHNLS);
       break;
     }
   }
 };
 
 class CsoundWorkletProcessor extends AudioWorkletProcessor {
-  audioState = null;
-  channels_i = [];
-  channels = [];
-  nchnls_i = 0;
-  nchnls = 2;
-
-  isPerformingLastTime = false;
-
   constructor(params, params2) {
     super();
+    this.audioState = null;
+    this.channels_i = [];
+    this.channels = [];
+    this._b = DEFAULT_SOFTWARE_BUFFER_SIZE;
+    this._B = DEFAULT_HARDWARE_BUFFER_SIZE;
+    this.nchnls_i = 0;
+    this.nchnls = 2;
+    this.isPerformingLastTime = false;
+    this.preProcessCount = 0;
     this.port.onmessage = handleMessage(this);
   }
 
-  processOutputChannels(outputChannels, _B, _b) {
-    const outputReadIndex = Atomics.load(
-      this.audioState,
-      AUDIO_STATE.OUTPUT_READ_INDEX
-    );
-    const nextReadIndex = outputReadIndex + outputChannels[0].length;
-
-    if (nextReadIndex < _B) {
-      outputChannels.forEach((channelBuffer, channelIndex) => {
-        const channel = this.channels[channelIndex];
-        if (!isNaN(channel[0])) {
-          channelBuffer.set(channel.subarray(outputReadIndex, nextReadIndex));
-        }
-      });
-      Atomics.add(
-        this.audioState,
-        AUDIO_STATE.OUTPUT_READ_INDEX,
-        outputChannels[0].length
+  // given that "render quantum" is 128 samples
+  // we expect the buffer to be a multiple of 128
+  // and we don't need to account for misalignments
+  processOutputChannels(outputChannels) {
+    const outputReadIndex = this.audioState[AUDIO_STATE.OUTPUT_READ_INDEX];
+    const nextReadIndex =
+      (outputReadIndex + outputChannels[0].length) % this._B;
+    outputChannels.forEach((channelBuffer, channelIndex) => {
+      channelBuffer.set(
+        this.channels[channelIndex].subarray(
+          outputReadIndex,
+          nextReadIndex < outputReadIndex ? this._B : nextReadIndex
+        )
       );
-    } else {
-      const overflow = nextReadIndex - _B;
-      outputChannels.forEach((channelBuffer, channelIndex) => {
-        const channel = this.channels[channelIndex];
-        const firstHalf = channel.subarray(outputReadIndex, _B);
-        const secondHalf = channel.subarray(0, overflow);
-        channelBuffer.set(firstHalf);
-        if (overflow > 0) {
-          channelBuffer.set(secondHalf, firstHalf.length);
-        }
-      });
-      Atomics.store(this.audioState, AUDIO_STATE.OUTPUT_READ_INDEX, overflow);
-    }
-  }
-
-  nullifyBuffers(inputChannels, outputChannels) {
-    inputChannels.forEach(b => b.fill(0));
-    outputChannels.forEach(b => b.fill(0));
+    });
+    Atomics.store(
+      this.audioState,
+      AUDIO_STATE.OUTPUT_READ_INDEX,
+      nextReadIndex
+    );
   }
 
   process(inputs, outputs, parameters) {
     const isPerforming =
+      this.audioState &&
       Atomics.load(this.audioState, AUDIO_STATE.IS_PERFORMING) === 1;
+
     if (
       !this.audioState ||
       Atomics.load(this.audioState, AUDIO_STATE.IS_PAUSED) === 1 ||
@@ -126,36 +89,58 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
         Atomics.notify(this.audioState, AUDIO_STATE.ATOMIC_NOFITY);
       }
       this.isPerformingLastTime = isPerforming;
-      this.nullifyBuffers(inputs[0], outputs[0]);
       return true;
     }
 
-    this.isPerformingLastTime = isPerforming;
+    this.isPerformingLastTimew = isPerforming;
+
     const inputChannels = inputs[0];
     const outputChannels = outputs[0];
-    // Hardware buffer size
-    const _B = this.audioState[AUDIO_STATE.HW_BUFFER_SIZE];
-    // Software buffer size
-    const _b = this.audioState[AUDIO_STATE.SW_BUFFER_SIZE];
 
     if (
-      this.audioState[AUDIO_STATE.AVAIL_OUT_BUFS] <=
-      outputChannels[0].length * 2
+      this.audioState[AUDIO_STATE.AVAIL_OUT_BUFS] <= this._b // outputChannels[0].length * 4
     ) {
       Atomics.notify(this.audioState, AUDIO_STATE.ATOMIC_NOFITY, 1);
     }
 
-    if (this.audioState[AUDIO_STATE.AVAIL_OUT_BUFS] > 0) {
-      this.processOutputChannels(outputChannels, _B, _b);
-      // subtract the available output buffers, all channels are the same length
-      Atomics.sub(
-        this.audioState,
-        AUDIO_STATE.AVAIL_OUT_BUFS,
-        outputChannels[0].length
+    const readIndex = this.audioState[AUDIO_STATE.OUTPUT_READ_INDEX];
+
+    const nextReadIndex = (readIndex + outputChannels[0].length) % this._B;
+
+    outputChannels.forEach((channelBuffer, channelIndex) => {
+      channelBuffer.set(
+        this.channels[channelIndex].subarray(
+          readIndex,
+          nextReadIndex < readIndex ? this._B : nextReadIndex
+        )
       );
-    } else {
-      this.nullifyBuffers(inputChannels, outputChannels);
+    });
+
+    if (this.nchnls_i > 0) {
+      this.channels_i[0].set(inputChannels[0], readIndex);
     }
+    // inputChannels.forEach((channelBuffer, channelIndex) => {
+    //   this.channels_i[channelIndex this.nchnls_i].set(channelBuffer, readIndex);
+    // });
+
+    Atomics.store(
+      this.audioState,
+      AUDIO_STATE.OUTPUT_READ_INDEX,
+      nextReadIndex
+    );
+
+    // this.processOutputChannels(outputChannels);
+    // subtract the available output buffers, all channels are the same length
+    Atomics.sub(
+      this.audioState,
+      AUDIO_STATE.AVAIL_OUT_BUFS,
+      outputChannels[0].length
+    );
+
+    // if (this.audioState[AUDIO_STATE.AVAIL_OUT_BUFS] > 0) {
+    // } else {
+    //   console.log("Buffer underrun");
+    // }
 
     return true;
   }
