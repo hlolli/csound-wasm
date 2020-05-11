@@ -70,7 +70,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     );
   }
 
-  process(inputs, outputs, parameters) {
+  process(inputs, outputs) {
     const isPerforming =
       this.audioState &&
       Atomics.load(this.audioState, AUDIO_STATE.IS_PERFORMING) === 1;
@@ -89,16 +89,24 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
         Atomics.notify(this.audioState, AUDIO_STATE.ATOMIC_NOFITY);
       }
       this.isPerformingLastTime = isPerforming;
+      this.preProcessCount = 0;
       return true;
     }
 
-    this.isPerformingLastTimew = isPerforming;
+    this.isPerformingLastTime = isPerforming;
+
+    if (this.preProcessCount < 4 && this.isPerformingLastTime && isPerforming) {
+      Atomics.notify(this.audioState, AUDIO_STATE.ATOMIC_NOFITY, 1);
+      this.preProcessCount += 1;
+      return true;
+    }
 
     const inputChannels = inputs[0];
     const outputChannels = outputs[0];
 
     if (
-      this.audioState[AUDIO_STATE.AVAIL_OUT_BUFS] <= this._b // outputChannels[0].length * 4
+      this.audioState[AUDIO_STATE.AVAIL_OUT_BUFS] <
+      this._b * 2 // outputChannels[0].length * 4
     ) {
       Atomics.notify(this.audioState, AUDIO_STATE.ATOMIC_NOFITY, 1);
     }
@@ -107,40 +115,38 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
 
     const nextReadIndex = (readIndex + outputChannels[0].length) % this._B;
 
-    outputChannels.forEach((channelBuffer, channelIndex) => {
-      channelBuffer.set(
-        this.channels[channelIndex].subarray(
-          readIndex,
-          nextReadIndex < readIndex ? this._B : nextReadIndex
-        )
+    if (this.audioState[AUDIO_STATE.AVAIL_OUT_BUFS] > 0) {
+      outputChannels.forEach((channelBuffer, channelIndex) => {
+        channelBuffer.set(
+          this.channels[channelIndex].subarray(
+            readIndex,
+            nextReadIndex < readIndex ? this._B : nextReadIndex
+          )
+        );
+      });
+      if (this.nchnls_i > 0) {
+        this.channels_i[0].set(inputChannels[0], readIndex);
+      }
+      // inputChannels.forEach((channelBuffer, channelIndex) => {
+      //   this.channels_i[channelIndex this.nchnls_i].set(channelBuffer, readIndex);
+      // });
+
+      Atomics.store(
+        this.audioState,
+        AUDIO_STATE.OUTPUT_READ_INDEX,
+        nextReadIndex
       );
-    });
 
-    if (this.nchnls_i > 0) {
-      this.channels_i[0].set(inputChannels[0], readIndex);
+      // this.processOutputChannels(outputChannels);
+      // subtract the available output buffers, all channels are the same length
+      Atomics.sub(
+        this.audioState,
+        AUDIO_STATE.AVAIL_OUT_BUFS,
+        outputChannels[0].length
+      );
+    } else {
+      console.log("Buffer underrun");
     }
-    // inputChannels.forEach((channelBuffer, channelIndex) => {
-    //   this.channels_i[channelIndex this.nchnls_i].set(channelBuffer, readIndex);
-    // });
-
-    Atomics.store(
-      this.audioState,
-      AUDIO_STATE.OUTPUT_READ_INDEX,
-      nextReadIndex
-    );
-
-    // this.processOutputChannels(outputChannels);
-    // subtract the available output buffers, all channels are the same length
-    Atomics.sub(
-      this.audioState,
-      AUDIO_STATE.AVAIL_OUT_BUFS,
-      outputChannels[0].length
-    );
-
-    // if (this.audioState[AUDIO_STATE.AVAIL_OUT_BUFS] > 0) {
-    // } else {
-    //   console.log("Buffer underrun");
-    // }
 
     return true;
   }
