@@ -6,6 +6,8 @@
 /* #include <limits.h> */
 #include "csound.h"
 #include "csoundCore.h"
+/* #include "fftlib.h" */
+/* #include "lpred.h" */
 
 #ifdef INIT_STATIC_MODULES
 extern int init_static_modules(CSOUND *csound);
@@ -13,6 +15,7 @@ extern int scansyn_init_(CSOUND *csound);
 extern int scansynx_init_(CSOUND *csound);
 extern int emugens_init_(CSOUND *csound);
 extern int pvsops_init_(CSOUND *csound);
+extern int liveconv_init_(CSOUND *csound);
 #endif
 
 // returns the address of a string
@@ -81,6 +84,7 @@ CSOUND *csoundCreateWasi() {
   scansynx_init_(csound);
   emugens_init_(csound);
   pvsops_init_(csound);
+  liveconv_init_(csound);
   return csound;
 }
 
@@ -94,6 +98,7 @@ void csoundResetWasi(CSOUND *csound) {
   scansynx_init_(csound);
   emugens_init_(csound);
   pvsops_init_(csound);
+  liveconv_init_(csound);
 }
 
 

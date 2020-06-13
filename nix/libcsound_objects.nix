@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 
 with import <nixpkgs> {
-  config = { allowUnsupportedSystem = true; };
+  # config = { allowUnsupportedSystem = true; };
   crossSystem = {
     config = "wasm32-unknown-wasi";
     libc = "wasilibc";
@@ -91,7 +91,7 @@ pkgs.callPackage
             #endif
           '';
         };
-      csoundRev = "515e9459ee6b01e50b5d8181c3641ca144f0b94b";
+      csoundRev = "97fd57c57b1dfd3b5c732a9f9149097be393b12b";
       preprocFlags = ''
         -DGIT_HASH_VALUE=${csoundRev} \
         -DINIT_STATIC_MODULES=1 \
@@ -112,7 +112,7 @@ pkgs.callPackage
             owner = "csound";
             repo = "csound";
             rev = csoundRev;
-            sha256 = "0r01932qjbplbq6k7h9dmlrmlxrfk52v2lax2rza4jyqrdli2qkf";
+            sha256 = "1ixapg3yhdj050whmv7c027rdjpsdgs96vza61bbml9sj3gwnxfr";
           };
 
           buildInputs = [ libsndfileP pkgs.flex pkgs.bison ];
@@ -219,6 +219,7 @@ pkgs.callPackage
           substituteInPlace Top/csound.c \
             --replace 'strcpy(s, "alsa");' 'strcpy(s, "wasi");' \
             --replace 'signal(sigs[i], signal_handler);' "" \
+            --replace 'static void psignal' 'static void psignal_' \
             --replace 'HAVE_RDTSC' '__NOT_HERE___' \
             --replace 'static double timeResolutionSeconds = -1.0;' \
                       'static double timeResolutionSeconds = 0.000001;'
@@ -286,6 +287,13 @@ pkgs.callPackage
           echo 'extern int32_t emugens_init_(CSOUND *);' >> \
             Opcodes/emugens/emugens_common.h
 
+          # opcode-lib: liveconv
+          substituteInPlace Opcodes/liveconv.c \
+            --replace 'LINKAGE' \
+             'int32_t liveconv_init_(CSOUND *csound) {
+                 return csound->AppendOpcodes(csound,
+                   &(localops[0]), (int32_t) (sizeof(localops) / sizeof(OENTRY))); }'
+
           echo 'extern "C" {
            extern int pvsops_init_(CSOUND *csound) {
              csnd::on_load((csnd::Csound *)csound);
@@ -295,7 +303,7 @@ pkgs.callPackage
 
           rm CMakeLists.txt
         '';
-          configurePhase = "
+        configurePhase = "
           ${pkgs.flex}/bin/flex -B ./Engine/csound_orc.lex > ./Engine/csound_orc.c
           ${pkgs.flex}/bin/flex -B ./Engine/csound_pre.lex > ./Engine/csound_pre.c
           ${pkgs.flex}/bin/flex -B ./Engine/csound_prs.lex > ./Engine/csound_prs.c
@@ -308,16 +316,16 @@ pkgs.callPackage
             cp ${../c/csound_wasm.c} ./csound_wasm.c
             cp ${../c/csound_wasm.c} ./csound_wasm_exe.c
 
+            # ../OOps/lpred.c
+
             echo "Compile libcsound.wasm"
             ${wasi-sdk}/bin/clang \
               --sysroot=${wasi-sdk}/share/wasi-sysroot \
-              -fno-exceptions \
-              -flto \
-              -mno-float128 \
-              -O2 -c \
+              -fno-exceptions -O2 -c \
               -I../H -I../Engine -I../include -I../ \
               -I../InOut/libmpadec \
               -I${libsndfileP.dev}/include \
+              -D_WASI_EMULATED_SIGNAL \
               -D_WASI_EMULATED_MMAN \
               -D__BUILDING_LIBCSOUND \
               -DWASM_BUILD=1 ${preprocFlags} \
@@ -578,7 +586,6 @@ pkgs.callPackage
               ../Opcodes/pvsops.cpp \
               ../Top/csound.c
 
-
               echo "Link togeather libcsound"
               # mv csound_wasm_exe.s.o csound_wasm_exe.s.o_bak
               ${wasi-sdk}/bin/wasm-ld \
@@ -591,7 +598,7 @@ pkgs.callPackage
                 -L${wasi-sdk}/share/wasi-sysroot/lib/wasm32-wasi \
                 -L${libsndfileP.out}/lib \
                 -lc -lm -ldl -lsndfile -lc++ -lc++abi \
-                -lwasi-emulated-mman \
+                -lwasi-emulated-mman -lwasi-emulated-signal \
                 ${lib.concatMapStrings (x: " --export=" + x + " ")
                   (with builtins; fromJSON (readFile ./exports.json))} \
                 ${wasi-sdk}/share/wasi-sysroot/lib/wasm32-wasi/crt1.o \

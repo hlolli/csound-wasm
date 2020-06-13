@@ -198,7 +198,7 @@ int main (int argc, const char **argv ) {
   if (!result) result = csoundPerform(csound);
   errs = csoundErrCnt(csound);
   if (!result) {
-    printf("DESTROY MAFAKKA \n");
+    printf("DESTROY \n");
   }
   csoundDestroy(csound);
   return errs;

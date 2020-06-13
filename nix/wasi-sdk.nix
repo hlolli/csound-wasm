@@ -5,8 +5,8 @@ stdenv.mkDerivation {
   src = fetchFromGitHub {
     owner = "WebAssembly";
     repo = "wasi-sdk";
-    rev = "f754491ed2aebeeedfc017f1efeedc86a47fae83";
-    sha256 = "09070wkwgnwasymccp04cyix4szfs8rd26y7kgfxgzgwrv3y1ich";
+    rev = "ceabbfe181599bca83d81e087a229797e472c09c";
+    sha256 = "17c2wzxhb5gvvm1cr11wfjvhl9ryclix3cn43ab2yx1p9x03p370";
     fetchSubmodules = true;
   };
 
