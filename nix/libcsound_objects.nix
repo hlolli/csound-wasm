@@ -314,7 +314,7 @@ pkgs.callPackage
           buildPhase = ''
             mkdir -p build && cd build
             cp ${../c/csound_wasm.c} ./csound_wasm.c
-            cp ${../c/csound_wasm.c} ./csound_wasm_exe.c
+            cp ${../c/unsupported_opcodes.c} ./unsupported_opcodes.c
 
             # ../OOps/lpred.c
 
@@ -330,6 +330,7 @@ pkgs.callPackage
               -D__BUILDING_LIBCSOUND \
               -DWASM_BUILD=1 ${preprocFlags} \
               csound_wasm.c \
+              unsupported_opcodes.c \
               ../Engine/auxfd.c \
               ../Engine/cfgvar.c \
               ../Engine/corfiles.c \
