@@ -4,7 +4,7 @@ import {
   initialSharedState
 } from './constants.js';
 
-export const audioState = new SharedArrayBuffer(
+export const createAudioState = new SharedArrayBuffer(
   initialSharedState.length * Int32Array.BYTES_PER_ELEMENT
 );
 

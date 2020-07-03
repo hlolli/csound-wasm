@@ -6,13 +6,13 @@ import { freeStringPtr, string2ptr } from '@root/utils';
  * free to use as well ;)
  */
 export const csoundAppendEnv = wasm => (csound, variable, value) => {
-  const varStrPtr = string2ptr(wasm, variable);
-  const valStrPtr = string2ptr(wasm, value);
-  const res = wasm.exports.csoundAppendEnv(csound, varStrPtr, valStrPtr);
-  freeStringPtr(wasm, varStrPtr);
-  freeStringPtr(wasm, valStrPtr);
+  const varStringPtr = string2ptr(wasm, variable);
+  const valueStringPtr = string2ptr(wasm, value);
+  const res = wasm.exports.csoundAppendEnv(csound, varStringPtr, valueStringPtr);
+  freeStringPtr(wasm, varStringPtr);
+  freeStringPtr(wasm, valueStringPtr);
   return res;
 };
 
 csoundAppendEnv.toString = () =>
-  `csoundAppendEnv = async (csound, variable, value) => Number;`;
+  'csoundAppendEnv = async (csound, variable, value) => Number;';

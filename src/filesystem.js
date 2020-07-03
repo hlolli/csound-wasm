@@ -14,44 +14,47 @@ export const preopens = {
 export const workerMessagePort = {
   ready: false,
   post: () => {},
-  broadcastPlayState: () => {}
+  broadcastPlayState: () => {},
+  vanillaWorkerState: undefined
 };
 
-let stdErrPos = 0;
-const stdErrBuffer = [];
+let stdErrorPos = 0;
+const stdErrorBuffer = [];
 
 let stdOutPos = 0;
 const stdOutBuffer = [];
 
-const stdErrCallback = data => {
+const stdErrorCallback = data => {
   const cleanString = cleanStdout(uint2Str(data));
   if (cleanString.includes('\n')) {
-    const [firstEl, ...next] = cleanString.split('\n');
+    const [firstElement, ...next] = cleanString.split('\n');
     let outstr = '';
-    while (stdErrBuffer.length > 0) {
-      outstr += stdErrBuffer[0];
-      stdErrBuffer.shift();
+    while (stdErrorBuffer.length > 0) {
+      outstr += stdErrorBuffer[0];
+      stdErrorBuffer.shift();
     }
-    outstr += firstEl || '';
+
+    outstr += firstElement || '';
 
     if (outstr && workerMessagePort.ready) {
       workerMessagePort.post(outstr);
     }
-    next.forEach(s => stdErrBuffer.push(s));
+
+    next.forEach(s => stdErrorBuffer.push(s));
   } else {
-    stdErrBuffer.push(cleanString);
+    stdErrorBuffer.push(cleanString);
   }
 };
 
-const createStdErrStream = () => {
+const createStdErrorStream = () => {
   wasmFs.fs.watch(
     '/dev/stderr',
     { encoding: 'buffer' },
     (eventType, filename) => {
       if (filename) {
         const contents = wasmFs.fs.readFileSync('/dev/stderr');
-        stdErrCallback(contents.slice(stdErrPos));
-        stdErrPos = contents.length;
+        stdErrorCallback(contents.slice(stdErrorPos));
+        stdErrorPos = contents.length;
       }
     }
   );
@@ -60,16 +63,18 @@ const createStdErrStream = () => {
 const stdOutCallback = data => {
   const cleanString = cleanStdout(uint2Str(data));
   if (cleanString.includes('\n')) {
-    const [firstEl, ...next] = cleanString.split('\n');
+    const [firstElement, ...next] = cleanString.split('\n');
     let outstr = '';
     while (stdOutBuffer.length > 0) {
       outstr += stdOutBuffer[0];
       stdOutBuffer.shift();
     }
-    outstr += firstEl;
+
+    outstr += firstElement;
     if (outstr && workerMessagePort.ready) {
       workerMessagePort.post(outstr);
     }
+
     next.forEach(s => stdOutBuffer.push(s));
   } else {
     stdOutBuffer.push(cleanString);
@@ -110,6 +115,6 @@ export async function mkdirp(filePath) {
 
 export const intiFS = async () => {
   await wasmFs.volume.mkdirSync('/csound');
-  createStdErrStream();
+  createStdErrorStream();
   createStdOutStream();
 };

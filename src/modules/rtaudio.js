@@ -17,7 +17,7 @@ export const csoundGetInputBufferSize = wasm => csound =>
   wasm.exports.csoundGetInputBufferSize(csound);
 
 csoundGetInputBufferSize.toString = () =>
-  `csoundGetInputBufferSize = async (csound) => Number;`;
+  'csoundGetInputBufferSize = async (csound) => Number;';
 
 /**
  * Returns the number of samples in Csound's output buffer.
@@ -33,7 +33,7 @@ export const csoundGetOutputBufferSize = wasm => csound =>
   wasm.exports.csoundGetOutputBufferSize(csound);
 
 csoundGetOutputBufferSize.toString = () =>
-  `csoundGetOutputBufferSize = async (csound) => Number;`;
+  'csoundGetOutputBufferSize = async (csound) => Number;';
 
 /**
  * Returns the address of the Csound audio input buffer.
@@ -49,7 +49,7 @@ export const csoundGetInputBuffer = wasm => csound =>
   wasm.exports.csoundGetInputBuffer(csound);
 
 csoundGetInputBuffer.toString = () =>
-  `csoundGetInputBuffer = async (csound) => Number;`;
+  'csoundGetInputBuffer = async (csound) => Number;';
 
 /**
  * Returns the address of the Csound audio output buffer.
@@ -65,7 +65,7 @@ export const csoundGetOutputBuffer = wasm => csound =>
   wasm.exports.csoundGetOutputBuffer(csound);
 
 csoundGetOutputBuffer.toString = () =>
-  `csoundGetOutputBuffer = async (csound) => Number;`;
+  'csoundGetOutputBuffer = async (csound) => Number;';
 
 /**
  * Returns the address of the Csound audio input working buffer (spin).
@@ -81,7 +81,7 @@ csoundGetOutputBuffer.toString = () =>
 export const csoundGetSpin = wasm => csound =>
   wasm.exports.csoundGetSpin(csound);
 
-csoundGetSpin.toString = () => `csoundGetSpin = async (csound) => Number;`;
+csoundGetSpin.toString = () => 'csoundGetSpin = async (csound) => Number;';
 
 /**
  * Returns the address of the Csound audio output working buffer (spout).
@@ -97,7 +97,7 @@ csoundGetSpin.toString = () => `csoundGetSpin = async (csound) => Number;`;
 export const csoundGetSpout = wasm => csound =>
   wasm.exports.csoundGetSpout(csound);
 
-csoundGetSpout.toString = () => `csoundGetSpout = async (csound) => Number;`;
+csoundGetSpout.toString = () => 'csoundGetSpout = async (csound) => Number;';
 
 // PUBLIC void 	csoundSetRTAudioModule (CSOUND *csound, const char *module)
 // PUBLIC int 	csoundGetModule (CSOUND *csound, int number, char **name, char **type)

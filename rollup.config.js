@@ -28,23 +28,36 @@ const pluginsCommon = [
 export default [
   {
     input: 'src/workers/sab.worker.js',
+    // external: ['../lib/libcsound.wasm.zlib'],
     output: {
       file: 'dist/__compiled.sab.worker.js',
-      format: 'es',
+      format: 'iife',
       name: 'sab.worker',
       sourcemap: false,
       globals
     },
     plugins: [
-      ...pluginsCommon,
-      arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] })
+      ...pluginsCommon
+      // arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] })
     ]
+  },
+  {
+    input: 'src/workers/vanilla.worker.js',
+    // external: ['../lib/libcsound.wasm.zlib'],
+    output: {
+      file: 'dist/__compiled.vanilla.worker.js',
+      format: 'iife',
+      name: 'vanilla.worker',
+      sourcemap: false,
+      globals
+    },
+    plugins: [...pluginsCommon]
   },
   {
     input: 'src/workers/worklet.worker.js',
     output: {
       file: 'dist/__compiled.worklet.worker.js',
-      format: 'es',
+      format: 'iife',
       name: 'worklet.worker',
       sourcemap: false,
       globals
@@ -65,7 +78,11 @@ export default [
         include: ['**/worklet.worker.js'],
         dataUrl: true
       }),
-      inlineWebWorkerPlugin({ include: ['**/sab.worker.js'], dataUrl: false })
+      inlineWebWorkerPlugin({
+        include: ['**/sab.worker.js', '**/vanilla.worker.js'],
+        dataUrl: false
+      }),
+      arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] })
     ]
   }
 ];

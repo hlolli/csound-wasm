@@ -9,22 +9,37 @@ import {
 } from '@root/mains/messages.main';
 import SABWorker from '@root/workers/sab.worker';
 import getUserMedia from 'get-user-media-promise';
-import { audioState, audioStreamIn, audioStreamOut } from '@root/sab';
-import { AUDIO_STATE, MAX_CHANNELS } from '@root/constants';
+import {
+  AUDIO_STATE,
+  MAX_CHANNELS,
+  MAX_HARDWARE_BUFFER_SIZE,
+  initialSharedState
+} from '@root/constants';
 
 class SharedArrayBufferMainThread {
-  constructor(audioWorker) {
+  constructor(audioWorker, wasmDataURI) {
     this.audioWorker = audioWorker;
-    this.callbackQueue = {};
-    this.callbackQueueBuffer = new Uint8Array(this.callbackQueue);
+    this.wasmDataURI = wasmDataURI;
+    // this.callbackQueue = {};
+    // this.callbackQueueBuffer = new Uint8Array(this.callbackQueue);
     this.currentPlayState = undefined;
-    this.currentQueueId = -1;
+    // this.currentQueueId = -1;
     this.exportApi = {};
     this.messageCallbacks = [];
     this.csoundPlayStateChangeCallback = undefined;
-    this.sharedArrayBuffer = new Int32Array(audioState);
-    this.audioStreamIn = audioStreamIn;
-    this.audioStreamOut = audioStreamOut;
+
+    this.audioStateBuffer = new SharedArrayBuffer(
+      initialSharedState.length * Int32Array.BYTES_PER_ELEMENT
+    );
+
+    this.audioStatePointer = new Int32Array(this.audioStateBuffer);
+
+    this.audioStreamIn = new SharedArrayBuffer(
+      MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
+    );
+    this.audioStreamOut = new SharedArrayBuffer(
+      MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
+    );
 
     // This will sadly create circular structure
     // that's still mostly harmless.
@@ -32,13 +47,13 @@ class SharedArrayBufferMainThread {
     audioWorker.hasSharedArrayBuffer = true;
   }
 
-  generateQueueId() {
-    this.currentQueueId += 1;
-    const nextQueueId = this.currentQueueId % 1024;
-    const maybeZombie = this.callbackQueueBuffer[nextQueueId];
-    maybeZombie && maybeZombie.reject();
-    return nextQueueId;
-  }
+  // generateQueueId() {
+  //   this.currentQueueId += 1;
+  //   const nextQueueId = this.currentQueueId % 1024;
+  //   const maybeZombie = this.callbackQueueBuffer[nextQueueId];
+  //   maybeZombie && maybeZombie.reject();
+  //   return nextQueueId;
+  // }
 
   get api() {
     return this.exportApi;
@@ -71,45 +86,39 @@ class SharedArrayBufferMainThread {
     }
   }
 
-  async csoundStop(...args) {
-    return this.csoundStop
-      ? await this.csoundStopClosure(args)
-      : console.error(
-          `Csound can't stop anything now since nothing's being performed`
-        );
-  }
+  async csoundStop(...argumentz) {}
 
-  csoundStopClosure(originalCsoundStop) {
-    return async function(...args) {
-      if (Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.IS_PERFORMING)) {
-        return new Promise((resolve, reject) => {
-          // maybe reject on timeout?
-          const thisQueueId = getQueueId();
-          this.callbackQueueBuffer[thisQueueId] = { resolve, reject };
-          Atomics.add(this.sharedArrayBuffer, AUDIO_STATE.AVAIL_CALLBACKS, 1);
-          const jsonDebug = JSON.stringify({
-            queueId: thisQueueId,
-            fnName,
-            args
-          });
-          const encodeDebug = encoder.encode(jsonDebug);
-          callbackQueueBuffer.set(encodeDebug, thisQueueId * 1024, 1024);
-        });
-      } else {
-        return await fn.apply(null, args);
-      }
-    };
-  }
+  // csoundStopClosure(originalCsoundStop) {
+  //   return async function(...arguments_) {
+  //     if (Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.IS_PERFORMING)) {
+  //       return new Promise((resolve, reject) => {
+  //         // maybe reject on timeout?
+  //         const thisQueueId = getQueueId();
+  //         this.callbackQueueBuffer[thisQueueId] = { resolve, reject };
+  //         Atomics.add(this.sharedArrayBuffer, AUDIO_STATE.AVAIL_CALLBACKS, 1);
+  //         const jsonDebug = JSON.stringify({
+  //           queueId: thisQueueId,
+  //           fnName,
+  //           args: arguments_
+  //         });
+  //         const encodeDebug = encoder.encode(jsonDebug);
+  //         callbackQueueBuffer.set(encodeDebug, thisQueueId * 1024, 1024);
+  //       });
+  //     }
+
+  //     return await fn.apply(null, arguments_);
+  //   };
+  // }
 
   async csoundPause() {
-    Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.IS_PAUSED, 1);
+    Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 1);
     if (typeof this.csoundPlayStateChangeCallback === 'function') {
       this.csoundPlayStateChangeCallback('realtimePerformancePaused');
     }
   }
 
   async csoundResume() {
-    Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.IS_PAUSED, 0);
+    Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 0);
     if (typeof this.csoundPlayStateChangeCallback === 'function') {
       this.csoundPlayStateChangeCallback('realtimePerformanceResumed');
     }
@@ -138,6 +147,12 @@ class SharedArrayBufferMainThread {
         await this.prepareRealtimePerformance();
         break;
       }
+
+      case 'realtimePerformanceEnded': {
+        // FIXME
+        break;
+      }
+
       default: {
         break;
       }
@@ -146,8 +161,8 @@ class SharedArrayBufferMainThread {
     // forward the message from worker to the audioWorker
     try {
       await this.audioWorker.onPlayStateChange(newPlayState);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     }
 
     this.csoundPlayStateChangeCallback &&
@@ -156,26 +171,26 @@ class SharedArrayBufferMainThread {
 
   async prepareRealtimePerformance(csound) {
     const outputCount = Atomics.load(
-      this.sharedArrayBuffer,
+      this.audioStatePointer,
       AUDIO_STATE.NCHNLS
     );
     const inputCount = Atomics.load(
-      this.sharedArrayBuffer,
+      this.audioStatePointer,
       AUDIO_STATE.NCHNLS_I
     );
 
     const sampleRate = Atomics.load(
-      this.sharedArrayBuffer,
+      this.audioStatePointer,
       AUDIO_STATE.SAMPLE_RATE
     );
 
     const hardwareBufferSize = Atomics.load(
-      this.sharedArrayBuffer,
+      this.audioStatePointer,
       AUDIO_STATE.HW_BUFFER_SIZE
     );
 
     const softwareBufferSize = Atomics.load(
-      this.sharedArrayBuffer,
+      this.audioStatePointer,
       AUDIO_STATE.SW_BUFFER_SIZE
     );
 
@@ -187,8 +202,10 @@ class SharedArrayBufferMainThread {
   }
 
   async initialize() {
-    const csoundWorker = new Worker(SABWorker);
-
+    const csoundWorker = new Worker(SABWorker());
+    const audioStateBuffer = this.audioStateBuffer;
+    const audioStreamIn = this.audioStreamIn;
+    const audioStreamOut = this.audioStreamOut;
     // both audio worker and csound worker use 1 handler
     // simplifies flow of data (csound main.worker is always first to receive)
     mainMessagePort.onmessage = messageEventHandler(this);
@@ -196,12 +213,12 @@ class SharedArrayBufferMainThread {
     csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
     workerMessagePort.start();
     const proxyPort = Comlink.wrap(csoundWorker);
-    await proxyPort.initialize();
+    await proxyPort.initialize(this.wasmDataURI);
 
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
-      async function cb(...args) {
-        return await proxyPort.callUncloned(apiK, args);
+      async function callback(...arguments_) {
+        return await proxyPort.callUncloned(apiK, arguments_);
       }
 
       switch (apiK) {
@@ -213,40 +230,23 @@ class SharedArrayBufferMainThread {
               );
               return -1;
             }
-            // for (
-            //   const channelIndex = 0;
-            //   channelIndex < this.inputCount;
-            //   channelIndex++
-            // ) {
-            //   this.audioWorker.sampleRate.push(
-            //     new Float64Array(
-            //       audioStreamIn,
-            //       MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-            //       MAX_HARDWARE_BUFFER_SIZE
-            //     )
-            //   );
-            //   this.audioWorker.inputCount.push(
-            //     new Float64Array(
-            //       audioStreamOut,
-            //       MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-            //       MAX_HARDWARE_BUFFER_SIZE
-            //     )
-            //   );
-            // }
-            await cb({
-              audioState,
+
+            await callback({
+              audioStateBuffer,
               audioStreamIn,
               audioStreamOut,
               csound
             });
           };
+
           csoundStart.toString = () => reference.toString();
-          this.exportApi['csoundStart'] = csoundStart.bind(this);
+          this.exportApi.csoundStart = csoundStart.bind(this);
           break;
         }
+
         default: {
-          cb.toString = () => reference.toString();
-          this.exportApi[apiK] = cb;
+          callback.toString = () => reference.toString();
+          this.exportApi[apiK] = callback;
           break;
         }
       }

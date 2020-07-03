@@ -3,10 +3,16 @@ import { createFilter } from 'rollup-pluginutils';
 
 const arraybufferCode = () =>
   `
+function bufferFromBrowser(base64Data) {
+  return window.atob(base64Data);
+}
+function bufferFromNodeJS(base64Data) {
+  return Buffer.from(base64Data, 'base64').toString('binary');
+}
 function __toArrayBuffer(base64Data) {
   var window = window || this;
-  var isBrowser = typeof window !== 'undefined';
-  var binary = isBrowser ? window.atob(base64Data) : Buffer.from(base64Data, 'base64').toString('binary');
+  var isBrowser = typeof process === 'undefined';
+  var binary = isBrowser ? bufferFromBrowser(base64Data) : bufferFromNodeJS(base64Data);
   var bytes = new Uint8Array(binary.length);
   for (var i = 0; i < binary.length; ++i) {
     bytes[i] = binary.charCodeAt(i);

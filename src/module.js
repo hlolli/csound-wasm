@@ -2,7 +2,6 @@ import { WASI } from '@wasmer/wasi/lib/index.esm.js';
 import browserBindings from '@wasmer/wasi/lib/bindings/browser';
 import { lowerI64Imports } from '@wasmer/wasm-transformer';
 import { inflate } from 'pako';
-import uninflatedWasmBlob from '../lib/libcsound.wasm.zlib';
 import { intiFS, preopens, wasmFs } from '@root/filesystem';
 import * as path from 'path';
 
@@ -18,8 +17,8 @@ const wasi = new WASI({
   bindings
 });
 
-export default async function() {
-  const wasmZlib = new Uint8Array(uninflatedWasmBlob);
+export default async function(wasmDataURI) {
+  const wasmZlib = new Uint8Array(wasmDataURI);
   const wasmBytes = inflate(wasmZlib);
   const transformedBinary = await lowerI64Imports(wasmBytes);
   const module = await WebAssembly.compile(transformedBinary);

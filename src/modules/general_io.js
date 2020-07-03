@@ -18,12 +18,12 @@ import { trimNull, uint2Str } from '@root/utils';
 export const csoundGetOutputName = wasm => csound => {
   const { buffer } = wasm.exports.memory;
   const ptr = wasm.exports.csoundGetOutputName(csound);
-  const strBuffer = new Uint8Array(buffer, ptr, 64);
-  return trimNull(uint2Str(strBuffer)) || '';
+  const stringBuffer = new Uint8Array(buffer, ptr, 64);
+  return trimNull(uint2Str(stringBuffer)) || '';
 };
 
 csoundGetOutputName.toString = () =>
-  `csoundGetOutputName = async (csound) => String;`;
+  'csoundGetOutputName = async (csound) => String;';
 
 /**
  * Returns the audio input name (-i)
@@ -38,12 +38,12 @@ csoundGetOutputName.toString = () =>
 export const csoundGetInputName = wasm => csound => {
   const { buffer } = wasm.exports.memory;
   const ptr = wasm.exports.csoundGetInputName(csound);
-  const strBuffer = new Uint8Array(buffer, ptr, 64);
-  return trimNull(uint2Str(strBuffer)) || '';
+  const stringBuffer = new Uint8Array(buffer, ptr, 64);
+  return trimNull(uint2Str(stringBuffer)) || '';
 };
 
 csoundGetInputName.toString = () =>
-  `csoundGetInputName = async (csound) => String;`;
+  'csoundGetInputName = async (csound) => String;';
 
 // PUBLIC void 	csoundSetOutput (CSOUND *csound, const char *name, const char *type, const char *format)
 // PUBLIC void 	csoundGetOutputFormat (CSOUND *csound, char *type, char *format)

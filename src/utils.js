@@ -13,8 +13,9 @@ export const uint2Str = uint => decoder.decode(uint);
 export const trimNull = a => {
   const c = a.indexOf('\0');
   if (c > -1) {
-    return a.substr(0, c);
+    return a.slice(0, Math.max(0, c));
   }
+
   return a;
 };
 
@@ -28,16 +29,17 @@ export const cleanStdout = stdout => {
   return stdout.replace(regexPattern, '');
 };
 
-export const string2ptr = (wasm, str) => {
-  if (typeof str !== 'string') {
-    console.error('Expected string but got', typeof str);
+export const string2ptr = (wasm, string) => {
+  if (typeof string !== 'string') {
+    console.error('Expected string but got', typeof string);
     return;
   }
+
   const { buffer } = wasm.exports.memory;
-  const strBuf = encoder.encode(str);
-  const offset = wasm.exports.allocStringMem(strBuf.length);
-  const outBuf = new Uint8Array(buffer, offset, strBuf.length + 1);
-  outBuf.set(strBuf);
+  const stringBuf = encoder.encode(string);
+  const offset = wasm.exports.allocStringMem(stringBuf.length);
+  const outBuf = new Uint8Array(buffer, offset, stringBuf.length + 1);
+  outBuf.set(stringBuf);
   return offset;
 };
 
@@ -54,11 +56,11 @@ export const freeStringPtr = (wasm, ptr) => {
 
 export const structBuffer2Object = (jsStruct, buffer) => {
   const [result] = jsStruct.reduce(
-    ([params, offset], [paramName, primitive]) => {
-      const currSize = sizeOf[primitive];
-      const currVal = buffer[offset];
-      params[paramName] = currVal;
-      return [params, offset + currSize];
+    ([parameters, offset], [parameterName, primitive]) => {
+      const currentSize = sizeOf[primitive];
+      const currentValue = buffer[offset];
+      parameters[parameterName] = currentValue;
+      return [parameters, offset + currentSize];
     },
     [{}, 0]
   );
@@ -69,8 +71,12 @@ export const nearestPowerOf2 = n => {
   return 1 << (31 - Math.clz32(n));
 };
 
+const isFirefox = () => navigator.userAgent.toLowerCase().includes('firefox');
+
 export const isSabSupported = () =>
-  window.Atomics !== 'undefined' && window.SharedArrayBuffer !== 'undefined';
+  !isFirefox() &&
+  window.Atomics !== 'undefined' &&
+  window.SharedArrayBuffer !== 'undefined';
 
 export const areWorkletsSupportet = () =>
   typeof AudioNode !== 'undefined' && typeof AudioWorkletNode !== 'undefined';

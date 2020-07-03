@@ -26,6 +26,7 @@ class AudioWorkletMainThread {
         await this.initialize();
         break;
       }
+
       default: {
         break;
       }
@@ -56,9 +57,9 @@ class AudioWorkletMainThread {
     });
 
     try {
-      await this.audioCtx.audioWorklet.addModule(WorkletWorker);
-    } catch (e) {
-      console.error(e);
+      await this.audioCtx.audioWorklet.addModule(WorkletWorker());
+    } catch (error) {
+      console.error(error);
       return;
     }
 
@@ -75,7 +76,7 @@ class AudioWorkletMainThread {
           inputsCount: this.inputsCount,
           outputsCount: this.outputsCount,
           sampleRate: this.sampleRate,
-          maybeSharedArrayBuffer: this.csoundWorker.sharedArrayBuffer,
+          maybeSharedArrayBuffer: this.csoundWorker.audioStatePointer,
           maybeSharedArrayBufferAudioIn: this.csoundWorker.audioStreamIn,
           maybeSharedArrayBufferAudioOut: this.csoundWorker.audioStreamOut
         }
@@ -85,9 +86,10 @@ class AudioWorkletMainThread {
     if (this.inputsCount > 0) {
       window.getUserMedia({ audio: true }, stream => {
         this.audioWorker.createMediaStreamSource(stream);
-        this.audioWorker.connect(this.audioCtx.destination);
       });
     }
+
+    this.audioWorker.connect(this.audioCtx.destination);
 
     this.audioWorker.port.postMessage({ msg: 'initMessagePort' }, [
       workerMessagePortAudio
@@ -95,8 +97,8 @@ class AudioWorkletMainThread {
 
     try {
       this.workletProxy = Comlink.wrap(this.audioWorker.port);
-    } catch (e) {
-      console.error('COMLINK ERROR', e);
+    } catch (error) {
+      console.error('COMLINK ERROR', error);
     }
   }
 }

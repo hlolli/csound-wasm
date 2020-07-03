@@ -31,7 +31,7 @@ function __inlineWorker(content) {
       return new Worker(URL.createObjectURL(blob));
     } catch (e) {
       return new Worker(
-        'data:application/javascript,' + encodeURIComponent(content)
+        "object-src 'self' blob: data:application/javascript," + encodeURIComponent(content)
       );
     }
   } catch (e) {
@@ -51,22 +51,16 @@ export default function inlineWebworker(options = {}) {
       if (filter(id)) {
         const filename = basename(id);
         id = resolve('./dist', `__compiled.${filename}`);
-        // `URL.createObjectURL(new Blob([${JSON.stringify(
-        //   contents
-        // )}]))``"data:,importScripts('"+location.origin+${workerUrl}+"')"`;
-        // var workerUrl = (window.URL || window.webkitURL).createObjectURL(new Blob([${JSON.stringify(
-        //   readFileSync(id, { encoding: 'base64' })
-        // )}]));
         return {
           code: dataUrl
             ? `
-             export default 'data:application/javascript;base64,${readFileSync(
+             export default () => "data:application/javascript;base64,${readFileSync(
                id,
                { encoding: 'base64' }
-             )}';
+             )}";
             `
             : `
-          export default (window.URL || window.webkitURL).createObjectURL(new Blob([${JSON.stringify(
+          export default () => (window.URL || window.webkitURL).createObjectURL(new Blob([${JSON.stringify(
             readFileSync(id).toString('utf8')
           )}]));`,
           map: { mappings: '' }

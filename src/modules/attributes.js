@@ -26,7 +26,7 @@ export const csoundGetSr = curry((wasm, csound) =>
   wasm.exports.csoundGetSr(csound)
 );
 
-csoundGetSr.toString = () => `csoundGetSr = async (csound) => Number;`;
+csoundGetSr.toString = () => 'csoundGetSr = async (csound) => Number;';
 
 /**
  * Returns the control rate from Csound instance
@@ -42,7 +42,7 @@ export const csoundGetKr = curry((wasm, csound) =>
   wasm.exports.csoundGetKr(csound)
 );
 
-csoundGetKr.toString = () => `csoundGetKr = async (csound) => Number;`;
+csoundGetKr.toString = () => 'csoundGetKr = async (csound) => Number;';
 
 /**
  * Returns the ksmps value (kr/sr) from Csound instance
@@ -58,7 +58,7 @@ export const csoundGetKsmps = curry((wasm, csound) =>
   wasm.exports.csoundGetKsmps(csound)
 );
 
-csoundGetKsmps.toString = () => `csoundGetKsmps = async (csound) => Number;`;
+csoundGetKsmps.toString = () => 'csoundGetKsmps = async (csound) => Number;';
 
 /**
  * Returns the number of output channels from Csound instance
@@ -74,7 +74,7 @@ export const csoundGetNchnls = curry((wasm, csound) =>
   wasm.exports.csoundGetNchnls(csound)
 );
 
-csoundGetNchnls.toString = () => `csoundGetNchnls = async (csound) => Number;`;
+csoundGetNchnls.toString = () => 'csoundGetNchnls = async (csound) => Number;';
 
 /**
  * Returns the number of input channels from Csound instance
@@ -91,7 +91,7 @@ export const csoundGetNchnlsInput = curry((wasm, csound) =>
 );
 
 csoundGetNchnlsInput.toString = () =>
-  `csoundGetNchnlsInput = async (csound) => Number;`;
+  'csoundGetNchnlsInput = async (csound) => Number;';
 
 /**
  * Returns the value of csoundGet0dBFS
@@ -107,7 +107,7 @@ export const csoundGet0dBFS = curry((wasm, csound) =>
   wasm.exports.csoundGet0dBFS(csound)
 );
 
-csoundGet0dBFS.toString = () => `csoundGet0dBFS = async (csound) => Number;`;
+csoundGet0dBFS.toString = () => 'csoundGet0dBFS = async (csound) => Number;';
 
 /**
  * Returns the A4 frequency reference
@@ -123,7 +123,7 @@ export const csoundGetA4 = curry((wasm, csound) =>
   wasm.exports.csoundGetA4(csound)
 );
 
-csoundGetA4.toString = () => `csoundGetA4 = async (csound) => Number;`;
+csoundGetA4.toString = () => 'csoundGetA4 = async (csound) => Number;';
 
 /**
  * Return the current performance time in samples
@@ -140,7 +140,7 @@ export const csoundGetCurrentTimeSamples = curry((wasm, csound) =>
 );
 
 csoundGetCurrentTimeSamples.toString = () =>
-  `csoundGetCurrentTimeSamples = async (csound) => Number;`;
+  'csoundGetCurrentTimeSamples = async (csound) => Number;';
 
 /**
  * Return the size of MYFLT in number of bytes
@@ -157,7 +157,7 @@ export const csoundGetSizeOfMYFLT = curry((wasm, csound) =>
 );
 
 csoundGetSizeOfMYFLT.toString = () =>
-  `csoundGetSizeOfMYFLT = async (csound) => Number;`;
+  'csoundGetSizeOfMYFLT = async (csound) => Number;';
 
 // TODO (do these make any sense in wasm?)
 // csoundGetHostData
@@ -182,7 +182,7 @@ export const csoundSetOption = curry((wasm, csound, option) => {
 });
 
 csoundSetOption.toString = () =>
-  `csoundSetOption = async (csound, option) => Number;`;
+  'csoundSetOption = async (csound, option) => Number;';
 
 /**
  * Configure Csound with a given set of
@@ -202,13 +202,13 @@ csoundSetOption.toString = () =>
  * @param {Object} wasm
  * @return {csoundSetParams}
  */
-export const csoundSetParams = curry((wasm, csound, csoundParams) => {
-  wasm.exports.csoundSetParams(csound, csoundParams);
+export const csoundSetParams = curry((wasm, csound, csoundParameters) => {
+  wasm.exports.csoundSetParams(csound, csoundParameters);
   return null;
 });
 
 csoundSetParams.toString = () =>
-  `csoundSetParams = async (csound, csoundParams) => undefined;`;
+  'csoundSetParams = async (csound, csoundParams) => undefined;';
 
 /**
  * Get the current set of parameters
@@ -228,13 +228,13 @@ export const csoundGetParams = curry((wasm, csound) => {
   const structOffset = wasm.exports.allocCsoundParams();
   const structBuffer = new Uint8Array(buffer, structOffset, structLength);
   wasm.exports.csoundGetParams(csound, structOffset);
-  const currentCsoundParams = structBuffer2Object(CSOUND_PARAMS, structBuffer);
+  const currentCsoundParameters = structBuffer2Object(CSOUND_PARAMS, structBuffer);
   wasm.exports.freeCsoundParams(structOffset);
-  return currentCsoundParams;
+  return currentCsoundParameters;
 });
 
 csoundGetParams.toString = () =>
-  `csoundGetParams = async (csound) => CSOUND_PARAMS;`;
+  'csoundGetParams = async (csound) => CSOUND_PARAMS;';
 
 /**
  * Returns whether Csound is set to print debug messages
@@ -252,7 +252,7 @@ export const csoundGetDebug = curry((wasm, csound) =>
   wasm.exports.csoundGetDebug(csound)
 );
 
-csoundGetDebug.toString = () => `csoundGetDebug = async (csound) => Number;`;
+csoundGetDebug.toString = () => 'csoundGetDebug = async (csound) => Number;';
 
 /**
  * Return the size of MYFLT in number of bytes
@@ -271,4 +271,4 @@ export const csoundSetDebug = curry((wasm, csound, debug) => {
 });
 
 csoundSetDebug.toString = () =>
-  `csoundSetDebug = async (csound, number) => undefined;`;
+  'csoundSetDebug = async (csound, number) => undefined;';

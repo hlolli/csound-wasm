@@ -16,15 +16,15 @@ import { freeStringPtr, string2ptr } from '@root/utils';
  * @param {Object} wasm
  * @return {csoundInputMessage}
  */
-export const csoundInputMessage = wasm => (csound, scoEvt) => {
-  const strPtr = string2ptr(wasm, scoEvt);
-  const res = wasm.exports.csoundInputMessage(csound, strPtr);
-  freeStringPtr(wasm, strPtr);
+export const csoundInputMessage = wasm => (csound, scoEvent) => {
+  const stringPtr = string2ptr(wasm, scoEvent);
+  const res = wasm.exports.csoundInputMessage(csound, stringPtr);
+  freeStringPtr(wasm, stringPtr);
   return res;
 };
 
 csoundInputMessage.toString = () =>
-  `csoundInputMessage = async (csound, scoreEvent) => Number;`;
+  'csoundInputMessage = async (csound, scoreEvent) => Number;';
 
 /**
  * Inputs an immediate score event
@@ -37,15 +37,15 @@ csoundInputMessage.toString = () =>
  * @param {Object} wasm
  * @return {csoundInputMessageAsync}
  */
-export const csoundInputMessageAsync = wasm => (csound, scoEvt) => {
-  const strPtr = string2ptr(wasm, scoEvt);
-  const res = wasm.exports.csoundInputMessageAsync(csound, strPtr);
-  freeStringPtr(wasm, strPtr);
+export const csoundInputMessageAsync = wasm => (csound, scoEvent) => {
+  const stringPtr = string2ptr(wasm, scoEvent);
+  const res = wasm.exports.csoundInputMessageAsync(csound, stringPtr);
+  freeStringPtr(wasm, stringPtr);
   return res;
 };
 
 csoundInputMessageAsync.toString = () =>
-  `csoundInputMessageAsync = async (csound, scoreEvent) => Number;`;
+  'csoundInputMessageAsync = async (csound, scoreEvent) => Number;';
 
 // csoundGetChannelPtr (CSOUND *, MYFLT **p, const char *name, int type)
 // csoundListChannels (CSOUND *, controlChannelInfo_t **lst)

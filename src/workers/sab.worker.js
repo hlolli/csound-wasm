@@ -12,32 +12,34 @@ import {
   initialSharedState
 } from '@root/constants.js';
 
-let wasm, libraryCsound, combined;
+let wasm;
+let libraryCsound;
+let combined;
 
 const sabCreateRealtimeAudioThread = ({
-  audioState,
+  audioStateBuffer,
   audioStreamIn,
   audioStreamOut,
   csound
 }) => {
   if (!wasm || !libraryCsound) {
-    workerMessagePort.post(`error: csound wasn't initialized before starting`);
+    workerMessagePort.post("error: csound wasn't initialized before starting");
     return -1;
-  } else {
-    // The actual realtime start
-    // doing this early to detect errors
-    // derive options and attributes for the performance
-    const startError = libraryCsound.csoundStart(csound);
-    if (startError !== 0) {
-      workerMessagePort.post(
-        `error: csoundStart failed in realtime-performance,` +
-          ` look out for errors in options and syntax`
-      );
-      return -1;
-    }
   }
 
-  const audioStatePointer = new Int32Array(audioState);
+  // The actual realtime start
+  // doing this early to detect errors
+  // derive options and attributes for the performance
+  const startError = libraryCsound.csoundStart(csound);
+  if (startError !== 0) {
+    workerMessagePort.post(
+      'error: csoundStart failed in realtime-performance,' +
+        ' look out for errors in options and syntax'
+    );
+    return -1;
+  }
+
+  const audioStatePointer = new Int32Array(audioStateBuffer);
 
   // In case of multiple performances, let's reset the sab state
   initialSharedState.forEach((value, index) => {
@@ -96,6 +98,8 @@ const sabCreateRealtimeAudioThread = ({
     );
   }
 
+  const { buffer } = wasm.exports.memory;
+
   // Indicator for csound performance
   // != 0 would mean the performance has ended
   let lastReturn = 0;
@@ -111,28 +115,6 @@ const sabCreateRealtimeAudioThread = ({
       return;
     }
 
-    // const availCallbacks = Atomics.load(
-    //   audioStatePointer,
-    //   AUDIO_STATE.AVAIL_CALLBACKS
-    // );
-    // if (availCallbacks) {
-    //   const callbackBufferIndex = Atomics.load(
-    //     audioStatePointer,
-    //     AUDIO_STATE.CALLBACK_BUFFER_INDEX
-    //   );
-    //   // Atomics.store(
-    //   //   audioStatePointer,
-    //   //   AUDIO_STATE.CALLBACK_BUFFER_INDEX,
-    //   //   (callbackBufferIndex + availCallbacks) % 1024
-    //   // );
-    //   Atomics.sub(
-    //     audioStatePointer,
-    //     AUDIO_STATE.AVAIL_CALLBACKS,
-    //     availCallbacks
-    //   );
-    // }
-
-    const { buffer } = wasm.exports.memory;
     const framesRequested = _b;
 
     const inputBufferPtr = libraryCsound.csoundGetSpin(csound);
@@ -164,10 +146,7 @@ const sabCreateRealtimeAudioThread = ({
         lastReturn = libraryCsound.csoundPerformKsmps(csound);
         if (lastReturn !== 0) {
           // Let's notify that performance has ended
-          // postMessage({
-          //   type: 'playStateChange',
-          //   data: 'realtimePerformanceEnded'
-          // });
+          workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
           Atomics.store(audioStatePointer, AUDIO_STATE.IS_PERFORMING, 0);
           Atomics.store(audioStatePointer, AUDIO_STATE.REQUEST_RENDER, 0);
           return;
@@ -201,9 +180,9 @@ const sabCreateRealtimeAudioThread = ({
   }
 };
 
-const callUncloned = async (k, args) => {
+const callUncloned = async (k, arguments_) => {
   const caller = combined.get(k);
-  return caller && caller.apply(null, args || []);
+  return caller && caller.apply(null, arguments_ || []);
 };
 
 onmessage = function(event) {
@@ -217,7 +196,7 @@ onmessage = function(event) {
 };
 
 const handleCsoundStart = ({
-  audioState,
+  audioStateBuffer,
   audioStreamIn,
   audioStreamOut,
   csound
@@ -228,17 +207,17 @@ const handleCsoundStart = ({
   if (startError !== 0) {
     workerMessagePort.post(
       `error: csoundStart failed while trying to render ${outputName},` +
-        ` look out for errors in options and syntax`
+        ' look out for errors in options and syntax'
     );
     return startError;
   }
-  console.log('POST START');
+
   const outputName = libraryCsound.csoundGetOutputName(csound) || 'test.wav';
   const isExpectingRealtimeOutput = outputName.includes('dac');
 
   if (isExpectingRealtimeOutput) {
     sabCreateRealtimeAudioThread({
-      audioState,
+      audioStateBuffer,
       audioStreamIn,
       audioStreamOut,
       csound
@@ -246,8 +225,8 @@ const handleCsoundStart = ({
   }
 };
 
-const initialize = async () => {
-  wasm = await loadWasm();
+const initialize = async wasmDataURI => {
+  wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
   const allAPI = pipe(
     assoc('csoundStart', handleCsoundStart),

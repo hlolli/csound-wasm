@@ -21,9 +21,10 @@ function processSharedArrayBuffer(inputs, outputs) {
       // at minimum unblock the atomic wait in the while loop
       // by giving it another number than 0, in turn, returning
       // "not-equal" instead of "ok"
-      Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 666);
+      Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
       Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY);
     }
+
     this.isPerformingLastTime = isPerforming;
     this.preProcessCount = 0;
     return true;
@@ -83,41 +84,6 @@ function processSharedArrayBuffer(inputs, outputs) {
 
   return true;
 }
-
-/*
-const handleMessage = that => event => {
-  const [type, payload] = event.data;
-  switch (type) {
-    case 'initializeSab': {
-      const { audioState, audioStreamIn, audioStreamOut } = payload;
-      that['audioState'] = new Int32Array(audioState);
-      that['channels'] = [];
-      that['inputChannels'] = [];
-      that['audioStreamIn'] = audioStreamIn;
-      that['audioStreamOut'] = audioStreamOut;
-      for (let channelIndex = 0; channelIndex < MAX_CHANNELS; ++channelIndex) {
-        that['inputChannels'].push(
-          new Float64Array(
-            audioStreamIn,
-            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-            MAX_HARDWARE_BUFFER_SIZE
-          )
-        );
-        that['channels'].push(
-          new Float64Array(
-            audioStreamOut,
-            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-            MAX_HARDWARE_BUFFER_SIZE
-          )
-        );
-      }
-      that['nchnls_i'] = Atomics.load(that['audioState'], AUDIO_STATE.NCHNLS_I);
-      that['nchnls'] = Atomics.load(that['audioState'], AUDIO_STATE.NCHNLS);
-      break;
-    }
-  }
-};
-*/
 
 function processTypedBuffers(inputs, outputs) {}
 
@@ -196,6 +162,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
           )
         );
       }
+
       this.actualProcess = processSharedArrayBuffer.bind(this);
     } else {
       this.actualProcess = processTypedBuffers.bind(this);

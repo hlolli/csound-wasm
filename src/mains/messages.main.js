@@ -8,9 +8,9 @@ loggerPool.add(defaultLogger);
 
 // exec log-event: msg => cb(msg)
 export const messageEventHandler = worker => event =>
-  event.data.log
-    ? loggerPool.forEach(cb => cb(event.data.log))
-    : worker.onPlayStateChange(event.data.playStateChange);
+  event.data.log ?
+    loggerPool.forEach(callback => callback(event.data.log)) :
+    worker.onPlayStateChange(event.data.playStateChange);
 
 export const {
   port1: mainMessagePort,
