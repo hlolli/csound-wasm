@@ -3,7 +3,7 @@
    https://csound.com/docs/api/modules.html
 */
 
-import { freeStringPtr, string2ptr } from "@root/utils";
+import { freeStringPtr, string2ptr } from '@root/utils';
 
 /**
  * Inputs an immediate score event
@@ -23,6 +23,9 @@ export const csoundInputMessage = wasm => (csound, scoEvt) => {
   return res;
 };
 
+csoundInputMessage.toString = () =>
+  `csoundInputMessage = async (csound, scoreEvent) => Number;`;
+
 /**
  * Inputs an immediate score event
  * without any pre-process parsing
@@ -40,6 +43,9 @@ export const csoundInputMessageAsync = wasm => (csound, scoEvt) => {
   freeStringPtr(wasm, strPtr);
   return res;
 };
+
+csoundInputMessageAsync.toString = () =>
+  `csoundInputMessageAsync = async (csound, scoreEvent) => Number;`;
 
 // csoundGetChannelPtr (CSOUND *, MYFLT **p, const char *name, int type)
 // csoundListChannels (CSOUND *, controlChannelInfo_t **lst)

@@ -44,9 +44,15 @@ void freeCsoundParams(CSOUND_PARAMS* ptr) {
 }
 
 int csoundStartWasi(CSOUND *csound) {
+  // got annoyed, fix this before adding more targets!
+  csoundAppendEnv(csound, "SADIR", "/csound/");
+  csoundAppendEnv(csound, "SSDIR", "/csound/");
+  csoundAppendEnv(csound, "INCDIR", "/csound/");
+  csoundAppendEnv(csound, "MFDIR", "/csound/");
+
   const char* outputDev = csoundGetOutputName(csound);
   // detect realtime mode automatically
-  if (strcmp("dac", outputDev) == 0) {
+  if (strncmp("dac", outputDev, 3) == 0) {
     csoundSetHostImplementedAudioIO(csound, 1, 0);
   }
   return csoundStart(csound);

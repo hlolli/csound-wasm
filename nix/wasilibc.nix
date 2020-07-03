@@ -5,8 +5,8 @@ stdenv.mkDerivation {
   src = fetchFromGitHub {
     owner = "WebAssembly";
     repo = "wasi-libc";
-    rev = "7b92f334e69c60a1d1c5d3e289790d790b9a185b";
-    sha256 = "03qjkxqys82fh27ny503pjgw4yqy85k69l7cfnv5p98fagf7l2pr";
+    rev = "00cc5944dfc8c85ab5c5bee4cdef221afa2121f7";
+    sha256 = "02qjkxqys82fh27ny503pjgw4yqy85k69l7cfnv5p98fagf7l2ps";
   };
   makeFlags = [
     "WASM_CC=${stdenv.cc.targetPrefix}cc"

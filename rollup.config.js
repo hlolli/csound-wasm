@@ -1,0 +1,71 @@
+import alias from '@rollup/plugin-alias';
+import commonjs from '@rollup/plugin-commonjs';
+import nodejsResolve from '@rollup/plugin-node-resolve';
+import arraybufferPlugin from './script/rollup-arraybuffer';
+import inlineWebWorkerPlugin from './script/inline-webworker';
+import nodePolyfills from 'rollup-plugin-node-polyfills';
+import { resolve } from 'path';
+import * as R from 'ramda';
+
+const globals = {
+  // Buffer: resolve('node_modules/buffer/index.js')
+  // crypto: 'crypto',
+  // path: 'path'
+};
+
+const pluginsCommon = [
+  alias({
+    entries: [
+      { find: '@root', replacement: resolve('./src') },
+      { find: '@module', replacement: resolve('./src/modules') }
+    ]
+  }),
+  commonjs({ transformMixedEsModules: true }),
+  nodejsResolve({ preferBuiltins: false }),
+  nodePolyfills()
+];
+
+export default [
+  {
+    input: 'src/workers/sab.worker.js',
+    output: {
+      file: 'dist/__compiled.sab.worker.js',
+      format: 'es',
+      name: 'sab.worker',
+      sourcemap: false,
+      globals
+    },
+    plugins: [
+      ...pluginsCommon,
+      arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] })
+    ]
+  },
+  {
+    input: 'src/workers/worklet.worker.js',
+    output: {
+      file: 'dist/__compiled.worklet.worker.js',
+      format: 'es',
+      name: 'worklet.worker',
+      sourcemap: false,
+      globals
+    },
+    plugins: [...pluginsCommon]
+  },
+  {
+    input: 'src/index.js',
+    output: {
+      file: 'dist/libcsound.mjs',
+      format: 'module',
+      sourcemap: true,
+      globals
+    },
+    plugins: [
+      ...pluginsCommon,
+      inlineWebWorkerPlugin({
+        include: ['**/worklet.worker.js'],
+        dataUrl: true
+      }),
+      inlineWebWorkerPlugin({ include: ['**/sab.worker.js'], dataUrl: false })
+    ]
+  }
+];

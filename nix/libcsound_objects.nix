@@ -141,8 +141,11 @@ pkgs.callPackage
           find ./ -type f -exec sed -i -e 's/PUBLIC.*int.*csoundModuleInfo/static int csoundModuleInfo/g' {} \;
           find ./ -type f -exec sed -i -e 's/PUBLIC.*int32_t.*csoundModuleInfo/static int32_t csoundModuleInfo/g' {} \;
           find ./ -type f -exec sed -i -e 's/PUBLIC.*NGFENS.*\*csound_fgen_init/static NGFENS *csound_fgen_init/g' {} \;
-          cat ${csoundModLoadPatch} > include/modload.h
 
+          # # Patch the default test.wav output
+          # find ./ -type f -exec sed -i -e 's|"test.wav"|"/csound/test.wav"|g' {} \;
+
+          cat ${csoundModLoadPatch} > include/modload.h
 
           # Don't initialize static_modules which are not compiled in wasm env
           substituteInPlace Top/csmodule.c \
@@ -224,12 +227,17 @@ pkgs.callPackage
             --replace 'static double timeResolutionSeconds = -1.0;' \
                       'static double timeResolutionSeconds = 0.000001;'
 
+          substituteInPlace InOut/libsnd.c \
+            --replace 'fullName = csoundFindOutputFile(csound, fName, "SFDIR");' \
+                      'fullName = csoundFindOutputFile(csound, fName, "SFDIR"); printf("FULL NAME: %s fName: %s\n", fullName, fName);'
+
           substituteInPlace Engine/envvar.c \
             --replace 'return name;' \
                       'char* fsPrefix = csound->Malloc(
                          csound, (size_t) strlen(name) + 9);
                        strcpy(fsPrefix, (name[0] == DIRSEP) ? "/csound" : "/csound/");
                        strcat(fsPrefix, name);
+                       printf("FILENAME: %s FSPREFIX: %s\n", filename, fsPrefix);
                        return fsPrefix;' \
             --replace 'fd = open(name, RD_OPTS);' \
                       'fd = open(name, O_RDONLY);' \

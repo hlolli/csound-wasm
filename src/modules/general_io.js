@@ -3,7 +3,7 @@
    https://csound.com/docs/api/modules.html
 */
 
-import { trimNull, uint2Str } from "@root/utils";
+import { trimNull, uint2Str } from '@root/utils';
 
 /**
  * Returns the audio output name (-o)
@@ -19,14 +19,17 @@ export const csoundGetOutputName = wasm => csound => {
   const { buffer } = wasm.exports.memory;
   const ptr = wasm.exports.csoundGetOutputName(csound);
   const strBuffer = new Uint8Array(buffer, ptr, 64);
-  return trimNull(uint2Str(strBuffer)) || "";
+  return trimNull(uint2Str(strBuffer)) || '';
 };
+
+csoundGetOutputName.toString = () =>
+  `csoundGetOutputName = async (csound) => String;`;
 
 /**
  * Returns the audio input name (-i)
  * @callback csoundGetInputName
  * @param {Csound} csound
- * @return {number}
+ * @return {string}
  */
 /**
  * @param {Object} wasm
@@ -36,8 +39,11 @@ export const csoundGetInputName = wasm => csound => {
   const { buffer } = wasm.exports.memory;
   const ptr = wasm.exports.csoundGetInputName(csound);
   const strBuffer = new Uint8Array(buffer, ptr, 64);
-  return trimNull(uint2Str(strBuffer)) || "";
+  return trimNull(uint2Str(strBuffer)) || '';
 };
+
+csoundGetInputName.toString = () =>
+  `csoundGetInputName = async (csound) => String;`;
 
 // PUBLIC void 	csoundSetOutput (CSOUND *csound, const char *name, const char *type, const char *format)
 // PUBLIC void 	csoundGetOutputFormat (CSOUND *csound, char *type, char *format)

@@ -1,23 +1,15 @@
-/* eslint-disable */
-/* eslint-disable new-cap */
-import { WASI } from "@wasmer/wasi/lib/index.esm.js";
-import { WasmFs } from "@wasmer/wasmfs";
-import { inflate } from "pako";
-import browserBindings from "@wasmer/wasi/lib/bindings/browser";
-import { lowerI64Imports } from "@wasmer/wasm-transformer";
-import { cleanStdout, uint2Str } from "./utils";
-import * as path from "path";
+import { WASI } from '@wasmer/wasi/lib/index.esm.js';
+import browserBindings from '@wasmer/wasi/lib/bindings/browser';
+import { lowerI64Imports } from '@wasmer/wasm-transformer';
+import { inflate } from 'pako';
+import uninflatedWasmBlob from '../lib/libcsound.wasm.zlib';
+import { intiFS, preopens, wasmFs } from '@root/filesystem';
+import * as path from 'path';
 
-export const wasmFs = new WasmFs();
-
-const bindings = {
+export const bindings = {
   ...browserBindings,
   fs: wasmFs.fs,
   path
-};
-
-const preopens = {
-  "/": "/"
 };
 
 const wasi = new WASI({
@@ -26,103 +18,14 @@ const wasi = new WASI({
   bindings
 });
 
-let stdErrPos = 0;
-const stdErrBuffer = [];
-const stdErrCallback = data => {
-  const cleanString = cleanStdout(uint2Str(data));
-  if (cleanString.includes("\n")) {
-    const [firstEl, ...next] = cleanString.split("\n");
-    let outstr = "";
-    while (stdErrBuffer.length > 0) {
-      outstr += stdErrBuffer[0];
-      stdErrBuffer.shift();
-    }
-    outstr += firstEl;
-    if (process.env.NODE_ENV !== "production") {
-      outstr && console.log(outstr);
-    }
-    // here the actual callback takes place
-    postMessage({ type: "log", data: outstr });
-    next.forEach(s => stdErrBuffer.push(s));
-  } else {
-    stdErrBuffer.push(cleanString);
-  }
-};
-
-const createStdErrStream = () => {
-  wasmFs.fs.watch(
-    "/dev/stderr",
-    { encoding: "buffer" },
-    (eventType, filename) => {
-      if (filename) {
-        const contents = wasmFs.fs.readFileSync("/dev/stderr");
-        stdErrCallback(contents.slice(stdErrPos));
-        stdErrPos = contents.length;
-      }
-    }
-  );
-};
-
-let stdOutPos = 0;
-const stdOutBuffer = [];
-const stdOutCallback = data => {
-  const cleanString = cleanStdout(uint2Str(data));
-  if (cleanString.includes("\n")) {
-    const [firstEl, ...next] = cleanString.split("\n");
-    let outstr = "";
-    while (stdOutBuffer.length > 0) {
-      outstr += stdOutBuffer[0];
-      stdOutBuffer.shift();
-    }
-    outstr += firstEl;
-    // here the actual callback takes place
-    postMessage({ type: "log", data: outstr });
-    if (process.env.NODE_ENV !== "production") {
-      outstr && console.log(outstr);
-    }
-    next.forEach(s => stdOutBuffer.push(s));
-  } else {
-    stdOutBuffer.push(cleanString);
-  }
-};
-
-const createStdOutStream = () => {
-  wasmFs.fs.watch(
-    "/dev/stdout",
-    { encoding: "buffer" },
-    (eventType, filename) => {
-      if (filename) {
-        const contents = wasmFs.fs.readFileSync("/dev/stdout");
-        stdOutCallback(contents.slice(stdOutPos));
-        stdOutPos = contents.length;
-      }
-    }
-  );
-};
-
-const load = async () => {
-  const { default: response } = await import("../lib/libcsound.wasm.zlib");
-  await wasmFs.volume.mkdirSync("/csound");
-  const wasmZlib = new Uint8Array(response);
+export default async function() {
+  const wasmZlib = new Uint8Array(uninflatedWasmBlob);
   const wasmBytes = inflate(wasmZlib);
   const transformedBinary = await lowerI64Imports(wasmBytes);
   const module = await WebAssembly.compile(transformedBinary);
   const options = wasi.getImports(module);
-  options["env"] = {};
   const instance = await WebAssembly.instantiate(module, options);
+  intiFS();
   wasi.start(instance);
-  createStdErrStream();
-  createStdOutStream();
   return instance;
-};
-
-/**
- * The module which downloads/loads and
- * instanciates the wasm binary.
- * @async
- * @return {Promise.<Object>}
- */
-export default async function getLibcsoundWasm() {
-  const wasm = await load();
-  return wasm;
 }

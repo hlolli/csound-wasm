@@ -3,6 +3,7 @@
   "csoundCreateWasi",
   "csoundPerformKsmpsWasi",
   "csoundStartWasi",
+  "csoundAppendEnv",
   "freeCsoundParams",
   "allocCsoundParams",
   "freeStringMem",

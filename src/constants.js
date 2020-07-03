@@ -1,10 +1,7 @@
 export const MAX_HARDWARE_BUFFER_SIZE = 16384;
-// const MAX_SOFTWARE_BUFFER_SIZE = 8192;
 export const DEFAULT_HARDWARE_BUFFER_SIZE = 4096;
-// export const DEFAULT_SOFTWARE_BUFFER_SIZE = 1024;
 export const DEFAULT_SOFTWARE_BUFFER_SIZE = 512;
 export const MAX_CHANNELS = 32;
-// const DEFAULT_SR = 44100;
 
 export const initialSharedState = [
   0, // 1 = Worklet requests new buffer data (atomic notify)
@@ -25,7 +22,7 @@ export const initialSharedState = [
   44100 // sample rate
 ];
 
-// Enum helper
+// Enum helper for SAB
 export const AUDIO_STATE = {
   ATOMIC_NOFIFY: 0,
   IS_PERFORMING: 1,
