@@ -228,7 +228,10 @@ export const csoundGetParams = curry((wasm, csound) => {
   const structOffset = wasm.exports.allocCsoundParams();
   const structBuffer = new Uint8Array(buffer, structOffset, structLength);
   wasm.exports.csoundGetParams(csound, structOffset);
-  const currentCsoundParameters = structBuffer2Object(CSOUND_PARAMS, structBuffer);
+  const currentCsoundParameters = structBuffer2Object(
+    CSOUND_PARAMS,
+    structBuffer
+  );
   wasm.exports.freeCsoundParams(structOffset);
   return currentCsoundParameters;
 });

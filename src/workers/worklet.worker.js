@@ -4,7 +4,11 @@ import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants';
 const workerMessagePort = {
   ready: false,
   post: () => {},
-  broadcastPlayState: () => {}
+  broadcastPlayState: () => {},
+};
+
+const audioFramePort = {
+  requestFrames: () => {},
 };
 
 function processSharedArrayBuffer(inputs, outputs) {
@@ -63,7 +67,7 @@ function processSharedArrayBuffer(inputs, outputs) {
       );
     });
     if (this.inputsCount > 0) {
-      this.inputChannels[0].set(writeableInputChannels[0], readIndex);
+      this.sabInputChannels[0].set(writeableInputChannels[0], readIndex);
     }
 
     Atomics.store(
@@ -85,7 +89,10 @@ function processSharedArrayBuffer(inputs, outputs) {
   return true;
 }
 
-function processTypedBuffers(inputs, outputs) {}
+function processVanillaBuffers(inputs, outputs) {
+  audioFramePort.requestFrames(128);
+  return true;
+}
 
 function vanillaMessagePort(event) {
   if (event.data.msg === 'initMessagePort') {
@@ -94,6 +101,10 @@ function vanillaMessagePort(event) {
     workerMessagePort.broadcastPlayState = playStateChange =>
       port.postMessage({ playStateChange });
     workerMessagePort.ready = true;
+  } else if (event.data.msg === 'initRequestPort') {
+    const requestPort = event.ports[0];
+    audioFramePort.requestFrames = framesRequested =>
+      requestPort.postMessage(framesRequested);
   }
 }
 
@@ -109,15 +120,14 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
       sampleRate,
       maybeSharedArrayBuffer,
       maybeSharedArrayBufferAudioIn,
-      maybeSharedArrayBufferAudioOut
-    }
+      maybeSharedArrayBufferAudioOut,
+      maybeVanillaArrayBufferAudioIn,
+      maybeVanillaArrayBufferAudioOut,
+    },
   }) {
     super({ numberOfInputs, numberOfOutputs });
 
     this.currentPlayState = undefined;
-    this.sharedArrayBuffer = maybeSharedArrayBuffer;
-    this.audioStreamIn = maybeSharedArrayBufferAudioIn;
-    this.audioStreamOut = maybeSharedArrayBufferAudioOut;
 
     this.sampleRate = sampleRate;
     this.inputsCount = inputsCount;
@@ -131,7 +141,10 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     this.isPerformingLastTime = false;
     this.preProcessCount = 0;
 
-    if (this.sharedArrayBuffer) {
+    if (maybeSharedArrayBuffer) {
+      this.sharedArrayBuffer = maybeSharedArrayBuffer;
+      this.audioStreamIn = maybeSharedArrayBufferAudioIn;
+      this.audioStreamOut = maybeSharedArrayBufferAudioOut;
       this.sabOutputChannels = [];
       this.sabInputChannels = [];
 
@@ -165,7 +178,40 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
 
       this.actualProcess = processSharedArrayBuffer.bind(this);
     } else {
-      this.actualProcess = processTypedBuffers.bind(this);
+      this.audioStreamIn = maybeVanillaArrayBufferAudioIn;
+      this.audioStreamOut = maybeVanillaArrayBufferAudioOut;
+      this.vanillaOutputChannels = [];
+      this.vanillaInputChannels = [];
+
+      for (
+        let channelIndex = 0;
+        channelIndex < numberOfInputs;
+        ++channelIndex
+      ) {
+        this.vanillaInputChannels.push(
+          new Float64Array(
+            this.audioStreamIn,
+            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+            MAX_HARDWARE_BUFFER_SIZE
+          )
+        );
+      }
+
+      for (
+        let channelIndex = 0;
+        channelIndex < numberOfOutputs;
+        ++channelIndex
+      ) {
+        this.vanillaOutputChannels.push(
+          new Float64Array(
+            this.audioStreamOut,
+            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+            MAX_HARDWARE_BUFFER_SIZE
+          )
+        );
+      }
+
+      this.actualProcess = processVanillaBuffers.bind(this);
     }
 
     Comlink.expose(this, this.port);

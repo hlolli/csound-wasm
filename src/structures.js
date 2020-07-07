@@ -66,5 +66,5 @@ export const CSOUND_PARAMS = [
   /* ksmps override */
   ['ksmps_override', 'int'],
   /* fft_lib */
-  ['FFT_library', 'int']
+  ['FFT_library', 'int'],
 ];

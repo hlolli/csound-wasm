@@ -8,13 +8,13 @@ import * as path from 'path';
 export const bindings = {
   ...browserBindings,
   fs: wasmFs.fs,
-  path
+  path,
 };
 
 const wasi = new WASI({
   preopens,
   env: {},
-  bindings
+  bindings,
 });
 
 export default async function(wasmDataURI) {

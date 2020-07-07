@@ -1,7 +1,7 @@
 import {
   MAX_HARDWARE_BUFFER_SIZE,
   MAX_CHANNELS,
-  initialSharedState
+  initialSharedState,
 } from './constants.js';
 
 export const createAudioState = new SharedArrayBuffer(

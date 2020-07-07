@@ -5,7 +5,7 @@ import {
   messageEventHandler,
   mainMessagePortAudio,
   mainMessagePort,
-  workerMessagePort
+  workerMessagePort,
 } from '@root/mains/messages.main';
 import SABWorker from '@root/workers/sab.worker';
 import getUserMedia from 'get-user-media-promise';
@@ -13,7 +13,7 @@ import {
   AUDIO_STATE,
   MAX_CHANNELS,
   MAX_HARDWARE_BUFFER_SIZE,
-  initialSharedState
+  initialSharedState,
 } from '@root/constants';
 
 class SharedArrayBufferMainThread {
@@ -44,7 +44,7 @@ class SharedArrayBufferMainThread {
     // This will sadly create circular structure
     // that's still mostly harmless.
     audioWorker.csoundWorker = this;
-    audioWorker.hasSharedArrayBuffer = true;
+    this.hasSharedArrayBuffer = true;
   }
 
   // generateQueueId() {
@@ -169,7 +169,7 @@ class SharedArrayBufferMainThread {
       this.csoundPlayStateChangeCallback(newPlayState);
   }
 
-  async prepareRealtimePerformance(csound) {
+  async prepareRealtimePerformance() {
     const outputCount = Atomics.load(
       this.audioStatePointer,
       AUDIO_STATE.NCHNLS
@@ -235,7 +235,7 @@ class SharedArrayBufferMainThread {
               audioStateBuffer,
               audioStreamIn,
               audioStreamOut,
-              csound
+              csound,
             });
           };
 

@@ -8,14 +8,14 @@ const IS_PRODUCTION = false;
 export const wasmFs = new WasmFs();
 
 export const preopens = {
-  '/': '/'
+  '/': '/',
 };
 
 export const workerMessagePort = {
   ready: false,
   post: () => {},
   broadcastPlayState: () => {},
-  vanillaWorkerState: undefined
+  vanillaWorkerState: undefined,
 };
 
 let stdErrorPos = 0;
@@ -108,7 +108,7 @@ export async function copyToFs(arrayBuffer, filePath) {
 // this implementation is hidden from the Csound runtime itself with a hack
 export async function mkdirp(filePath) {
   const result = wasmFs.volume.mkdirpSync(path.join('/csound', filePath), {
-    mode: '0o777'
+    mode: '0o777',
   });
   return null;
 }

@@ -8,16 +8,26 @@ loggerPool.add(defaultLogger);
 
 // exec log-event: msg => cb(msg)
 export const messageEventHandler = worker => event =>
-  event.data.log ?
-    loggerPool.forEach(callback => callback(event.data.log)) :
-    worker.onPlayStateChange(event.data.playStateChange);
+  event.data.log
+    ? loggerPool.forEach(callback => callback(event.data.log))
+    : worker.onPlayStateChange(event.data.playStateChange);
+
+export const audioFramesRequestHandler = worker => event =>
+  event.data.log
+    ? loggerPool.forEach(callback => callback(event.data.log))
+    : worker.onPlayStateChange(event.data.playStateChange);
 
 export const {
   port1: mainMessagePort,
-  port2: workerMessagePort
+  port2: workerMessagePort,
 } = new MessageChannel();
 
 export const {
   port1: mainMessagePortAudio,
-  port2: workerMessagePortAudio
+  port2: workerMessagePortAudio,
+} = new MessageChannel();
+
+export const {
+  port1: mainFrameRequestPort,
+  port2: workerFrameRequestPort,
 } = new MessageChannel();

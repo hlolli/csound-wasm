@@ -19,7 +19,7 @@ export const initialSharedState = [
   0, // n = buffer write index of output buffer
   0, // n = the read index of the callback buffer
   0, // n = amount of callbacks waiting from main thread
-  44100 // sample rate
+  44100, // sample rate
 ];
 
 // Enum helper for SAB
@@ -39,5 +39,5 @@ export const AUDIO_STATE = {
   OUTPUT_WRITE_INDEX: 12,
   CALLBACK_BUFFER_INDEX: 13,
   AVAIL_CALLBACKS: 14,
-  SAMPLE_RATE: 15
+  SAMPLE_RATE: 15,
 };

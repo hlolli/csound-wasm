@@ -1,7 +1,8 @@
 import * as Comlink from 'comlink/dist/esm/comlink.js';
+import { assoc, construct, curry, invoker, pipe } from 'ramda';
 import { workerMessagePort } from '@root/filesystem';
 import { MAX_CHANNELS, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants.js';
-import { assoc, construct, curry, invoker, pipe } from 'ramda';
+import { handleCsoundStart } from '@root/workers/common.utils';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
 
@@ -9,10 +10,24 @@ let wasm, combined, libraryCsound;
 
 const csoundPlayState = workerMessagePort.vanillaWorkerState;
 
+let audioProcessCallback = () => {};
+
+const channelsOutput = [];
+const channelsInput = [];
+
+const requestAudioFrames = framesRequested => {
+  if (
+    csoundPlayState === 'realtimePerformanceStarted' ||
+    csoundPlayState === 'realtimePerformancePaused'
+  ) {
+    audioProcessCallback(framesRequested);
+  }
+};
+
 const createRealtimeAudioThread = ({
   audioStreamIn,
   audioStreamOut,
-  csound
+  csound,
 }) => {
   if (!wasm || !libraryCsound) {
     workerMessagePort.post("error: csound wasn't initialized before starting");
@@ -38,13 +53,11 @@ const createRealtimeAudioThread = ({
 
   // Store Csound AudioParams for upcoming performance
   const nchnls = libraryCsound.csoundGetNchnls(csound);
-  const nchnlsInput = isExpectingInput ? 1 : 0;
+  const nchnlsInput = isExpectingInput ? 2 : 0;
   const sampleRate = libraryCsound.csoundGetSr(csound);
 
   const zeroDecibelFullScale = libraryCsound.csoundGet0dBFS(csound);
 
-  const channelsOutput = [];
-  const channelsInput = [];
   for (let channelIndex = 0; channelIndex < nchnls; ++channelIndex) {
     channelsOutput.push(
       new Float64Array(
@@ -70,6 +83,7 @@ const createRealtimeAudioThread = ({
   const { buffer } = wasm.exports.memory;
   const inputBufferPtr = libraryCsound.csoundGetSpin(csound);
   const outputBufferPtr = libraryCsound.csoundGetSpout(csound);
+  const ksmps = libraryCsound.csoundGetKsmps(csound);
 
   const csoundInputBuffer = new Float64Array(
     buffer,
@@ -83,14 +97,38 @@ const createRealtimeAudioThread = ({
     ksmps * nchnls
   );
 
-  while (
-    csoundPlayState === 'realtimePerformanceStarted' ||
-    csoundPlayState === 'realtimePerformancePaused'
-  ) {
-    if (csoundPlayState === 'realtimePerformancePaused') {
-    } else {
+  let currentOutputWriteIndex = 0;
+
+  audioProcessCallback = framesRequested => {
+    for (let i = 0; i < framesRequested; i++) {
+      currentOutputWriteIndex =
+        (outputWriteIndex + i) % MAX_HARDWARE_BUFFER_SIZE;
+      const currentCsoundBufferPos = currentOutputWriteIndex % ksmps;
+
+      if (csoundPlayState === 'realtimePerformancePaused') {
+        channelsOutput.forEach(channel => {
+          channel.fill(0);
+        });
+      } else {
+        if (libraryCsound.csoundPerformKsmps(csound) === 0) {
+          channelsOutput.forEach((channel, channelIndex) => {
+            channel[currentOutputWriteIndex] =
+              (csoundOutputBuffer[
+                currentCsoundBufferPos * nchnls + channelIndex
+              ] || 0) / zeroDecibelFullScale;
+          });
+        } else {
+          channelsOutput.forEach(channel => {
+            channel.fill(0);
+          });
+          workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
+          audioProcessCallback = () => {};
+        }
+      }
     }
-  }
+    console.log('OUTWORK', channelsOutput);
+    return channelsOutput;
+  };
 };
 
 const callUncloned = async (k, arguments_) => {
@@ -110,38 +148,25 @@ onmessage = function(event) {
   }
 };
 
-const handleCsoundStart = ({ audioStreamIn, audioStreamOut, csound }) => {
-  console.log('Vanilla Start', audioStreamIn, audioStreamOut, csound);
-  libraryCsound.csoundAppendEnv(csound, 'SFDIR', '/csound');
-  const startError = libraryCsound.csoundStart(csound);
-  if (startError !== 0) {
-    workerMessagePort.post(
-      `error: csoundStart failed while trying to render ${outputName},` +
-        ' look out for errors in options and syntax'
-    );
-    return startError;
-  }
-
-  const outputName = libraryCsound.csoundGetOutputName(csound) || 'test.wav';
-  const isExpectingRealtimeOutput = outputName.includes('dac');
-
-  if (isExpectingRealtimeOutput) {
-    createRealtimeAudioThread({
-      audioStreamIn,
-      audioStreamOut,
-      csound
-    });
-  }
-};
-
 const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
+  const startHandler = handleCsoundStart(
+    workerMessagePort,
+    libraryCsound,
+    createRealtimeAudioThread
+  );
   const allAPI = pipe(
-    assoc('csoundStart', handleCsoundStart),
+    assoc('csoundStart', startHandler),
     assoc('wasm', wasm)
   )(libraryCsound);
   combined = new Map(Object.entries(allAPI));
 };
 
-Comlink.expose({ initialize, callUncloned });
+Comlink.expose({
+  initialize,
+  callUncloned,
+  requestAudioFrames,
+  channelsOutput,
+  channelsInput,
+});

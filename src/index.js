@@ -24,11 +24,11 @@ async function Csound() {
     console.error('No detectable WebAudioAPI in current environment');
     return {};
   }
-  console.log('PRE');
+
   const worker = false //isSabSupported()
     ? new SharedArrayBufferMainThread(audioWorker, wasmDataURI)
     : new VanillaWorkerMainThread(audioWorker, wasmDataURI);
-  console.log('POST');
+
   if (worker) {
     await worker.initialize();
     csoundWasmApi = worker.api;

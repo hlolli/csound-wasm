@@ -3,6 +3,7 @@ import { workerMessagePort } from '@root/filesystem';
 import { assoc, construct, curry, invoker, pipe } from 'ramda';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
+import { handleCsoundStart } from '@root/workers/common.utils';
 import { nearestPowerOf2 } from '@root/utils';
 import { Buffer } from 'buffer';
 
@@ -195,41 +196,16 @@ onmessage = function(event) {
   }
 };
 
-const handleCsoundStart = ({
-  audioStateBuffer,
-  audioStreamIn,
-  audioStreamOut,
-  csound
-}) => {
-  // account for slash csound in wasi-memfs system
-  libraryCsound.csoundAppendEnv(csound, 'SFDIR', '/csound');
-  const startError = libraryCsound.csoundStart(csound);
-  if (startError !== 0) {
-    workerMessagePort.post(
-      `error: csoundStart failed while trying to render ${outputName},` +
-        ' look out for errors in options and syntax'
-    );
-    return startError;
-  }
-
-  const outputName = libraryCsound.csoundGetOutputName(csound) || 'test.wav';
-  const isExpectingRealtimeOutput = outputName.includes('dac');
-
-  if (isExpectingRealtimeOutput) {
-    sabCreateRealtimeAudioThread({
-      audioStateBuffer,
-      audioStreamIn,
-      audioStreamOut,
-      csound
-    });
-  }
-};
-
 const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
+  const startHandler = handleCsoundStart(
+    workerMessagePort,
+    libraryCsound,
+    sabCreateRealtimeAudioThread
+  );
   const allAPI = pipe(
-    assoc('csoundStart', handleCsoundStart),
+    assoc('csoundStart', startHandler),
     assoc('wasm', wasm)
   )(libraryCsound);
   combined = new Map(Object.entries(allAPI));
