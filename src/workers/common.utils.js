@@ -22,3 +22,11 @@ export const handleCsoundStart = (
     createRealtimeAudioThread(args);
   }
 };
+
+export const instantiateAudioPacket = (numChannels, numFrames) => {
+  const channels = [];
+  for (let chn = 0; chn < numChannels; chn++) {
+    channels.push(new Float64Array(numFrames));
+  }
+  return channels;
+};

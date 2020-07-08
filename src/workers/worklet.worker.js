@@ -1,5 +1,8 @@
 import * as Comlink from 'comlink/dist/esm/comlink.js';
 import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants';
+import { instantiateAudioPacket } from '@root/workers/common.utils';
+
+const PERIODS = 4;
 
 const workerMessagePort = {
   ready: false,
@@ -36,7 +39,11 @@ function processSharedArrayBuffer(inputs, outputs) {
 
   this.isPerformingLastTime = isPerforming;
 
-  if (this.preProcessCount < 4 && this.isPerformingLastTime && isPerforming) {
+  if (
+    this.preProcessCount < PERIODS &&
+    this.isPerformingLastTime &&
+    isPerforming
+  ) {
     Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
     this.preProcessCount += 1;
     return true;
@@ -47,7 +54,7 @@ function processSharedArrayBuffer(inputs, outputs) {
 
   if (
     this.sharedArrayBuffer[AUDIO_STATE.AVAIL_OUT_BUFS] <
-    this.softwareBufferSize * 2 // outputChannels[0].length * 4
+    this.softwareBufferSize * 2
   ) {
     Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
   }
@@ -92,13 +99,20 @@ function processSharedArrayBuffer(inputs, outputs) {
 function processVanillaBuffers(inputs, outputs) {
   if (!this.vanillaInitialized) {
     if (audioFramePort.requestFrames) {
-      audioFramePort.requestFrames(this.softwareBufferSize * 16);
-      this.pendingFrames += 1;
+      // this minimizes startup glitches
+      const firstTransferSize = this.softwareBufferSize * 4;
+      audioFramePort.requestFrames({
+        readIndex: 0,
+        numFrames: firstTransferSize,
+      });
+      this.pendingFrames += firstTransferSize;
       this.vanillaInitialized = true;
-    } else {
+      return true;
+    } else if (!this.vanillaFirstTransferDone) {
       return true;
     }
   }
+
   const writeableInputChannels = inputs[0];
   const writeableOutputChannels = outputs[0];
 
@@ -120,21 +134,36 @@ function processVanillaBuffers(inputs, outputs) {
     this.vanillaOutputReadIndex = nextReadIndex;
     this.vanillaAvailableFrames -= writeableOutputChannels[0].length;
   } else {
-    workerMessagePort.post('Buffer underrun');
+    // minimize noise
+    if (this.bufferUnderrunCount > 1) {
+      workerMessagePort.post('Buffer underrun');
+    }
+    this.bufferUnderrunCount += 1;
     return true;
   }
+
   if (
-    this.vanillaAvailableFrames < this.softwareBufferSize * 4 &&
-    this.pendingFrames < 2
+    this.vanillaAvailableFrames < this.softwareBufferSize * PERIODS &&
+    this.pendingFrames < this.softwareBufferSize * PERIODS * 2
   ) {
-    this.pendingFrames += 1;
-    audioFramePort.requestFrames(this.softwareBufferSize * 4);
+    const futureReadIndex =
+      (this.vanillaAvailableFrames + nextReadIndex + this.pendingFrames) %
+      this.hardwareBufferSize;
+
+    audioFramePort.requestFrames({
+      readIndex:
+        futureReadIndex < this.hardwareBufferSize
+          ? futureReadIndex
+          : futureReadIndex + 1,
+      numFrames: this.softwareBufferSize * PERIODS,
+    });
+    this.pendingFrames += this.softwareBufferSize * PERIODS;
   }
 
   return true;
 }
 
-const vanillaMessagePort = (addVanillaAvailableFrames, updateFrames) => {
+const vanillaMessagePort = updateFrames => {
   return function(event) {
     if (event.data.msg === 'initMessagePort') {
       const port = event.ports[0];
@@ -145,13 +174,11 @@ const vanillaMessagePort = (addVanillaAvailableFrames, updateFrames) => {
     } else if (event.data.msg === 'initRequestPort') {
       const requestPort = event.ports[0];
       requestPort.onmessage = evt => {
-        const { listOfFrames, numFrames } = evt.data;
-        updateFrames(listOfFrames);
-        addVanillaAvailableFrames(numFrames);
+        const { audioPacket, readIndex, numFrames } = evt.data;
+        updateFrames({ audioPacket, numFrames, readIndex });
       };
       this.port.onmessage = vanillaMessagePort.bind(this);
-      audioFramePort.requestFrames = framesRequested =>
-        requestPort.postMessage(framesRequested);
+      audioFramePort.requestFrames = args => requestPort.postMessage(args);
     }
   };
 };
@@ -182,6 +209,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     this.outputsCount = outputsCount;
     this.hardwareBufferSize = hardwareBufferSize;
     this.softwareBufferSize = softwareBufferSize;
+    this.bufferUnderrunCount = 0;
 
     // NON-SAB PROCESS
     this.isPerformingLastTime = false;
@@ -233,61 +261,76 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
       this.vanillaOutputReadIndex = 0;
       this.vanillaAvailableFrames = 0;
       this.pendingFrames = 0;
-      this.addVanillaAvailableFrames = newFramesCnt => {
-        this.vanillaAvailableFrames += newFramesCnt;
-      };
-      this.updateFrames = listOfFrames => {
+
+      this.updateFrames = ({ audioPacket, numFrames, readIndex }) => {
         // aways dec pending Frames even for empty ones
-        this.pendingFrames -= 1;
-        if (listOfFrames) {
+        this.pendingFrames -= numFrames;
+        if (audioPacket) {
+          // console.log(
+          //   readIndex,
+          //   audioPacket[0].length,
+          //   numFrames,
+          //   this.hardwareBufferSize + numFrames,
+          //   this.hardwareBufferSize
+          // );
           for (
             let channelIndex = 0;
             channelIndex < numberOfOutputs;
             ++channelIndex
           ) {
-            this.vanillaOutputChannels[channelIndex] =
-              listOfFrames[channelIndex];
+            let hasLeftover = false;
+            let framesLeft = numFrames;
+            const nextReadIndex = readIndex % this.hardwareBufferSize;
+            if (nextReadIndex < readIndex) {
+              hasLeftover = true;
+              framesLeft = this.hardwareBufferSize - readIndex;
+            }
+
+            this.vanillaOutputChannels[channelIndex].set(
+              audioPacket[channelIndex].subarray(0, framesLeft),
+              readIndex
+            );
+
+            if (hasLeftover) {
+              this.vanillaOutputChannels[channelIndex].set(
+                audioPacket[channelIndex].subarray(framesLeft)
+              );
+            }
+          }
+
+          // for (let frameIdx = 0; frameIdx < numFrames; frameIdx++) {
+          //   for (
+          //     let channelIndex = 0;
+          //     channelIndex < numberOfOutputs;
+          //     ++channelIndex
+          //   ) {
+          //     this.vanillaOutputChannels[channelIndex][
+          //       (readIndex + frameIdx) % (this.hardwareBufferSize + 1)
+          //     ] = audioPacket[channelIndex][frameIdx];
+          //   }
+          // }
+          this.vanillaAvailableFrames += numFrames;
+          if (!this.vanillaFirstTransferDone) {
+            this.vanillaFirstTransferDone = true;
           }
         }
       };
 
       this.vanillaInitialized = false;
-
-      for (
-        let channelIndex = 0;
-        channelIndex < numberOfInputs;
-        ++channelIndex
-      ) {
-        this.vanillaInputChannels.push(
-          new Float64Array(
-            this.audioStreamIn,
-            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-            MAX_HARDWARE_BUFFER_SIZE
-          )
-        );
-      }
-
-      for (
-        let channelIndex = 0;
-        channelIndex < numberOfOutputs;
-        ++channelIndex
-      ) {
-        this.vanillaOutputChannels.push(
-          new Float64Array(
-            this.audioStreamOut,
-            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-            MAX_HARDWARE_BUFFER_SIZE
-          )
-        );
-      }
+      this.vanillaFirstTransferDone = false;
+      this.vanillaInputChannels = instantiateAudioPacket(
+        numberOfInputs,
+        MAX_HARDWARE_BUFFER_SIZE + 1
+      );
+      this.vanillaOutputChannels = instantiateAudioPacket(
+        numberOfOutputs,
+        MAX_HARDWARE_BUFFER_SIZE + 1
+      );
 
       this.actualProcess = processVanillaBuffers.bind(this);
     }
 
-    this.port.onmessage = vanillaMessagePort(
-      this.addVanillaAvailableFrames,
-      this.updateFrames
-    ).bind(this);
+    this.port.onmessage = vanillaMessagePort(this.updateFrames).bind(this);
 
     Comlink.expose(this, this.port);
   }

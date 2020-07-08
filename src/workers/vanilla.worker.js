@@ -2,7 +2,10 @@ import * as Comlink from 'comlink/dist/esm/comlink.js';
 import { assoc, construct, curry, invoker, pipe } from 'ramda';
 import { workerMessagePort } from '@root/filesystem';
 import { MAX_CHANNELS, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants.js';
-import { handleCsoundStart } from '@root/workers/common.utils';
+import {
+  handleCsoundStart,
+  instantiateAudioPacket,
+} from '@root/workers/common.utils';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
 
@@ -14,9 +17,9 @@ const channelsOutput = [];
 const channelsInput = [];
 
 let audioProcessCallback = () => {};
-const generateAudioFrames = framesRequested => {
+const generateAudioFrames = args => {
   if (workerMessagePort.vanillaWorkerState !== 'realtimePerformanceEnded') {
-    return audioProcessCallback(framesRequested);
+    return audioProcessCallback(args);
   }
 };
 
@@ -54,25 +57,24 @@ const createRealtimeAudioThread = ({
 
   const zeroDecibelFullScale = libraryCsound.csoundGet0dBFS(csound);
 
-  for (let channelIndex = 0; channelIndex < nchnls; ++channelIndex) {
-    channelsOutput.push(
-      new Float64Array(
-        audioStreamOut,
-        MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-        MAX_HARDWARE_BUFFER_SIZE
-      )
-    );
-  }
-
-  for (let channelIndex = 0; channelIndex < nchnlsInput; ++channelIndex) {
-    channelsInput.push(
-      new Float64Array(
-        audioStreamIn,
-        MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-        MAX_HARDWARE_BUFFER_SIZE
-      )
-    );
-  }
+  // for (let channelIndex = 0; channelIndex < nchnls; ++channelIndex) {
+  //   channelsOutput.push(
+  //     new Float64Array(
+  //       audioStreamOut,
+  //       MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+  //       MAX_HARDWARE_BUFFER_SIZE
+  //     )
+  //   );
+  // }
+  // for (let channelIndex = 0; channelIndex < nchnlsInput; ++channelIndex) {
+  //   channelsInput.push(
+  //     new Float64Array(
+  //       audioStreamIn,
+  //       MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+  //       MAX_HARDWARE_BUFFER_SIZE
+  //     )
+  //   );
+  // }
 
   workerMessagePort.broadcastPlayState('realtimePerformanceStarted');
 
@@ -98,12 +100,11 @@ const createRealtimeAudioThread = ({
 
   let currentOutputWriteIndex = 0;
 
-  audioProcessCallback = framesRequested => {
-    for (let i = 0; i < framesRequested; i++) {
-      currentOutputWriteIndex =
-        (lastOutputWriteIndex + i) % MAX_HARDWARE_BUFFER_SIZE;
+  audioProcessCallback = ({ readIndex, numFrames }) => {
+    const outputAudioPacket = instantiateAudioPacket(nchnls, numFrames);
 
-      const currentCsoundBufferPos = currentOutputWriteIndex % ksmps;
+    for (let i = 0; i < numFrames; i++) {
+      const currentCsoundBufferPos = i % ksmps;
 
       if (currentCsoundBufferPos === 0 && lastPerformance === 0) {
         lastPerformance = libraryCsound.csoundPerformKsmps(csound);
@@ -115,14 +116,14 @@ const createRealtimeAudioThread = ({
         }
       }
 
-      channelsOutput.forEach((channel, channelIndex) => {
-        channel[currentOutputWriteIndex] =
+      outputAudioPacket.forEach((channel, channelIndex) => {
+        channel[i] =
           (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] ||
             0) / zeroDecibelFullScale;
       });
     }
     lastOutputWriteIndex = currentOutputWriteIndex;
-    return { channelsOutput, framesLeft: 0 };
+    return { audioPacket: outputAudioPacket, framesLeft: 0 };
   };
 };
 
@@ -143,11 +144,12 @@ onmessage = function(event) {
   } else if (event.data.msg === 'initRequestPort') {
     const requestPort = event.ports[0];
     requestPort.onmessage = reqEvt => {
-      const { framesLeft = 0, channelsOutput } =
+      const { framesLeft = 0, audioPacket } =
         generateAudioFrames(reqEvt.data) || {};
       requestPort.postMessage({
-        numFrames: reqEvt.data - framesLeft,
-        listOfFrames: channelsOutput,
+        numFrames: reqEvt.data.numFrames - framesLeft,
+        audioPacket,
+        ...reqEvt.data,
       });
     };
   } else if (event.data.playStateChange) {
