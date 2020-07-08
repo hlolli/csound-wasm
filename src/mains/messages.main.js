@@ -28,6 +28,6 @@ export const {
 } = new MessageChannel();
 
 export const {
-  port1: mainFrameRequestPort,
-  port2: workerFrameRequestPort,
+  port1: csoundWorkerFrameRequestPort,
+  port2: audioWorkerFrameRequestPort,
 } = new MessageChannel();

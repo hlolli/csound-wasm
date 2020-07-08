@@ -170,7 +170,7 @@ class SharedArrayBufferMainThread {
   }
 
   async prepareRealtimePerformance() {
-    const outputCount = Atomics.load(
+    const outputsCount = Atomics.load(
       this.audioStatePointer,
       AUDIO_STATE.NCHNLS
     );
@@ -196,7 +196,7 @@ class SharedArrayBufferMainThread {
 
     this.audioWorker.sampleRate = sampleRate;
     this.audioWorker.inputCount = inputCount;
-    this.audioWorker.outputCount = outputCount;
+    this.audioWorker.outputsCount = outputsCount;
     this.audioWorker.hardwareBufferSize = hardwareBufferSize;
     this.audioWorker.softwareBufferSize = softwareBufferSize;
   }

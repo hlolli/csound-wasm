@@ -1,9 +1,8 @@
 import * as Comlink from 'comlink/dist/esm/comlink.js';
 import WorkletWorker from '@root/workers/worklet.worker';
 import {
-  mainFrameRequestPort,
   workerMessagePortAudio,
-  workerFrameRequestPort,
+  audioWorkerFrameRequestPort,
 } from '@root/mains/messages.main';
 
 class AudioWorkletMainThread {
@@ -18,27 +17,30 @@ class AudioWorkletMainThread {
     // csound-worker before starting
     this.sampleRate = undefined;
     this.inputsCount = undefined;
-    this.outputCount = undefined;
+    this.outputsCount = undefined;
     this.hardwareBufferSize = undefined;
     this.softwareBufferSize = undefined;
   }
 
-  async audioFramesRequestHandler(framesRequested) {
-    const updatedFrames =
-      this.csoundWorker.requestAudioFrames &&
-      (await this.csoundWorker.requestAudioFrames(framesRequested));
-    console.log(updatedFrames);
-    if (updatedFrames) {
-      for (
-        let channelIndex = 0;
-        channelIndex < this.outputCount;
-        ++channelIndex
-      ) {
-        // this.workletProxy.vanillaOutputChannels[channelIndex] =
-        //   updatedFrames[channelIndex];
-      }
-    }
-  }
+  // async audioFramesRequestHandler(framesRequested) {
+  //   if (this.currentPlayState !== 'realtimePerformanceEnded') {
+  //     const updatedFrames = await this.csoundWorker.requestAudioFrames(
+  //       framesRequested
+  //     );
+
+  //     for (
+  //       let channelIndex = 0;
+  //       channelIndex < this.outputsCount;
+  //       ++channelIndex
+  //     ) {
+  //       await this.workletProxy.vanillaOutputChannels[channelIndex].set(
+  //         updatedFrames[channelIndex]
+  //       );
+  //     }
+  //     this.workletProxy.addVanillaAvailableFrames(framesRequested);
+  //   }
+  // }
+
   async onPlayStateChange(newPlayState) {
     this.currentPlayState = newPlayState;
     switch (newPlayState) {
@@ -46,28 +48,18 @@ class AudioWorkletMainThread {
         await this.initialize();
         break;
       }
+      case 'realtimePerformanceEnded': {
+        setTimeout(() => {
+          this.audioCtx.close();
+          this.audioWorkletNode.disconnect();
+        }, 0);
+        break;
+      }
       default: {
         break;
       }
     }
   }
-
-  // if (audioCtx) {
-  //     audioCtx.close();
-  //     audioWorker.disconnect();
-  //   }
-  //   audioWorker.port.postMessage([
-  //     'initializeSab',
-  //     { audioState, audioStreamIn, audioStreamOut }
-  //   ]);
-  //   if (micStream) {
-  //     audioCtx
-  //       .createMediaStreamSource(micStream.stream)
-  //       .connect(audioWorker)
-  //       .connect(audioCtx.destination);
-  //   } else {
-  //     audioWorker.connect(audioCtx.destination);
-  //   }
 
   async initialize() {
     this.audioCtx = new AudioContext({
@@ -93,7 +85,7 @@ class AudioWorkletMainThread {
       {
         // READ ONLY
         numberOfInputs: this.inputsCount,
-        numberOfOutputs: this.outputCount,
+        numberOfOutputs: this.outputsCount,
         processorOptions: {
           hardwareBufferSize: this.hardwareBufferSize,
           softwareBufferSize: this.softwareBufferSize,
@@ -110,9 +102,11 @@ class AudioWorkletMainThread {
             this.csoundWorker.hasSharedArrayBuffer &&
             this.csoundWorker.audioStreamOut,
           maybeVanillaArrayBufferAudioIn:
-            !this.csoundWorker.hasSharedArrayBuffer && this.audioStreamIn,
+            !this.csoundWorker.hasSharedArrayBuffer &&
+            this.csoundWorker.audioStreamIn,
           maybeVanillaArrayBufferAudioOut:
-            !this.csoundWorker.hasSharedArrayBuffer && this.audioStreamOut,
+            !this.csoundWorker.hasSharedArrayBuffer &&
+            this.csoundWorker.audioStreamOut,
         },
       }
     );
@@ -130,10 +124,10 @@ class AudioWorkletMainThread {
     ]);
 
     // SAB bypasses this mechanism!
-    mainFrameRequestPort.onmessage = evt =>
-      this.audioFramesRequestHandler(evt.data);
+    // mainFrameRequestPort.onmessage = evt =>
+    //   this.audioFramesRequestHandler(evt.data);
     this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [
-      workerFrameRequestPort,
+      audioWorkerFrameRequestPort,
     ]);
 
     try {

@@ -13,6 +13,7 @@ import {
   mainMessagePortAudio,
   mainMessagePort,
   workerMessagePort,
+  csoundWorkerFrameRequestPort,
 } from '@root/mains/messages.main';
 
 function sleep(ms) {
@@ -24,6 +25,7 @@ class VanillaWorkerMainThread {
     this.audioStreamIn = new Float64Array(
       MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
     );
+
     this.audioStreamOut = new Float64Array(
       MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
     );
@@ -43,16 +45,15 @@ class VanillaWorkerMainThread {
       return;
     }
     this.audioWorker.sampleRate = await this.api.csoundGetSr(this.csound);
-    this.audioWorker.inputCount = (
+    this.audioWorker.inputsCount = (
       await this.api.csoundGetInputName(this.csound)
     ).includes('adc')
       ? 1
       : 0;
 
-    this.audioWorker.outputCount = await this.api.csoundGetNchnls(this.csound);
+    this.audioWorker.outputsCount = await this.api.csoundGetNchnls(this.csound);
     this.audioWorker.hardwareBufferSize = DEFAULT_HARDWARE_BUFFER_SIZE;
     this.audioWorker.softwareBufferSize = DEFAULT_SOFTWARE_BUFFER_SIZE;
-    this.requestAudioFrames = this.proxyPort.requestAudioFrames;
   }
 
   async onPlayStateChange(newPlayState) {
@@ -65,7 +66,6 @@ class VanillaWorkerMainThread {
       }
 
       case 'realtimePerformanceEnded': {
-        delete this.requestAudioFrames;
         break;
       }
 
@@ -96,6 +96,10 @@ class VanillaWorkerMainThread {
     mainMessagePort.onmessage = messageEventHandler(this);
     mainMessagePortAudio.onmessage = messageEventHandler(this);
     csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
+    csoundWorker.postMessage({ msg: 'initRequestPort' }, [
+      csoundWorkerFrameRequestPort,
+    ]);
+
     workerMessagePort.start();
 
     const proxyPort = Comlink.wrap(csoundWorker);

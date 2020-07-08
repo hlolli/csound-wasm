@@ -8,19 +8,15 @@ import loadWasm from '@root/module';
 
 let wasm, combined, libraryCsound;
 
-const csoundPlayState = workerMessagePort.vanillaWorkerState;
-
-let audioProcessCallback = () => {};
+// const csoundPlayState = workerMessagePort.vanillaWorkerState;
 
 const channelsOutput = [];
 const channelsInput = [];
 
-const requestAudioFrames = framesRequested => {
-  if (
-    csoundPlayState === 'realtimePerformanceStarted' ||
-    csoundPlayState === 'realtimePerformancePaused'
-  ) {
-    audioProcessCallback(framesRequested);
+let audioProcessCallback = () => {};
+const generateAudioFrames = framesRequested => {
+  if (workerMessagePort.vanillaWorkerState !== 'realtimePerformanceEnded') {
+    return audioProcessCallback(framesRequested);
   }
 };
 
@@ -97,37 +93,36 @@ const createRealtimeAudioThread = ({
     ksmps * nchnls
   );
 
+  let lastOutputWriteIndex = 0;
+  let lastPerformance = 0;
+
   let currentOutputWriteIndex = 0;
 
   audioProcessCallback = framesRequested => {
     for (let i = 0; i < framesRequested; i++) {
       currentOutputWriteIndex =
-        (outputWriteIndex + i) % MAX_HARDWARE_BUFFER_SIZE;
+        (lastOutputWriteIndex + i) % MAX_HARDWARE_BUFFER_SIZE;
+
       const currentCsoundBufferPos = currentOutputWriteIndex % ksmps;
 
-      if (csoundPlayState === 'realtimePerformancePaused') {
-        channelsOutput.forEach(channel => {
-          channel.fill(0);
-        });
-      } else {
-        if (libraryCsound.csoundPerformKsmps(csound) === 0) {
-          channelsOutput.forEach((channel, channelIndex) => {
-            channel[currentOutputWriteIndex] =
-              (csoundOutputBuffer[
-                currentCsoundBufferPos * nchnls + channelIndex
-              ] || 0) / zeroDecibelFullScale;
-          });
-        } else {
-          channelsOutput.forEach(channel => {
-            channel.fill(0);
-          });
+      if (currentCsoundBufferPos === 0 && lastPerformance === 0) {
+        lastPerformance = libraryCsound.csoundPerformKsmps(csound);
+        if (lastPerformance !== 0) {
           workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
           audioProcessCallback = () => {};
+          lastOutputWriteIndex = currentOutputWriteIndex;
+          return { channelsOutput, framesLeft: i };
         }
       }
+
+      channelsOutput.forEach((channel, channelIndex) => {
+        channel[currentOutputWriteIndex] =
+          (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] ||
+            0) / zeroDecibelFullScale;
+      });
     }
-    console.log('OUTWORK', channelsOutput);
-    return channelsOutput;
+    lastOutputWriteIndex = currentOutputWriteIndex;
+    return { channelsOutput, framesLeft: 0 };
   };
 };
 
@@ -145,6 +140,19 @@ onmessage = function(event) {
       port.postMessage({ playStateChange });
     };
     workerMessagePort.ready = true;
+  } else if (event.data.msg === 'initRequestPort') {
+    const requestPort = event.ports[0];
+    requestPort.onmessage = reqEvt => {
+      const { framesLeft = 0, channelsOutput } =
+        generateAudioFrames(reqEvt.data) || {};
+      requestPort.postMessage({
+        numFrames: reqEvt.data - framesLeft,
+        listOfFrames: channelsOutput,
+      });
+    };
+  } else if (event.data.playStateChange) {
+    workerMessagePort.vanillaWorkerState =
+      event.data.playStateChange.playStateChange;
   }
 };
 
@@ -166,7 +174,6 @@ const initialize = async wasmDataURI => {
 Comlink.expose({
   initialize,
   callUncloned,
-  requestAudioFrames,
   channelsOutput,
   channelsInput,
 });
