@@ -13,12 +13,9 @@ import {
   mainMessagePortAudio,
   mainMessagePort,
   workerMessagePort,
+  csoundWorkerAudioInputPort,
   csoundWorkerFrameRequestPort,
 } from '@root/mains/messages.main';
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 class VanillaWorkerMainThread {
   constructor(audioWorker, wasmDataURI) {
@@ -30,7 +27,7 @@ class VanillaWorkerMainThread {
       MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
     );
 
-    audioWorker.csoundWorker = this;
+    audioWorker.csoundWorkerMain = this;
     this.audioWorker = audioWorker;
     this.wasmDataURI = wasmDataURI;
     this.api = {};
@@ -45,12 +42,10 @@ class VanillaWorkerMainThread {
       return;
     }
     this.audioWorker.sampleRate = await this.api.csoundGetSr(this.csound);
-    this.audioWorker.inputsCount = (
-      await this.api.csoundGetInputName(this.csound)
-    ).includes('adc')
-      ? 1
-      : 0;
 
+    this.audioWorker.isRequestingInput = (
+      await this.api.csoundGetInputName(this.csound)
+    ).includes('adc');
     this.audioWorker.outputsCount = await this.api.csoundGetNchnls(this.csound);
     this.audioWorker.hardwareBufferSize = DEFAULT_HARDWARE_BUFFER_SIZE;
     this.audioWorker.softwareBufferSize = DEFAULT_SOFTWARE_BUFFER_SIZE;
@@ -99,6 +94,9 @@ class VanillaWorkerMainThread {
     csoundWorker.postMessage({ msg: 'initRequestPort' }, [
       csoundWorkerFrameRequestPort,
     ]);
+    csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [
+      csoundWorkerAudioInputPort,
+    ]);
 
     workerMessagePort.start();
 
@@ -123,7 +121,6 @@ class VanillaWorkerMainThread {
             }
 
             this.csound = csound;
-
             await callback({
               audioStreamIn,
               audioStreamOut,

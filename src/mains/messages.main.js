@@ -31,3 +31,8 @@ export const {
   port1: csoundWorkerFrameRequestPort,
   port2: audioWorkerFrameRequestPort,
 } = new MessageChannel();
+
+export const {
+  port1: csoundWorkerAudioInputPort,
+  port2: audioWorkerAudioInputPort,
+} = new MessageChannel();

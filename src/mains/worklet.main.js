@@ -3,6 +3,7 @@ import WorkletWorker from '@root/workers/worklet.worker';
 import {
   workerMessagePortAudio,
   audioWorkerFrameRequestPort,
+  audioWorkerAudioInputPort,
 } from '@root/mains/messages.main';
 
 class AudioWorkletMainThread {
@@ -10,7 +11,7 @@ class AudioWorkletMainThread {
     this.audioCtx = undefined;
     this.audioWorkletNode = undefined;
     this.currentPlayState = undefined;
-    this.csoundWorker = undefined;
+    this.csoundWorkerMain = undefined;
     this.workletProxy = undefined;
 
     // never default these, get it from
@@ -21,25 +22,6 @@ class AudioWorkletMainThread {
     this.hardwareBufferSize = undefined;
     this.softwareBufferSize = undefined;
   }
-
-  // async audioFramesRequestHandler(framesRequested) {
-  //   if (this.currentPlayState !== 'realtimePerformanceEnded') {
-  //     const updatedFrames = await this.csoundWorker.requestAudioFrames(
-  //       framesRequested
-  //     );
-
-  //     for (
-  //       let channelIndex = 0;
-  //       channelIndex < this.outputsCount;
-  //       ++channelIndex
-  //     ) {
-  //       await this.workletProxy.vanillaOutputChannels[channelIndex].set(
-  //         updatedFrames[channelIndex]
-  //       );
-  //     }
-  //     this.workletProxy.addVanillaAvailableFrames(framesRequested);
-  //   }
-  // }
 
   async onPlayStateChange(newPlayState) {
     this.currentPlayState = newPlayState;
@@ -61,6 +43,27 @@ class AudioWorkletMainThread {
     }
   }
 
+  connectPorts() {
+    this.audioWorkletNode.port.postMessage({ msg: 'initMessagePort' }, [
+      workerMessagePortAudio,
+    ]);
+
+    // SAB bypasses this mechanism!
+    this.audioWorkletNode.port.postMessage({ msg: 'initAudioInputPort' }, [
+      audioWorkerAudioInputPort,
+    ]);
+
+    this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [
+      audioWorkerFrameRequestPort,
+    ]);
+
+    try {
+      this.workletProxy = Comlink.wrap(this.audioWorkletNode.port);
+    } catch (error) {
+      console.error('COMLINK ERROR', error);
+    }
+  }
+
   async initialize() {
     this.audioCtx = new AudioContext({
       latencyHint: 'interactive',
@@ -74,66 +77,69 @@ class AudioWorkletMainThread {
       return;
     }
 
-    if (!this.csoundWorker) {
+    if (!this.csoundWorkerMain) {
       console.error(`fatal: worker not reachable from worklet-main thread`);
       return;
     }
 
-    this.audioWorkletNode = new AudioWorkletNode(
-      this.audioCtx,
-      'csound-worklet-processor',
-      {
-        // READ ONLY
-        numberOfInputs: this.inputsCount,
-        numberOfOutputs: this.outputsCount,
-        processorOptions: {
-          hardwareBufferSize: this.hardwareBufferSize,
-          softwareBufferSize: this.softwareBufferSize,
-          inputsCount: this.inputsCount,
-          outputsCount: this.outputsCount,
-          sampleRate: this.sampleRate,
-          maybeSharedArrayBuffer:
-            this.csoundWorker.hasSharedArrayBuffer &&
-            this.csoundWorker.audioStatePointer,
-          maybeSharedArrayBufferAudioIn:
-            this.csoundWorker.hasSharedArrayBuffer &&
-            this.csoundWorker.audioStreamIn,
-          maybeSharedArrayBufferAudioOut:
-            this.csoundWorker.hasSharedArrayBuffer &&
-            this.csoundWorker.audioStreamOut,
-          maybeVanillaArrayBufferAudioIn:
-            !this.csoundWorker.hasSharedArrayBuffer &&
-            this.csoundWorker.audioStreamIn,
-          maybeVanillaArrayBufferAudioOut:
-            !this.csoundWorker.hasSharedArrayBuffer &&
-            this.csoundWorker.audioStreamOut,
-        },
-      }
-    );
+    const createWorkletNode = inputsCount =>
+      (this.audioWorkletNode = new AudioWorkletNode(
+        this.audioCtx,
+        'csound-worklet-processor',
+        {
+          processorOptions: {
+            hardwareBufferSize: this.hardwareBufferSize,
+            softwareBufferSize: this.softwareBufferSize,
+            isRequestingInput: this.isRequestingInput,
+            inputsCount,
+            outputsCount: this.outputsCount,
+            sampleRate: this.sampleRate,
+            maybeSharedArrayBuffer:
+              this.csoundWorkerMain.hasSharedArrayBuffer &&
+              this.csoundWorkerMain.audioStatePointer,
+            maybeSharedArrayBufferAudioIn:
+              this.csoundWorkerMain.hasSharedArrayBuffer &&
+              this.csoundWorkerMain.audioStreamIn,
+            maybeSharedArrayBufferAudioOut:
+              this.csoundWorkerMain.hasSharedArrayBuffer &&
+              this.csoundWorkerMain.audioStreamOut,
+          },
+        }
+      ));
 
-    if (this.inputsCount > 0) {
-      window.getUserMedia({ audio: true }, stream => {
-        this.audioWorkletNode.createMediaStreamSource(stream);
-      });
-    }
+    if (this.isRequestingInput) {
+      const getUserMedia =
+        navigator.getUserMedia ||
+        navigator.webkitGetUserMedia ||
+        navigator.mozGetUserMedia;
 
-    this.audioWorkletNode.connect(this.audioCtx.destination);
-
-    this.audioWorkletNode.port.postMessage({ msg: 'initMessagePort' }, [
-      workerMessagePortAudio,
-    ]);
-
-    // SAB bypasses this mechanism!
-    // mainFrameRequestPort.onmessage = evt =>
-    //   this.audioFramesRequestHandler(evt.data);
-    this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [
-      audioWorkerFrameRequestPort,
-    ]);
-
-    try {
-      this.workletProxy = Comlink.wrap(this.audioWorkletNode.port);
-    } catch (error) {
-      console.error('COMLINK ERROR', error);
+      const microphoneCallback = stream => {
+        if (stream) {
+          const liveInput = this.audioCtx.createMediaStreamSource(stream);
+          this.inputsCount = liveInput.channelCount;
+          this.audioWorkletNode = createWorkletNode(liveInput.channelCount);
+          this.connectPorts();
+          liveInput
+            .connect(this.audioWorkletNode)
+            .connect(this.audioCtx.destination);
+        } else {
+          // Continue as before if user cancels
+          this.inputsCount = 0;
+          this.audioWorkletNode = createWorkletNode();
+          this.audioWorkletNode.connect(this.audioCtx.destination);
+          this.connectPorts();
+        }
+      };
+      getUserMedia.call(
+        navigator,
+        { audio: { optional: [{ echoCancellation: false }] } },
+        microphoneCallback,
+        console.error
+      );
+    } else {
+      this.audioWorkletNode = createWorkletNode();
+      this.audioWorkletNode.connect(this.audioCtx.destination);
+      this.connectPorts();
     }
   }
 }

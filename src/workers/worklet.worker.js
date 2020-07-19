@@ -14,6 +14,10 @@ const audioFramePort = {
   requestFrames: null,
 };
 
+const audioInputPort = {
+  transferInputFrames: null,
+};
+
 function processSharedArrayBuffer(inputs, outputs) {
   const isPerforming =
     Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.IS_PERFORMING) === 1;
@@ -73,6 +77,7 @@ function processSharedArrayBuffer(inputs, outputs) {
         )
       );
     });
+
     if (this.inputsCount > 0) {
       this.sabInputChannels[0].set(writeableInputChannels[0], readIndex);
     }
@@ -116,8 +121,12 @@ function processVanillaBuffers(inputs, outputs) {
   const writeableInputChannels = inputs[0];
   const writeableOutputChannels = outputs[0];
 
-  const nextReadIndex =
+  const nextOutputReadIndex =
     (this.vanillaOutputReadIndex + writeableOutputChannels[0].length) %
+    this.hardwareBufferSize;
+
+  const nextInputReadIndex =
+    (this.vanillaInputReadIndex + writeableInputChannels[0].length) %
     this.hardwareBufferSize;
 
   if (this.vanillaAvailableFrames >= writeableOutputChannels[0].length) {
@@ -125,13 +134,40 @@ function processVanillaBuffers(inputs, outputs) {
       channelBuffer.set(
         this.vanillaOutputChannels[channelIndex].subarray(
           this.vanillaOutputReadIndex,
-          nextReadIndex < this.vanillaOutputReadIndex
+          nextOutputReadIndex < this.vanillaOutputReadIndex
             ? this.hardwareBufferSize
-            : nextReadIndex
+            : nextOutputReadIndex
         )
       );
     });
-    this.vanillaOutputReadIndex = nextReadIndex;
+
+    if (this.inputsCount > 0 && writeableInputChannels[0].length > 0) {
+      const inputBufferLen = this.softwareBufferSize * PERIODS;
+      writeableInputChannels.forEach((channelBuffer, channelIndex) => {
+        this.vanillaInputChannels[channelIndex].set(
+          channelBuffer,
+          this.vanillaInputReadIndex
+        );
+      });
+      if (nextInputReadIndex % inputBufferLen === 0) {
+        const packet = [];
+        const pastBufferBegin =
+          (nextInputReadIndex === 0
+            ? this.hardwareBufferSize
+            : nextInputReadIndex) - inputBufferLen;
+        const thisBufferEnd =
+          nextInputReadIndex === 0
+            ? this.hardwareBufferSize
+            : nextInputReadIndex;
+        this.vanillaInputChannels.forEach(channelBuffer => {
+          packet.push(channelBuffer.subarray(pastBufferBegin, thisBufferEnd));
+        });
+        audioInputPort.transferInputFrames(packet);
+      }
+    }
+
+    this.vanillaOutputReadIndex = nextOutputReadIndex;
+    this.vanillaInputReadIndex = nextInputReadIndex;
     this.vanillaAvailableFrames -= writeableOutputChannels[0].length;
   } else {
     // minimize noise
@@ -146,15 +182,15 @@ function processVanillaBuffers(inputs, outputs) {
     this.vanillaAvailableFrames < this.softwareBufferSize * PERIODS &&
     this.pendingFrames < this.softwareBufferSize * PERIODS * 2
   ) {
-    const futureReadIndex =
-      (this.vanillaAvailableFrames + nextReadIndex + this.pendingFrames) %
+    const futureOutputReadIndex =
+      (this.vanillaAvailableFrames + nextOutputReadIndex + this.pendingFrames) %
       this.hardwareBufferSize;
 
     audioFramePort.requestFrames({
       readIndex:
-        futureReadIndex < this.hardwareBufferSize
-          ? futureReadIndex
-          : futureReadIndex + 1,
+        futureOutputReadIndex < this.hardwareBufferSize
+          ? futureOutputReadIndex
+          : futureOutputReadIndex + 1,
       numFrames: this.softwareBufferSize * PERIODS,
     });
     this.pendingFrames += this.softwareBufferSize * PERIODS;
@@ -179,14 +215,16 @@ const vanillaMessagePort = updateFrames => {
       };
       this.port.onmessage = vanillaMessagePort.bind(this);
       audioFramePort.requestFrames = args => requestPort.postMessage(args);
+    } else if (event.data.msg === 'initAudioInputPort') {
+      const inputPort = event.ports[0];
+      audioInputPort.transferInputFrames = frames =>
+        inputPort.postMessage(frames);
     }
   };
 };
 
 class CsoundWorkletProcessor extends AudioWorkletProcessor {
   constructor({
-    numberOfInputs,
-    numberOfOutputs,
     processorOptions: {
       hardwareBufferSize,
       softwareBufferSize,
@@ -196,11 +234,9 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
       maybeSharedArrayBuffer,
       maybeSharedArrayBufferAudioIn,
       maybeSharedArrayBufferAudioOut,
-      maybeVanillaArrayBufferAudioIn,
-      maybeVanillaArrayBufferAudioOut,
     },
   }) {
-    super({ numberOfInputs, numberOfOutputs });
+    super();
 
     this.currentPlayState = undefined;
 
@@ -222,11 +258,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
       this.sabOutputChannels = [];
       this.sabInputChannels = [];
 
-      for (
-        let channelIndex = 0;
-        channelIndex < numberOfInputs;
-        ++channelIndex
-      ) {
+      for (let channelIndex = 0; channelIndex < inputsCount; ++channelIndex) {
         this.sabInputChannels.push(
           new Float64Array(
             this.audioStreamIn,
@@ -236,11 +268,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
         );
       }
 
-      for (
-        let channelIndex = 0;
-        channelIndex < numberOfOutputs;
-        ++channelIndex
-      ) {
+      for (let channelIndex = 0; channelIndex < outputsCount; ++channelIndex) {
         this.sabOutputChannels.push(
           new Float64Array(
             this.audioStreamOut,
@@ -254,11 +282,10 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     } else {
       // Bit more agressive buffering with vanilla
       this.hardwareBufferSize = MAX_HARDWARE_BUFFER_SIZE;
-      this.audioStreamIn = maybeVanillaArrayBufferAudioIn;
-      this.audioStreamOut = maybeVanillaArrayBufferAudioOut;
       this.vanillaOutputChannels = [];
       this.vanillaInputChannels = [];
       this.vanillaOutputReadIndex = 0;
+      this.vanillaInputReadIndex = 0;
       this.vanillaAvailableFrames = 0;
       this.pendingFrames = 0;
 
@@ -266,16 +293,9 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
         // aways dec pending Frames even for empty ones
         this.pendingFrames -= numFrames;
         if (audioPacket) {
-          // console.log(
-          //   readIndex,
-          //   audioPacket[0].length,
-          //   numFrames,
-          //   this.hardwareBufferSize + numFrames,
-          //   this.hardwareBufferSize
-          // );
           for (
             let channelIndex = 0;
-            channelIndex < numberOfOutputs;
+            channelIndex < outputsCount;
             ++channelIndex
           ) {
             let hasLeftover = false;
@@ -297,18 +317,6 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
               );
             }
           }
-
-          // for (let frameIdx = 0; frameIdx < numFrames; frameIdx++) {
-          //   for (
-          //     let channelIndex = 0;
-          //     channelIndex < numberOfOutputs;
-          //     ++channelIndex
-          //   ) {
-          //     this.vanillaOutputChannels[channelIndex][
-          //       (readIndex + frameIdx) % (this.hardwareBufferSize + 1)
-          //     ] = audioPacket[channelIndex][frameIdx];
-          //   }
-          // }
           this.vanillaAvailableFrames += numFrames;
           if (!this.vanillaFirstTransferDone) {
             this.vanillaFirstTransferDone = true;
@@ -319,12 +327,12 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
       this.vanillaInitialized = false;
       this.vanillaFirstTransferDone = false;
       this.vanillaInputChannels = instantiateAudioPacket(
-        numberOfInputs,
-        MAX_HARDWARE_BUFFER_SIZE + 1
+        inputsCount,
+        MAX_HARDWARE_BUFFER_SIZE
       );
       this.vanillaOutputChannels = instantiateAudioPacket(
-        numberOfOutputs,
-        MAX_HARDWARE_BUFFER_SIZE + 1
+        outputsCount,
+        MAX_HARDWARE_BUFFER_SIZE
       );
 
       this.actualProcess = processVanillaBuffers.bind(this);
