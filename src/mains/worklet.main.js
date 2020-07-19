@@ -109,9 +109,15 @@ class AudioWorkletMainThread {
 
     if (this.isRequestingInput) {
       const getUserMedia =
-        navigator.getUserMedia ||
-        navigator.webkitGetUserMedia ||
-        navigator.mozGetUserMedia;
+        typeof navigator.mediaDevices !== 'undefined'
+          ? navigator.mediaDevices.getUserMedia
+          : navigator.getUserMedia ||
+            navigator.webkitGetUserMedia ||
+            navigator.mozGetUserMedia;
+
+      // (typeof navigator.mediaDevices !== 'undefined'
+      //   ? navigator.mediaDevices.getUserMedia
+      //   : );
 
       const microphoneCallback = stream => {
         if (stream) {
@@ -129,12 +135,24 @@ class AudioWorkletMainThread {
         }
         !this.csoundWorkerMain.hasSharedArrayBuffer && this.connectPorts();
       };
-      getUserMedia.call(
-        navigator,
-        { audio: { optional: [{ echoCancellation: false }] } },
-        microphoneCallback,
-        console.error
-      );
+
+      typeof navigator.mediaDevices !== 'undefined'
+        ? getUserMedia
+            .call(navigator.mediaDevices, {
+              audio: { echoCancellation: false, sampleSize: 32 },
+            })
+            .then(microphoneCallback)
+            .catch(console.error)
+        : getUserMedia.call(
+            navigator,
+            {
+              audio: {
+                optional: [{ echoCancellation: false, sampleSize: 32 }],
+              },
+            },
+            microphoneCallback,
+            console.error
+          );
     } else {
       this.audioWorkletNode = createWorkletNode();
       this.audioWorkletNode.connect(this.audioCtx.destination);

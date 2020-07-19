@@ -157,14 +157,16 @@ function processVanillaBuffers(inputs, outputs) {
 
   const writeableInputChannels = inputs[0];
   const writeableOutputChannels = outputs[0];
+  const hasWriteableInputChannels = writeableInputChannels.length > 0;
 
   const nextOutputReadIndex =
     (this.vanillaOutputReadIndex + writeableOutputChannels[0].length) %
     this.hardwareBufferSize;
 
-  const nextInputReadIndex =
-    (this.vanillaInputReadIndex + writeableInputChannels[0].length) %
-    this.hardwareBufferSize;
+  const nextInputReadIndex = hasWriteableInputChannels
+    ? (this.vanillaInputReadIndex + writeableInputChannels[0].length) %
+      this.hardwareBufferSize
+    : 0;
 
   if (this.vanillaAvailableFrames >= writeableOutputChannels[0].length) {
     writeableOutputChannels.forEach((channelBuffer, channelIndex) => {
@@ -178,7 +180,11 @@ function processVanillaBuffers(inputs, outputs) {
       );
     });
 
-    if (this.inputsCount > 0 && writeableInputChannels[0].length > 0) {
+    if (
+      this.inputsCount > 0 &&
+      hasWriteableInputChannels &&
+      writeableInputChannels[0].length > 0
+    ) {
       const inputBufferLen = this.softwareBufferSize * PERIODS;
       writeableInputChannels.forEach((channelBuffer, channelIndex) => {
         this.vanillaInputChannels[channelIndex].set(
