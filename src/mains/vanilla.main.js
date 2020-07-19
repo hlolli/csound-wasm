@@ -69,6 +69,7 @@ class VanillaWorkerMainThread {
       }
 
       case 'realtimePerformanceEnded': {
+        workerMessagePort.close();
         break;
       }
 
@@ -87,6 +88,14 @@ class VanillaWorkerMainThread {
     } catch (e) {
       console.error(`Csound thread crashed while receiving an IPC message`);
     }
+
+    this.csoundPlayStateChangeCallbacks.forEach(cb => {
+      try {
+        cb(newPlayState);
+      } catch (error) {
+        console.error(error);
+      }
+    });
   }
 
   async addMessageCallback(callback) {
@@ -128,6 +137,7 @@ class VanillaWorkerMainThread {
 
   async initialize() {
     const csoundWorker = new Worker(VanillaWorker());
+    this.csoundWorker = csoundWorker;
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
     mainMessagePort.onmessage = messageEventHandler(this);
@@ -172,6 +182,7 @@ class VanillaWorkerMainThread {
             }
 
             this.csound = csound;
+            console.log('CALLBACK', csound);
             await callback({
               audioStreamIn,
               audioStreamOut,

@@ -85,30 +85,6 @@ class SharedArrayBufferMainThread {
     }
   }
 
-  // async csoundStop(...argumentz) {}
-
-  // csoundStopClosure(originalCsoundStop) {
-  //   return async function(...arguments_) {
-  //     if (Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.IS_PERFORMING)) {
-  //       return new Promise((resolve, reject) => {
-  //         // maybe reject on timeout?
-  //         const thisQueueId = getQueueId();
-  //         this.callbackQueueBuffer[thisQueueId] = { resolve, reject };
-  //         Atomics.add(this.sharedArrayBuffer, AUDIO_STATE.AVAIL_CALLBACKS, 1);
-  //         const jsonDebug = JSON.stringify({
-  //           queueId: thisQueueId,
-  //           fnName,
-  //           args: arguments_
-  //         });
-  //         const encodeDebug = encoder.encode(jsonDebug);
-  //         callbackQueueBuffer.set(encodeDebug, thisQueueId * 1024, 1024);
-  //       });
-  //     }
-
-  //     return await fn.apply(null, arguments_);
-  //   };
-  // }
-
   async csoundPause() {
     Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 1);
     if (typeof this.csoundPlayStateChangeCallback === 'function') {
@@ -131,12 +107,6 @@ class SharedArrayBufferMainThread {
         await this.prepareRealtimePerformance();
         break;
       }
-
-      case 'realtimePerformanceEnded': {
-        // FIXME
-        break;
-      }
-
       default: {
         break;
       }
@@ -220,7 +190,6 @@ class SharedArrayBufferMainThread {
       async function callback(...arguments_) {
         return await proxyPort.callUncloned(apiK, arguments_);
       }
-
       switch (apiK) {
         case 'csoundStart': {
           const csoundStart = async function(csound) {
@@ -241,6 +210,22 @@ class SharedArrayBufferMainThread {
 
           csoundStart.toString = () => reference.toString();
           this.exportApi.csoundStart = csoundStart.bind(this);
+          break;
+        }
+
+        case 'csoundStop': {
+          this.exportApi.csoundStop = async csound => {
+            if (
+              Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PERFORMING)
+            ) {
+              Atomics.store(
+                this.audioStatePointer,
+                AUDIO_STATE.IS_PERFORMING,
+                0
+              );
+            }
+            await callback(csound);
+          };
           break;
         }
 

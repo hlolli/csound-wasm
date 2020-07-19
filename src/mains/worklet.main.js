@@ -1,6 +1,7 @@
 import * as Comlink from 'comlink/dist/esm/comlink.js';
 import WorkletWorker from '@root/workers/worklet.worker';
 import {
+  cleanupPorts,
   workerMessagePortAudio,
   audioWorkerFrameRequestPort,
   audioWorkerAudioInputPort,
@@ -31,10 +32,9 @@ class AudioWorkletMainThread {
         break;
       }
       case 'realtimePerformanceEnded': {
-        setTimeout(() => {
-          this.audioCtx.close();
-          this.audioWorkletNode.disconnect();
-        }, 0);
+        cleanupPorts(this.csoundWorkerMain);
+        this.audioCtx.close();
+        this.audioWorkletNode.disconnect();
         break;
       }
       default: {

@@ -6,3 +6,8 @@ tmp
 c
 *#
 *~
+dist/__*
+.log
+henda
+dev.html
+script

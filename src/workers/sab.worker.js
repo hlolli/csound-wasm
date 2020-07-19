@@ -113,6 +113,7 @@ const sabCreateRealtimeAudioThread = ({
     Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0) === 'ok'
   ) {
     if (Atomics.load(audioStatePointer, AUDIO_STATE.IS_PERFORMING) !== 1) {
+      workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
       break;
     }
 
