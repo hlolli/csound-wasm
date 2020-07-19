@@ -24,7 +24,7 @@ export const initialSharedState = [
 
 // Enum helper for SAB
 export const AUDIO_STATE = {
-  ATOMIC_NOFIFY: 0,
+  ATOMIC_NOTIFY: 0,
   IS_PERFORMING: 1,
   IS_PAUSED: 2,
   NCHNLS: 3,

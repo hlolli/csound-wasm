@@ -20,10 +20,7 @@ class SharedArrayBufferMainThread {
   constructor(audioWorker, wasmDataURI) {
     this.audioWorker = audioWorker;
     this.wasmDataURI = wasmDataURI;
-    // this.callbackQueue = {};
-    // this.callbackQueueBuffer = new Uint8Array(this.callbackQueue);
     this.currentPlayState = undefined;
-    // this.currentQueueId = -1;
     this.exportApi = {};
     this.messageCallbacks = [];
     this.csoundPlayStateChangeCallback = undefined;
@@ -43,7 +40,7 @@ class SharedArrayBufferMainThread {
 
     // This will sadly create circular structure
     // that's still mostly harmless.
-    audioWorker.csoundWorker = this;
+    audioWorker.csoundWorkerMain = this;
     this.hasSharedArrayBuffer = true;
   }
 
@@ -124,21 +121,6 @@ class SharedArrayBufferMainThread {
     }
   }
 
-  async startInputCapture() {
-    let micStream = {};
-    const stream = await getUserMedia({ video: false, audio: true });
-    /*
-    const micStream = new MicrophoneStream({
-      sampleRate,
-      channels: 1,
-      bitDepth: 64,
-      signed: true,
-      float: true
-    });
-    micStream.setStream(stream);
-  */
-  }
-
   async onPlayStateChange(newPlayState) {
     this.currentPlayState = newPlayState;
 
@@ -178,6 +160,8 @@ class SharedArrayBufferMainThread {
       this.audioStatePointer,
       AUDIO_STATE.NCHNLS_I
     );
+
+    this.audioWorker.isRequestingInput = inputCount > 0;
 
     const sampleRate = Atomics.load(
       this.audioStatePointer,

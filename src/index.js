@@ -25,7 +25,7 @@ async function Csound() {
     return {};
   }
 
-  const worker = false //isSabSupported()
+  const worker = isSabSupported()
     ? new SharedArrayBufferMainThread(audioWorker, wasmDataURI)
     : new VanillaWorkerMainThread(audioWorker, wasmDataURI);
 
@@ -36,6 +36,6 @@ async function Csound() {
     console.error('No detectable WebAssembly support in current environment');
     return {};
   }
-  console.log('EXPORT API', csoundWasmApi);
+
   return csoundWasmApi;
 }

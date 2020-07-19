@@ -33,7 +33,7 @@ function processSharedArrayBuffer(inputs, outputs) {
       // by giving it another number than 0, in turn, returning
       // "not-equal" instead of "ok"
       Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
-      Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY);
+      Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOTIFY);
     }
 
     this.isPerformingLastTime = isPerforming;
@@ -48,44 +48,81 @@ function processSharedArrayBuffer(inputs, outputs) {
     this.isPerformingLastTime &&
     isPerforming
   ) {
-    Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
+    Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
+    Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOTIFY);
     this.preProcessCount += 1;
     return true;
   }
 
   const writeableInputChannels = inputs[0];
   const writeableOutputChannels = outputs[0];
-
-  if (
-    this.sharedArrayBuffer[AUDIO_STATE.AVAIL_OUT_BUFS] <
-    this.softwareBufferSize * 2
-  ) {
-    Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
+  const hasWriteableInputChannels = writeableInputChannels.length > 0;
+  const availableOutputBuffers = Atomics.load(
+    this.sharedArrayBuffer,
+    AUDIO_STATE.AVAIL_OUT_BUFS
+  );
+  if (availableOutputBuffers < this.softwareBufferSize * PERIODS) {
+    Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
+    Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOTIFY);
   }
 
-  const readIndex = this.sharedArrayBuffer[AUDIO_STATE.OUTPUT_READ_INDEX];
+  const inputWriteIndex = Atomics.load(
+    this.sharedArrayBuffer,
+    AUDIO_STATE.INPUT_WRITE_INDEX
+  );
+  const outputReadIndex = Atomics.load(
+    this.sharedArrayBuffer,
+    AUDIO_STATE.OUTPUT_READ_INDEX
+  );
 
-  const nextReadIndex =
-    (readIndex + writeableOutputChannels[0].length) % this.hardwareBufferSize;
+  const nextInputWriteIndex = hasWriteableInputChannels
+    ? (inputWriteIndex + writeableInputChannels[0].length) %
+      this.hardwareBufferSize
+    : 0;
 
-  if (this.sharedArrayBuffer[AUDIO_STATE.AVAIL_OUT_BUFS] > 0) {
+  const nextOutputReadIndex =
+    (outputReadIndex + writeableOutputChannels[0].length) %
+    this.hardwareBufferSize;
+
+  if (availableOutputBuffers > 0) {
     writeableOutputChannels.forEach((channelBuffer, channelIndex) => {
       channelBuffer.set(
         this.sabOutputChannels[channelIndex].subarray(
-          readIndex,
-          nextReadIndex < readIndex ? this.hardwareBufferSize : nextReadIndex
+          outputReadIndex,
+          nextOutputReadIndex < outputReadIndex
+            ? this.hardwareBufferSize
+            : nextOutputReadIndex
         )
       );
     });
 
-    if (this.inputsCount > 0) {
-      this.sabInputChannels[0].set(writeableInputChannels[0], readIndex);
+    if (
+      this.inputsCount > 0 &&
+      hasWriteableInputChannels &&
+      writeableInputChannels[0].length > 0
+    ) {
+      writeableInputChannels.forEach((channelBuffer, channelIndex) => {
+        this.sabInputChannels[channelIndex].set(channelBuffer, inputWriteIndex);
+      });
+
+      Atomics.store(
+        this.sharedArrayBuffer,
+        AUDIO_STATE.INPUT_WRITE_INDEX,
+        nextInputWriteIndex
+      );
+
+      // increase availability of new input data
+      Atomics.add(
+        this.sharedArrayBuffer,
+        AUDIO_STATE.AVAIL_IN_BUFS,
+        writeableInputChannels[0].length
+      );
     }
 
     Atomics.store(
       this.sharedArrayBuffer,
       AUDIO_STATE.OUTPUT_READ_INDEX,
-      nextReadIndex
+      nextOutputReadIndex
     );
 
     // subtract the available output buffers, all channels are the same length

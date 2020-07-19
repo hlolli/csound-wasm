@@ -118,17 +118,16 @@ class AudioWorkletMainThread {
           const liveInput = this.audioCtx.createMediaStreamSource(stream);
           this.inputsCount = liveInput.channelCount;
           this.audioWorkletNode = createWorkletNode(liveInput.channelCount);
-          this.connectPorts();
           liveInput
             .connect(this.audioWorkletNode)
             .connect(this.audioCtx.destination);
         } else {
           // Continue as before if user cancels
           this.inputsCount = 0;
-          this.audioWorkletNode = createWorkletNode();
+          this.audioWorkletNode = createWorkletNode(0);
           this.audioWorkletNode.connect(this.audioCtx.destination);
-          this.connectPorts();
         }
+        !this.csoundWorkerMain.hasSharedArrayBuffer && this.connectPorts();
       };
       getUserMedia.call(
         navigator,
@@ -139,7 +138,7 @@ class AudioWorkletMainThread {
     } else {
       this.audioWorkletNode = createWorkletNode();
       this.audioWorkletNode.connect(this.audioCtx.destination);
-      this.connectPorts();
+      !this.csoundWorkerMain.hasSharedArrayBuffer && this.connectPorts();
     }
   }
 }
