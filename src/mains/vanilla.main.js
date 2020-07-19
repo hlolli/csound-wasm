@@ -30,10 +30,16 @@ class VanillaWorkerMainThread {
     audioWorker.csoundWorkerMain = this;
     this.audioWorker = audioWorker;
     this.wasmDataURI = wasmDataURI;
-    this.api = {};
+    this.exportApi = {};
     this.csound = undefined;
     this.currentPlayState = undefined;
     this.intervalCb = undefined;
+    this.messageCallbacks = [];
+    this.csoundPlayStateChangeCallbacks = [];
+  }
+
+  get api() {
+    return this.exportApi;
   }
 
   async prepareRealtimePerformance() {
@@ -41,12 +47,14 @@ class VanillaWorkerMainThread {
       console.error(`fatal error: csound instance not found?`);
       return;
     }
-    this.audioWorker.sampleRate = await this.api.csoundGetSr(this.csound);
+    this.audioWorker.sampleRate = await this.exportApi.csoundGetSr(this.csound);
 
     this.audioWorker.isRequestingInput = (
-      await this.api.csoundGetInputName(this.csound)
+      await this.exportApi.csoundGetInputName(this.csound)
     ).includes('adc');
-    this.audioWorker.outputsCount = await this.api.csoundGetNchnls(this.csound);
+    this.audioWorker.outputsCount = await this.exportApi.csoundGetNchnls(
+      this.csound
+    );
     this.audioWorker.hardwareBufferSize = DEFAULT_HARDWARE_BUFFER_SIZE;
     this.audioWorker.softwareBufferSize = DEFAULT_SOFTWARE_BUFFER_SIZE;
   }
@@ -79,9 +87,43 @@ class VanillaWorkerMainThread {
     } catch (e) {
       console.error(`Csound thread crashed while receiving an IPC message`);
     }
+  }
 
-    this.csoundPlayStateChangeCallback &&
-      this.csoundPlayStateChangeCallback(newPlayState);
+  async addMessageCallback(callback) {
+    if (typeof callback === 'function') {
+      this.messageCallbacks.push(callback);
+    } else {
+      console.error(`Can't assign ${typeof callback} as a message callback`);
+    }
+  }
+
+  async setMessageCallback(callback) {
+    if (typeof callback === 'function') {
+      this.messageCallbacks = [callback];
+    } else {
+      console.error(`Can't assign ${typeof callback} as a message callback`);
+    }
+  }
+
+  // User-land hook to csound's play-state changes
+  async setCsoundPlayStateChangeCallback(callback) {
+    if (typeof callback !== 'function') {
+      console.error(
+        `Can't assign ${typeof callback} as a playstate change callback`
+      );
+    } else {
+      this.csoundPlayStateChangeCallbacks = [callback];
+    }
+  }
+
+  async addCsoundPlayStateChangeCallback(callback) {
+    if (typeof callback !== 'function') {
+      console.error(
+        `Can't assign ${typeof callback} as a playstate change callback`
+      );
+    } else {
+      this.csoundPlayStateChangeCallbacks.push(callback);
+    }
   }
 
   async initialize() {
@@ -103,6 +145,15 @@ class VanillaWorkerMainThread {
     const proxyPort = Comlink.wrap(csoundWorker);
     this.proxyPort = proxyPort;
     await proxyPort.initialize(this.wasmDataURI);
+
+    this.exportApi.setMessageCallback = this.setMessageCallback.bind(this);
+    this.exportApi.addMessageCallback = this.addMessageCallback.bind(this);
+    this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(
+      this
+    );
+    this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(
+      this
+    );
 
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
@@ -129,13 +180,13 @@ class VanillaWorkerMainThread {
           };
 
           csoundStart.toString = () => reference.toString();
-          this.api.csoundStart = csoundStart.bind(this);
+          this.exportApi.csoundStart = csoundStart.bind(this);
           break;
         }
 
         default: {
           callback.toString = () => reference.toString();
-          this.api[apiK] = callback;
+          this.exportApi[apiK] = callback;
           break;
         }
       }

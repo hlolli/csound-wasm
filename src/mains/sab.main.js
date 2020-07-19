@@ -23,7 +23,7 @@ class SharedArrayBufferMainThread {
     this.currentPlayState = undefined;
     this.exportApi = {};
     this.messageCallbacks = [];
-    this.csoundPlayStateChangeCallback = undefined;
+    this.csoundPlayStateChangeCallbacks = [];
 
     this.audioStateBuffer = new SharedArrayBuffer(
       initialSharedState.length * Int32Array.BYTES_PER_ELEMENT
@@ -44,46 +44,48 @@ class SharedArrayBufferMainThread {
     this.hasSharedArrayBuffer = true;
   }
 
-  // generateQueueId() {
-  //   this.currentQueueId += 1;
-  //   const nextQueueId = this.currentQueueId % 1024;
-  //   const maybeZombie = this.callbackQueueBuffer[nextQueueId];
-  //   maybeZombie && maybeZombie.reject();
-  //   return nextQueueId;
-  // }
-
   get api() {
     return this.exportApi;
   }
 
-  addMessageCallback(callback) {
+  async addMessageCallback(callback) {
     if (typeof callback === 'function') {
-      this.messageCallback.push(callback);
+      this.messageCallbacks.push(callback);
     } else {
       console.error(`Can't assign ${typeof callback} as a message callback`);
     }
   }
 
-  setMessageCallback(callback) {
+  async setMessageCallback(callback) {
     if (typeof callback === 'function') {
-      this.messageCallback = [callback];
+      this.messageCallbacks = [callback];
     } else {
       console.error(`Can't assign ${typeof callback} as a message callback`);
     }
   }
 
   // User-land hook to csound's play-state changes
-  csoundPlayStateChangeCallback(callback) {
+  async setCsoundPlayStateChangeCallback(callback) {
     if (typeof callback !== 'function') {
       console.error(
         `Can't assign ${typeof callback} as a playstate change callback`
       );
     } else {
-      this.csoundPlayStateChangeCallback = callback;
+      this.csoundPlayStateChangeCallbacks = [callback];
     }
   }
 
-  async csoundStop(...argumentz) {}
+  async addCsoundPlayStateChangeCallback(callback) {
+    if (typeof callback !== 'function') {
+      console.error(
+        `Can't assign ${typeof callback} as a playstate change callback`
+      );
+    } else {
+      this.csoundPlayStateChangeCallbacks.push(callback);
+    }
+  }
+
+  // async csoundStop(...argumentz) {}
 
   // csoundStopClosure(originalCsoundStop) {
   //   return async function(...arguments_) {
@@ -147,8 +149,13 @@ class SharedArrayBufferMainThread {
       console.error(error);
     }
 
-    this.csoundPlayStateChangeCallback &&
-      this.csoundPlayStateChangeCallback(newPlayState);
+    this.csoundPlayStateChangeCallbacks.forEach(cb => {
+      try {
+        cb(newPlayState);
+      } catch (error) {
+        console.error(error);
+      }
+    });
   }
 
   async prepareRealtimePerformance() {
@@ -198,6 +205,15 @@ class SharedArrayBufferMainThread {
     workerMessagePort.start();
     const proxyPort = Comlink.wrap(csoundWorker);
     await proxyPort.initialize(this.wasmDataURI);
+
+    this.exportApi.setMessageCallback = this.setMessageCallback.bind(this);
+    this.exportApi.addMessageCallback = this.addMessageCallback.bind(this);
+    this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(
+      this
+    );
+    this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(
+      this
+    );
 
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];

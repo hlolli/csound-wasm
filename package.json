@@ -3,7 +3,8 @@
   "version": "6.14.0-alpha15",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "LGPL-3.0",
-  "main": "./dist/libcsound.js",
+  "main": "./dist/libcsound.mjs",
+  "type": "module",
   "keywords": [
     "csound",
     "csound-wasm",
