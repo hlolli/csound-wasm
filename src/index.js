@@ -1,5 +1,3 @@
-import * as Comlink from 'comlink';
-import { apply, curry, prop } from 'ramda';
 import VanillaWorkerMainThread from '@root/mains/vanilla.main';
 import SharedArrayBufferMainThread from '@root/mains/sab.main';
 import AudioWorkletMainThread from '@root/mains/worklet.main';
@@ -16,9 +14,7 @@ export default Csound;
 async function Csound() {
   var csoundWasmApi;
 
-  const audioWorker = areWorkletsSupportet()
-    ? new AudioWorkletMainThread()
-    : null;
+  const audioWorker = areWorkletsSupportet() && new AudioWorkletMainThread();
 
   if (!audioWorker) {
     console.error('No detectable WebAudioAPI in current environment');

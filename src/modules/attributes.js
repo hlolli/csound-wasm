@@ -3,6 +3,8 @@
    https://csound.com/docs/api/modules.html
 */
 
+/* eslint-disable unicorn/prevent-abbreviations */
+
 import { freeStringPtr, sizeofStruct, string2ptr, structBuffer2Object } from '@root/utils';
 import { CSOUND_PARAMS } from '@root/structures';
 import { curry } from 'ramda';
@@ -169,7 +171,7 @@ csoundSetOption.toString = () => 'csoundSetOption = async (csound, option) => Nu
  * @callback csoundSetParams
  * @param {Csound} csound
  * @param {Object} csoundParams
- * @return {null}
+ * @return {undefined}
  */
 /**
  * @param {Object} wasm
@@ -177,7 +179,6 @@ csoundSetOption.toString = () => 'csoundSetOption = async (csound, option) => Nu
  */
 export const csoundSetParams = curry((wasm, csound, csoundParameters) => {
   wasm.exports.csoundSetParams(csound, csoundParameters);
-  return null;
 });
 
 csoundSetParams.toString = () => 'csoundSetParams = async (csound, csoundParams) => undefined;';
@@ -228,7 +229,7 @@ csoundGetDebug.toString = () => 'csoundGetDebug = async (csound) => Number;';
  * @callback csoundSetDebug
  * @param {Csound} csound
  * @param {number} debug
- * @return {null}
+ * @return {undefined}
  */
 /**
  * @param {Object} wasm
@@ -236,7 +237,6 @@ csoundGetDebug.toString = () => 'csoundGetDebug = async (csound) => Number;';
  */
 export const csoundSetDebug = curry((wasm, csound, debug) => {
   wasm.exports.csoundSetDebug(csound, debug);
-  return null;
 });
 
 csoundSetDebug.toString = () => 'csoundSetDebug = async (csound, number) => undefined;';

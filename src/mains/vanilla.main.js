@@ -7,7 +7,7 @@ import {
   MAX_CHANNELS,
   MAX_HARDWARE_BUFFER_SIZE,
 } from '@root/constants.js';
-
+import { makeProxyCallback } from '@root/utils';
 import {
   messageEventHandler,
   mainMessagePortAudio,
@@ -77,13 +77,13 @@ class VanillaWorkerMainThread {
       } else {
         this.audioWorker.onPlayStateChange(newPlayState);
       }
-    } catch (e) {
-      console.error(`Csound thread crashed while receiving an IPC message`);
+    } catch (error) {
+      console.error(`Csound thread crashed while receiving an IPC message: ${error}`);
     }
 
-    this.csoundPlayStateChangeCallbacks.forEach(cb => {
+    this.csoundPlayStateChangeCallbacks.forEach(callback => {
       try {
-        cb(newPlayState);
+        callback(newPlayState);
       } catch (error) {
         console.error(error);
       }
@@ -150,8 +150,8 @@ class VanillaWorkerMainThread {
     this.csoundWorker = csoundWorker;
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
-    mainMessagePort.onmessage = messageEventHandler(this);
-    mainMessagePortAudio.onmessage = messageEventHandler(this);
+    mainMessagePort.addEventListener('message', messageEventHandler(this));
+    mainMessagePortAudio.addEventListener('message', messageEventHandler(this));
     csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
     csoundWorker.postMessage({ msg: 'initRequestPort' }, [csoundWorkerFrameRequestPort]);
     csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [csoundWorkerAudioInputPort]);
@@ -172,9 +172,7 @@ class VanillaWorkerMainThread {
 
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
-      async function callback(...arguments_) {
-        return await proxyPort.callUncloned(apiK, arguments_);
-      }
+      const proxyCallback = makeProxyCallback(proxyPort, apiK);
 
       switch (apiK) {
         case 'csoundStart': {
@@ -186,7 +184,7 @@ class VanillaWorkerMainThread {
 
             this.csound = csound;
 
-            await callback({
+            await proxyCallback({
               audioStreamIn,
               audioStreamOut,
               csound,
@@ -204,7 +202,7 @@ class VanillaWorkerMainThread {
               console.error('csoundStop expects first parameter to be instance of Csound');
               return -1;
             }
-            await callback(csound);
+            await proxyCallback(csound);
             if (this.currentPlayState === 'realtimePerformancePaused') {
               await proxyPort.callUncloned('csoundPerformKsmps', [csound]);
               await this.onPlayStateChange('realtimePerformanceEnded');
@@ -216,8 +214,8 @@ class VanillaWorkerMainThread {
         }
 
         default: {
-          callback.toString = () => reference.toString();
-          this.exportApi[apiK] = callback;
+          proxyCallback.toString = () => reference.toString();
+          this.exportApi[apiK] = proxyCallback;
           break;
         }
       }

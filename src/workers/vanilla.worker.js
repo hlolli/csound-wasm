@@ -1,14 +1,12 @@
 import * as Comlink from 'comlink/dist/esm/comlink.js';
-import { assoc, construct, curry, invoker, pipe } from 'ramda';
 import { workerMessagePort } from '@root/filesystem';
-import { MAX_CHANNELS, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants.js';
+import { MAX_HARDWARE_BUFFER_SIZE } from '@root/constants.js';
 import { handleCsoundStart, instantiateAudioPacket } from '@root/workers/common.utils';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
+import { assoc, pipe } from 'ramda';
 
 let wasm, combined, libraryCsound;
-
-// const csoundPlayState = workerMessagePort.vanillaWorkerState;
 
 let audioProcessCallback = () => {};
 
@@ -25,9 +23,9 @@ const createAudioInputBuffers = inputsCount => {
   }
 };
 
-const generateAudioFrames = args => {
+const generateAudioFrames = arguments_ => {
   if (workerMessagePort.vanillaWorkerState !== 'realtimePerformanceEnded') {
-    return audioProcessCallback(args);
+    return audioProcessCallback(arguments_);
   }
 };
 
@@ -69,10 +67,7 @@ const createRealtimeAudioThread = ({ csound }) => {
 
   let csoundOutputBuffer = new Float64Array(buffer, outputBufferPtr, ksmps * nchnls);
 
-  let lastOutputWriteIndex = 0;
   let lastPerformance = 0;
-
-  let currentOutputWriteIndex = 0;
 
   audioProcessCallback = ({ readIndex, numFrames }) => {
     // MEMGROW KILLS REFERENCES!
@@ -103,7 +98,6 @@ const createRealtimeAudioThread = ({ csound }) => {
         if (lastPerformance !== 0) {
           workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
           audioProcessCallback = () => {};
-          lastOutputWriteIndex = currentOutputWriteIndex;
           return { framesLeft: i };
         }
       }
@@ -124,7 +118,6 @@ const createRealtimeAudioThread = ({ csound }) => {
       audioInputs.availableFrames -= numFrames;
       audioInputs.inputReadIndex += numFrames % MAX_HARDWARE_BUFFER_SIZE;
     }
-    lastOutputWriteIndex = currentOutputWriteIndex;
 
     return { audioPacket: outputAudioPacket, framesLeft: 0 };
   };
@@ -132,10 +125,10 @@ const createRealtimeAudioThread = ({ csound }) => {
 
 const callUncloned = async (k, arguments_) => {
   const caller = combined.get(k);
-  return caller && caller.apply(null, arguments_ || []);
+  return caller && caller.apply({}, arguments_ || []);
 };
 
-onmessage = function(event) {
+self.addEventListener('message', event => {
   if (event.data.msg === 'initMessagePort') {
     const port = event.ports[0];
     workerMessagePort.post = log => port.postMessage({ log });
@@ -146,17 +139,17 @@ onmessage = function(event) {
     workerMessagePort.ready = true;
   } else if (event.data.msg === 'initRequestPort') {
     const requestPort = event.ports[0];
-    requestPort.onmessage = reqEvt => {
-      const { framesLeft = 0, audioPacket } = generateAudioFrames(reqEvt.data) || {};
+    requestPort.addEventListener('message', requestEvent => {
+      const { framesLeft = 0, audioPacket } = generateAudioFrames(requestEvent.data) || {};
       requestPort.postMessage({
-        numFrames: reqEvt.data.numFrames - framesLeft,
+        numFrames: requestEvent.data.numFrames - framesLeft,
         audioPacket,
-        ...reqEvt.data,
+        ...requestEvent.data,
       });
-    };
+    });
   } else if (event.data.msg === 'initAudioInputPort') {
     const audioInputPort = event.ports[0];
-    audioInputPort.onmessage = ({ data: pkgs }) => {
+    audioInputPort.addEventListener('message', ({ data: pkgs }) => {
       if (audioInputs.buffers.length === 0) {
         createAudioInputBuffers(pkgs.length);
       }
@@ -168,11 +161,11 @@ onmessage = function(event) {
       if (audioInputs.inputWriteIndex >= MAX_HARDWARE_BUFFER_SIZE) {
         audioInputs.inputWriteIndex = 0;
       }
-    };
+    });
   } else if (event.data.playStateChange) {
     workerMessagePort.vanillaWorkerState = event.data.playStateChange.playStateChange;
   }
-};
+});
 
 const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);

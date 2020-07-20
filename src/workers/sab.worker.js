@@ -1,11 +1,10 @@
 import * as Comlink from 'comlink/dist/esm/comlink.js';
 import { workerMessagePort } from '@root/filesystem';
-import { assoc, construct, curry, invoker, pipe, hasIn } from 'ramda';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
 import { handleCsoundStart } from '@root/workers/common.utils';
 import { nearestPowerOf2 } from '@root/utils';
-import { Buffer } from 'buffer';
+import { assoc, pipe } from 'ramda';
 
 import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE, initialSharedState } from '@root/constants.js';
 
@@ -49,11 +48,11 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
   Atomics.store(audioStatePointer, AUDIO_STATE.NCHNLS_I, nchnlsInput);
   Atomics.store(audioStatePointer, AUDIO_STATE.SAMPLE_RATE, sampleRate);
 
-  let ksmps = libraryCsound.csoundGetKsmps(csound);
+  const ksmps = libraryCsound.csoundGetKsmps(csound);
   const ksmps2 = nearestPowerOf2(ksmps);
 
   if (ksmps !== ksmps2) {
-    orkerMessagePort.post(`warning: ksmps value ${ksmps} is not 2^n number, the audio will sound choppy`);
+    workerMessagePort.post(`warning: ksmps value ${ksmps} is not 2^n number, the audio will sound choppy`);
   }
 
   const zeroDecibelFullScale = libraryCsound.csoundGet0dBFS(csound);
@@ -98,6 +97,7 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
     }
 
     if (Atomics.load(audioStatePointer, AUDIO_STATE.IS_PAUSED) === 1) {
+      // eslint-disable-next-line no-unused-expressions
       Atomics.wait(audioStatePointer, AUDIO_STATE.IS_PAUSED, 0) === 'ok';
     }
 
@@ -177,7 +177,7 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
 
 const callUncloned = async (k, arguments_) => {
   const caller = combined.get(k);
-  return caller && caller.apply(null, arguments_ || []);
+  return caller && caller.apply({}, arguments_ || []);
 };
 
 onmessage = function(event) {

@@ -18,9 +18,9 @@ import { freeStringPtr, string2ptr } from '@root/utils';
  */
 export const csoundInputMessage = wasm => (csound, scoEvent) => {
   const stringPtr = string2ptr(wasm, scoEvent);
-  const res = wasm.exports.csoundInputMessage(csound, stringPtr);
+  const result = wasm.exports.csoundInputMessage(csound, stringPtr);
   freeStringPtr(wasm, stringPtr);
-  return res;
+  return result;
 };
 
 csoundInputMessage.toString = () => 'csoundInputMessage = async (csound, scoreEvent) => Number;';
@@ -38,9 +38,9 @@ csoundInputMessage.toString = () => 'csoundInputMessage = async (csound, scoreEv
  */
 export const csoundInputMessageAsync = wasm => (csound, scoEvent) => {
   const stringPtr = string2ptr(wasm, scoEvent);
-  const res = wasm.exports.csoundInputMessageAsync(csound, stringPtr);
+  const result = wasm.exports.csoundInputMessageAsync(csound, stringPtr);
   freeStringPtr(wasm, stringPtr);
-  return res;
+  return result;
 };
 
 csoundInputMessageAsync.toString = () => 'csoundInputMessageAsync = async (csound, scoreEvent) => Number;';

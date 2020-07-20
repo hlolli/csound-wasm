@@ -1,8 +1,10 @@
-export const handleCsoundStart = (workerMessagePort, libraryCsound, createRealtimeAudioThread) => args => {
-  const { csound } = args;
+export const handleCsoundStart = (workerMessagePort, libraryCsound, createRealtimeAudioThread) => arguments_ => {
+  const { csound } = arguments_;
   // account for slash csound in wasi-memfs system
   libraryCsound.csoundAppendEnv(csound, 'SFDIR', '/csound');
   const startError = libraryCsound.csoundStart(csound);
+  const outputName = libraryCsound.csoundGetOutputName(csound) || 'test.wav';
+
   if (startError !== 0) {
     workerMessagePort.post(
       `error: csoundStart failed while trying to render ${outputName},` + ' look out for errors in options and syntax'
@@ -10,18 +12,17 @@ export const handleCsoundStart = (workerMessagePort, libraryCsound, createRealti
     return startError;
   }
 
-  const outputName = libraryCsound.csoundGetOutputName(csound) || 'test.wav';
   const isExpectingRealtimeOutput = outputName.includes('dac');
 
   if (isExpectingRealtimeOutput) {
-    createRealtimeAudioThread(args);
+    createRealtimeAudioThread(arguments_);
   }
 };
 
-export const instantiateAudioPacket = (numChannels, numFrames) => {
+export const instantiateAudioPacket = (numberChannels, numberFrames) => {
   const channels = [];
-  for (let chn = 0; chn < numChannels; chn++) {
-    channels.push(new Float64Array(numFrames));
+  for (let chn = 0; chn < numberChannels; chn++) {
+    channels.push(new Float64Array(numberFrames));
   }
   return channels;
 };

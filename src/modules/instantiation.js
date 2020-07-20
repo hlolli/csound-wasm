@@ -19,7 +19,7 @@
  * @param {Object} wasm
  * @return {csoundCreate}
  */
-export const csoundCreate = wasm => () => wasm.exports.csoundCreateWasi(null);
+export const csoundCreate = wasm => () => wasm.exports.csoundCreateWasi();
 
 csoundCreate.toString = () => 'csoundCreate = async (csound) => undefined;';
 
@@ -27,7 +27,7 @@ csoundCreate.toString = () => 'csoundCreate = async (csound) => undefined;';
  * Destroys an instance of Csound and frees memory
  * @callback csoundDestroy
  * @param {Csound} csound
- * @return {null}
+ * @return {undefined}
  */
 /**
  * @param {Object} wasm

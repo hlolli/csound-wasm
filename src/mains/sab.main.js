@@ -1,6 +1,5 @@
 import * as Comlink from 'comlink';
 import { api as API } from '@root/libcsound';
-import { encoder } from '@root/utils';
 import {
   messageEventHandler,
   mainMessagePortAudio,
@@ -9,6 +8,7 @@ import {
 } from '@root/mains/messages.main';
 import SABWorker from '@root/workers/sab.worker';
 import { AUDIO_STATE, MAX_CHANNELS, MAX_HARDWARE_BUFFER_SIZE, initialSharedState } from '@root/constants';
+import { makeProxyCallback } from '@root/utils';
 
 class SharedArrayBufferMainThread {
   constructor(audioWorker, wasmDataURI) {
@@ -108,9 +108,9 @@ class SharedArrayBufferMainThread {
       console.error(error);
     }
 
-    this.csoundPlayStateChangeCallbacks.forEach(cb => {
+    this.csoundPlayStateChangeCallbacks.forEach(callback => {
       try {
-        cb(newPlayState);
+        callback(newPlayState);
       } catch (error) {
         console.error(error);
       }
@@ -143,8 +143,8 @@ class SharedArrayBufferMainThread {
     const audioStreamOut = this.audioStreamOut;
     // both audio worker and csound worker use 1 handler
     // simplifies flow of data (csound main.worker is always first to receive)
-    mainMessagePort.onmessage = messageEventHandler(this);
-    mainMessagePortAudio.onmessage = messageEventHandler(this);
+    mainMessagePort.addEventListener('message', messageEventHandler(this));
+    mainMessagePortAudio.addEventListener('message', messageEventHandler(this));
     csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
     workerMessagePort.start();
     const proxyPort = Comlink.wrap(csoundWorker);
@@ -159,10 +159,9 @@ class SharedArrayBufferMainThread {
     this.exportApi.csoundResume = this.csoundResume.bind(this);
 
     for (const apiK of Object.keys(API)) {
+      const proxyCallback = makeProxyCallback(proxyPort, apiK);
       const reference = API[apiK];
-      async function callback(...arguments_) {
-        return await proxyPort.callUncloned(apiK, arguments_);
-      }
+
       switch (apiK) {
         case 'csoundStart': {
           const csoundStart = async function(csound) {
@@ -171,7 +170,7 @@ class SharedArrayBufferMainThread {
               return -1;
             }
 
-            await callback({
+            await proxyCallback({
               audioStateBuffer,
               audioStreamIn,
               audioStreamOut,
@@ -200,13 +199,12 @@ class SharedArrayBufferMainThread {
           };
           this.exportApi.csoundStop = csoundStop.bind(this);
           csoundStop.toString = () => reference.toString();
-
           break;
         }
 
         default: {
-          callback.toString = () => reference.toString();
-          this.exportApi[apiK] = callback;
+          proxyCallback.toString = () => reference.toString();
+          this.exportApi[apiK] = proxyCallback;
           break;
         }
       }

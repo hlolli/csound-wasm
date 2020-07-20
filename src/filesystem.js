@@ -1,9 +1,6 @@
-import * as Comlink from 'comlink';
-import { curry } from 'ramda';
-import { cleanStdout, uint2Str } from '@root/utils';
+import path from 'path';
+import { cleanStdout, uint2String } from '@root/utils';
 import { WasmFs } from '@wasmer/wasmfs';
-
-const IS_PRODUCTION = false;
 
 export const wasmFs = new WasmFs();
 
@@ -25,7 +22,7 @@ let stdOutPos = 0;
 const stdOutBuffer = [];
 
 const stdErrorCallback = data => {
-  const cleanString = cleanStdout(uint2Str(data));
+  const cleanString = cleanStdout(uint2String(data));
   if (cleanString.includes('\n')) {
     const [firstElement, ...next] = cleanString.split('\n');
     let outstr = '';
@@ -47,21 +44,17 @@ const stdErrorCallback = data => {
 };
 
 const createStdErrorStream = () => {
-  wasmFs.fs.watch(
-    '/dev/stderr',
-    { encoding: 'buffer' },
-    (eventType, filename) => {
-      if (filename) {
-        const contents = wasmFs.fs.readFileSync('/dev/stderr');
-        stdErrorCallback(contents.slice(stdErrorPos));
-        stdErrorPos = contents.length;
-      }
+  wasmFs.fs.watch('/dev/stderr', { encoding: 'buffer' }, (eventType, filename) => {
+    if (filename) {
+      const contents = wasmFs.fs.readFileSync('/dev/stderr');
+      stdErrorCallback(contents.slice(stdErrorPos));
+      stdErrorPos = contents.length;
     }
-  );
+  });
 };
 
 const stdOutCallback = data => {
-  const cleanString = cleanStdout(uint2Str(data));
+  const cleanString = cleanStdout(uint2String(data));
   if (cleanString.includes('\n')) {
     const [firstElement, ...next] = cleanString.split('\n');
     let outstr = '';
@@ -82,24 +75,19 @@ const stdOutCallback = data => {
 };
 
 export const createStdOutStream = () => {
-  wasmFs.fs.watch(
-    '/dev/stdout',
-    { encoding: 'buffer' },
-    (eventType, filename) => {
-      if (filename) {
-        const contents = wasmFs.fs.readFileSync('/dev/stdout');
-        stdOutCallback(contents.slice(stdOutPos));
-        stdOutPos = contents.length;
-      }
+  wasmFs.fs.watch('/dev/stdout', { encoding: 'buffer' }, (eventType, filename) => {
+    if (filename) {
+      const contents = wasmFs.fs.readFileSync('/dev/stdout');
+      stdOutCallback(contents.slice(stdOutPos));
+      stdOutPos = contents.length;
     }
-  );
+  });
 };
 
 export async function copyToFs(arrayBuffer, filePath) {
   const realPath = path.join('/csound', filePath);
   const buf = Buffer.from(new Uint8Array(arrayBuffer));
   wasmFs.fs.writeFileSync(realPath, buf);
-  return null;
 }
 
 // all folders are stored under /csound, it seems as if
@@ -107,10 +95,9 @@ export async function copyToFs(arrayBuffer, filePath) {
 // nested from 1 and same root,
 // this implementation is hidden from the Csound runtime itself with a hack
 export async function mkdirp(filePath) {
-  const result = wasmFs.volume.mkdirpSync(path.join('/csound', filePath), {
+  wasmFs.volume.mkdirpSync(path.join('/csound', filePath), {
     mode: '0o777',
   });
-  return null;
 }
 
 export const intiFS = async () => {

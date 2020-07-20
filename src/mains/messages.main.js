@@ -1,5 +1,3 @@
-import * as Comlink from 'comlink';
-
 const defaultLogger = console.log;
 const loggerPool = new Set();
 
@@ -35,25 +33,14 @@ const iterableMessageChannel = () => {
 };
 
 export const cleanupPorts = csoundWorkerMain => {
-  const ports = [
-    mainMessagePort,
-    workerMessagePort,
-    mainMessagePortAudio,
-    workerMessagePortAudio,
-    csoundWorkerFrameRequestPort,
-    audioWorkerFrameRequestPort,
-    csoundWorkerAudioInputPort,
-    audioWorkerAudioInputPort,
-  ];
-
   [mainMessagePort, workerMessagePort] = iterableMessageChannel();
   [mainMessagePortAudio, workerMessagePortAudio] = iterableMessageChannel();
   [csoundWorkerFrameRequestPort, audioWorkerFrameRequestPort] = iterableMessageChannel();
 
   [csoundWorkerAudioInputPort, audioWorkerAudioInputPort] = iterableMessageChannel();
 
-  mainMessagePort.onmessage = messageEventHandler(csoundWorkerMain);
-  mainMessagePortAudio.onmessage = messageEventHandler(csoundWorkerMain);
+  mainMessagePort.addEventListener('message', messageEventHandler(csoundWorkerMain));
+  mainMessagePortAudio.addEventListener('message', messageEventHandler(csoundWorkerMain));
 
   csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRequestPort' }, [csoundWorkerFrameRequestPort]);
   csoundWorkerMain.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [csoundWorkerAudioInputPort]);

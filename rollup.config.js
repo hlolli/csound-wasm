@@ -8,81 +8,81 @@ import { resolve } from 'path';
 import * as R from 'ramda';
 
 const globals = {
-  // Buffer: resolve('node_modules/buffer/index.js')
-  // crypto: 'crypto',
-  // path: 'path'
+  comlink: 'Comlink',
 };
 
 const pluginsCommon = [
   alias({
     entries: [
       { find: '@root', replacement: resolve('./src') },
-      { find: '@module', replacement: resolve('./src/modules') }
-    ]
+      { find: '@module', replacement: resolve('./src/modules') },
+    ],
   }),
   commonjs({ transformMixedEsModules: true }),
   nodejsResolve({ preferBuiltins: false }),
-  nodePolyfills()
+  nodePolyfills(),
 ];
 
 export default [
   {
     input: 'src/workers/sab.worker.js',
-    // external: ['../lib/libcsound.wasm.zlib'],
+    external: ['comlink'],
     output: {
       file: 'dist/__compiled.sab.worker.js',
       format: 'iife',
       name: 'sab.worker',
       sourcemap: false,
-      globals
+      globals,
     },
     plugins: [
-      ...pluginsCommon
+      ...pluginsCommon,
       // arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] })
-    ]
+    ],
   },
   {
     input: 'src/workers/vanilla.worker.js',
-    // external: ['../lib/libcsound.wasm.zlib'],
+    external: ['comlink'],
     output: {
       file: 'dist/__compiled.vanilla.worker.js',
       format: 'iife',
       name: 'vanilla.worker',
       sourcemap: false,
-      globals
+      globals,
     },
-    plugins: [...pluginsCommon]
+    plugins: [...pluginsCommon],
   },
   {
     input: 'src/workers/worklet.worker.js',
+    external: ['comlink'],
     output: {
       file: 'dist/__compiled.worklet.worker.js',
       format: 'iife',
       name: 'worklet.worker',
       sourcemap: false,
-      globals
+      globals,
     },
-    plugins: [...pluginsCommon]
+    plugins: [...pluginsCommon],
   },
   {
     input: 'src/index.js',
+    external: ['comlink'],
     output: {
       file: 'dist/libcsound.mjs',
       format: 'module',
       sourcemap: true,
-      globals
+      globals,
     },
     plugins: [
       ...pluginsCommon,
       inlineWebWorkerPlugin({
         include: ['**/worklet.worker.js'],
-        dataUrl: true
+        dataUrl: true,
       }),
       inlineWebWorkerPlugin({
         include: ['**/sab.worker.js', '**/vanilla.worker.js'],
-        dataUrl: false
+        dataUrl: false,
       }),
-      arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] })
-    ]
-  }
+      arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] }),
+    ],
+  },
 ];

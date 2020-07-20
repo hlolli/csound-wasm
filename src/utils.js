@@ -6,8 +6,7 @@ const sizeOf = {
 export const decoder = new TextDecoder('utf-8');
 export const encoder = new TextEncoder('utf-8');
 
-export const uint2Str = uint => decoder.decode(uint);
-// String.fromCharCode.apply(null, uint);
+export const uint2String = uint => decoder.decode(uint);
 
 // smth I found on stackoverflow
 export const trimNull = a => {
@@ -74,9 +73,10 @@ export const nearestPowerOf2 = n => {
 const isFirefox = () => navigator.userAgent.toLowerCase().includes('firefox');
 
 export const isSabSupported = () =>
-  !isFirefox() &&
-  window.Atomics !== 'undefined' &&
-  window.SharedArrayBuffer !== 'undefined';
+  !isFirefox() && window.Atomics !== 'undefined' && window.SharedArrayBuffer !== 'undefined';
 
-export const areWorkletsSupportet = () =>
-  typeof AudioNode !== 'undefined' && typeof AudioWorkletNode !== 'undefined';
+export const areWorkletsSupportet = () => typeof AudioNode !== 'undefined' && typeof AudioWorkletNode !== 'undefined';
+
+export const makeProxyCallback = (proxyPort, apiK) => async (...arguments_) => {
+  return await proxyPort.callUncloned(apiK, arguments_);
+};

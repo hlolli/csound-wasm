@@ -51,9 +51,9 @@ csoundCompileTree.toString = () => 'csoundCompileTree = async (csound, tree) => 
  */
 export const csoundCompileOrc = wasm => (csound, orc) => {
   const stringPtr = string2ptr(wasm, orc);
-  const res = wasm.exports.csoundCompileOrc(csound, stringPtr);
+  const result = wasm.exports.csoundCompileOrc(csound, stringPtr);
   freeStringPtr(wasm, stringPtr);
-  return res;
+  return result;
 };
 
 csoundCompileOrc.toString = () => 'csoundCompileOrc = async (csound, orchestra) => Number;';
@@ -71,9 +71,9 @@ csoundCompileOrc.toString = () => 'csoundCompileOrc = async (csound, orchestra) 
  */
 export const csoundEvalCode = wasm => (csound, orc) => {
   const stringPtr = string2ptr(wasm, orc);
-  const res = wasm.exports.csoundEvalCode(csound, stringPtr);
+  const result = wasm.exports.csoundEvalCode(csound, stringPtr);
   freeStringPtr(wasm, stringPtr);
-  return res;
+  return result;
 };
 
 csoundEvalCode.toString = () => 'csoundEvalCode = async (csound, orchestra) => Number;';
@@ -114,9 +114,9 @@ csoundStart.toString = () => 'csoundStart = async (csound) => Number;';
  */
 export const csoundCompileCsd = wasm => (csound, path) => {
   const stringPtr = string2ptr(wasm, path);
-  const res = wasm.exports.csoundCompileCsd(csound, stringPtr);
+  const result = wasm.exports.csoundCompileCsd(csound, stringPtr);
   freeStringPtr(wasm, stringPtr);
-  return res;
+  return result;
 };
 
 csoundCompileCsd.toString = () => 'csoundCompileCsd = async (csound, path) => Number;';
@@ -134,9 +134,9 @@ csoundCompileCsd.toString = () => 'csoundCompileCsd = async (csound, path) => Nu
  */
 export const csoundCompileCsdText = wasm => (csound, orc) => {
   const stringPtr = string2ptr(wasm, orc);
-  const res = wasm.exports.csoundCompileCsdText(csound, stringPtr);
+  const result = wasm.exports.csoundCompileCsdText(csound, stringPtr);
   freeStringPtr(wasm, stringPtr);
-  return res;
+  return result;
 };
 
 csoundCompileCsdText.toString = () => 'csoundCompileCsdText = async (csound, csoundDocument) => Number;';

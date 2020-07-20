@@ -1,5 +1,7 @@
 import { freeStringPtr, string2ptr } from '@root/utils';
 
+/* eslint-disable unicorn/prevent-abbreviations */
+
 /**
  * Append 'value' to environment variable 'name'
  * added for internal usage of csound-wasm, feel
