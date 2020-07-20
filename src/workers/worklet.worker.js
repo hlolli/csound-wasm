@@ -217,6 +217,9 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     super();
 
     this.currentPlayState = undefined;
+    this.pause = this.pause.bind(this);
+    this.resume = this.resume.bind(this);
+    this.isPaused = false;
 
     this.sampleRate = sampleRate;
     this.inputsCount = inputsCount;
@@ -298,8 +301,24 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     Comlink.expose(this, this.port);
   }
 
+  pause() {
+    if (!this.isPaused) {
+      this.isPaused = true;
+    }
+  }
+
+  resume() {
+    if (this.isPaused) {
+      this.isPaused = false;
+    }
+  }
+
   process(inputs, outputs) {
-    return this.actualProcess(inputs, outputs);
+    if (this.isPaused) {
+      return true;
+    } else {
+      return this.actualProcess(inputs, outputs);
+    }
   }
 }
 

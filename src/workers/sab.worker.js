@@ -88,7 +88,13 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
   while (Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0) === 'ok') {
     if (Atomics.load(audioStatePointer, AUDIO_STATE.STOP) === 1) {
       libraryCsound.csoundStop(csound);
+      // Trigger "performance ended"
+      if (lastReturn === 0) {
+        workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
+        libraryCsound.csoundPerformKsmps(csound);
+      }
       Atomics.store(audioStatePointer, AUDIO_STATE.STOP, 0);
+      break;
     }
 
     if (Atomics.load(audioStatePointer, AUDIO_STATE.IS_PAUSED) === 1) {

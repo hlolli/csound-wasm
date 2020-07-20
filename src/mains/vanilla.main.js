@@ -106,6 +106,28 @@ class VanillaWorkerMainThread {
     }
   }
 
+  async csoundPause() {
+    if (
+      this.audioWorker &&
+      typeof this.audioWorker.workletProxy !== 'undefined' &&
+      (this.currentPlayState === 'realtimePerformanceStarted' || this.currentPlayState === 'realtimePerformanceResumed')
+    ) {
+      await this.audioWorker.workletProxy.pause();
+      this.onPlayStateChange('realtimePerformancePaused');
+    }
+  }
+
+  async csoundResume() {
+    if (
+      this.audioWorker &&
+      typeof this.audioWorker.workletProxy !== 'undefined' &&
+      this.currentPlayState === 'realtimePerformancePaused'
+    ) {
+      await this.audioWorker.workletProxy.resume();
+      this.onPlayStateChange('realtimePerformanceResumed');
+    }
+  }
+
   // User-land hook to csound's play-state changes
   async setCsoundPlayStateChangeCallback(callback) {
     if (typeof callback !== 'function') {
@@ -145,6 +167,9 @@ class VanillaWorkerMainThread {
     this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(this);
     this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(this);
 
+    this.exportApi.csoundPause = this.csoundPause.bind(this);
+    this.exportApi.csoundResume = this.csoundResume.bind(this);
+
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
       async function callback(...arguments_) {
@@ -160,7 +185,7 @@ class VanillaWorkerMainThread {
             }
 
             this.csound = csound;
-            console.log('CALLBACK', csound);
+
             await callback({
               audioStreamIn,
               audioStreamOut,
@@ -170,6 +195,23 @@ class VanillaWorkerMainThread {
 
           csoundStart.toString = () => reference.toString();
           this.exportApi.csoundStart = csoundStart.bind(this);
+          break;
+        }
+
+        case 'csoundStop': {
+          const csoundStop = async function(csound) {
+            if (!csound || typeof csound !== 'number') {
+              console.error('csoundStop expects first parameter to be instance of Csound');
+              return -1;
+            }
+            await callback(csound);
+            if (this.currentPlayState === 'realtimePerformancePaused') {
+              await proxyPort.callUncloned('csoundPerformKsmps', [csound]);
+              await this.onPlayStateChange('realtimePerformanceEnded');
+            }
+          };
+          this.exportApi.csoundStop = csoundStop.bind(this);
+          csoundStop.toString = () => reference.toString();
           break;
         }
 

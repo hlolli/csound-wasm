@@ -186,11 +186,22 @@ class SharedArrayBufferMainThread {
         }
 
         case 'csoundStop': {
-          this.exportApi.csoundStop = async csound => {
-            if (Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PERFORMING)) {
+          const csoundStop = async function(csound) {
+            if (
+              this.currentPlayState === 'realtimePerformanceStarted' ||
+              this.currentPlayState === 'realtimePerformancePaused' ||
+              this.currentPlayState === 'realtimePerformanceResumed'
+            ) {
               Atomics.store(this.audioStatePointer, AUDIO_STATE.STOP, 1);
+              if (this.currentPlayState === 'realtimePerformancePaused') {
+                Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 0);
+                Atomics.notify(this.audioStatePointer, AUDIO_STATE.IS_PAUSED);
+              }
             }
           };
+          this.exportApi.csoundStop = csoundStop.bind(this);
+          csoundStop.toString = () => reference.toString();
+
           break;
         }
 
