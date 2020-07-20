@@ -2,10 +2,7 @@ import * as Comlink from 'comlink/dist/esm/comlink.js';
 import { assoc, construct, curry, invoker, pipe } from 'ramda';
 import { workerMessagePort } from '@root/filesystem';
 import { MAX_CHANNELS, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants.js';
-import {
-  handleCsoundStart,
-  instantiateAudioPacket,
-} from '@root/workers/common.utils';
+import { handleCsoundStart, instantiateAudioPacket } from '@root/workers/common.utils';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
 
@@ -46,22 +43,17 @@ const createRealtimeAudioThread = ({ csound }) => {
   const startError = libraryCsound.csoundStart(csound);
   if (startError !== 0) {
     workerMessagePort.post(
-      'error: csoundStart failed in realtime-performance,' +
-        ' look out for errors in options and syntax'
+      'error: csoundStart failed in realtime-performance,' + ' look out for errors in options and syntax'
     );
     return -1;
   }
 
   // Prompt for microphone only on demand!
-  const isExpectingInput = libraryCsound
-    .csoundGetInputName(csound)
-    .includes('adc');
+  const isExpectingInput = libraryCsound.csoundGetInputName(csound).includes('adc');
 
   // Store Csound AudioParams for upcoming performance
   const nchnls = libraryCsound.csoundGetNchnls(csound);
-  const nchnlsInput = isExpectingInput
-    ? libraryCsound.csoundGetNchnlsInput(csound)
-    : 0;
+  const nchnlsInput = isExpectingInput ? libraryCsound.csoundGetNchnlsInput(csound) : 0;
   // const sampleRate = libraryCsound.csoundGetSr(csound);
 
   const zeroDecibelFullScale = libraryCsound.csoundGet0dBFS(csound);
@@ -73,17 +65,9 @@ const createRealtimeAudioThread = ({ csound }) => {
   const outputBufferPtr = libraryCsound.csoundGetSpout(csound);
   const ksmps = libraryCsound.csoundGetKsmps(csound);
 
-  let csoundInputBuffer = new Float64Array(
-    buffer,
-    inputBufferPtr,
-    ksmps * nchnlsInput
-  );
+  let csoundInputBuffer = new Float64Array(buffer, inputBufferPtr, ksmps * nchnlsInput);
 
-  let csoundOutputBuffer = new Float64Array(
-    buffer,
-    outputBufferPtr,
-    ksmps * nchnls
-  );
+  let csoundOutputBuffer = new Float64Array(buffer, outputBufferPtr, ksmps * nchnls);
 
   let lastOutputWriteIndex = 0;
   let lastPerformance = 0;
@@ -109,9 +93,7 @@ const createRealtimeAudioThread = ({ csound }) => {
     }
 
     const outputAudioPacket = instantiateAudioPacket(nchnls, numFrames);
-    const hasInput =
-      audioInputs.buffers.length > 0 &&
-      audioInputs.availableFrames >= numFrames;
+    const hasInput = audioInputs.buffers.length > 0 && audioInputs.availableFrames >= numFrames;
 
     for (let i = 0; i < numFrames; i++) {
       const currentCsoundBufferPos = i % ksmps;
@@ -127,17 +109,14 @@ const createRealtimeAudioThread = ({ csound }) => {
       }
 
       outputAudioPacket.forEach((channel, channelIndex) => {
-        channel[i] =
-          (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] ||
-            0) / zeroDecibelFullScale;
+        channel[i] = (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] || 0) / zeroDecibelFullScale;
       });
 
       if (hasInput) {
         for (let ii = 0; ii < nchnlsInput; ii++) {
           csoundInputBuffer[currentCsoundBufferPos * nchnlsInput + ii] =
-            (audioInputs.buffers[ii][
-              i + (audioInputs.inputReadIndex % MAX_HARDWARE_BUFFER_SIZE)
-            ] || 0) * zeroDecibelFullScale;
+            (audioInputs.buffers[ii][i + (audioInputs.inputReadIndex % MAX_HARDWARE_BUFFER_SIZE)] || 0) *
+            zeroDecibelFullScale;
         }
       }
     }
@@ -168,8 +147,7 @@ onmessage = function(event) {
   } else if (event.data.msg === 'initRequestPort') {
     const requestPort = event.ports[0];
     requestPort.onmessage = reqEvt => {
-      const { framesLeft = 0, audioPacket } =
-        generateAudioFrames(reqEvt.data) || {};
+      const { framesLeft = 0, audioPacket } = generateAudioFrames(reqEvt.data) || {};
       requestPort.postMessage({
         numFrames: reqEvt.data.numFrames - framesLeft,
         audioPacket,
@@ -192,23 +170,15 @@ onmessage = function(event) {
       }
     };
   } else if (event.data.playStateChange) {
-    workerMessagePort.vanillaWorkerState =
-      event.data.playStateChange.playStateChange;
+    workerMessagePort.vanillaWorkerState = event.data.playStateChange.playStateChange;
   }
 };
 
 const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
-  const startHandler = handleCsoundStart(
-    workerMessagePort,
-    libraryCsound,
-    createRealtimeAudioThread
-  );
-  const allAPI = pipe(
-    assoc('csoundStart', startHandler),
-    assoc('wasm', wasm)
-  )(libraryCsound);
+  const startHandler = handleCsoundStart(workerMessagePort, libraryCsound, createRealtimeAudioThread);
+  const allAPI = pipe(assoc('csoundStart', startHandler), assoc('wasm', wasm))(libraryCsound);
   combined = new Map(Object.entries(allAPI));
 };
 

@@ -33,8 +33,7 @@ csoundCreate.toString = () => 'csoundCreate = async (csound) => undefined;';
  * @param {Object} wasm
  * @return {csoundDestroy}
  */
-export const csoundDestroy = wasm => csound =>
-  wasm.exports.csoundDestroy(csound);
+export const csoundDestroy = wasm => csound => wasm.exports.csoundDestroy(csound);
 
 csoundDestroy.toString = () => 'csoundDestroy = async (csound) => undefined;';
 
@@ -48,11 +47,9 @@ csoundDestroy.toString = () => 'csoundDestroy = async (csound) => undefined;';
  * @param {Object} wasm
  * @return {csoundGetAPIVersion}
  */
-export const csoundGetAPIVersion = wasm => () =>
-  wasm.exports.csoundGetAPIVersion();
+export const csoundGetAPIVersion = wasm => () => wasm.exports.csoundGetAPIVersion();
 
-csoundGetAPIVersion.toString = () =>
-  'csoundGetAPIVersion = async (csound) => Number;';
+csoundGetAPIVersion.toString = () => 'csoundGetAPIVersion = async (csound) => Number;';
 
 /**
  * Returns the Csound version as int
@@ -66,8 +63,7 @@ csoundGetAPIVersion.toString = () =>
  */
 export const csoundGetVersion = wasm => () => wasm.exports.csoundGetVersion();
 
-csoundGetVersion.toString = () =>
-  'csoundGetVersion = async (csound) => Number;';
+csoundGetVersion.toString = () => 'csoundGetVersion = async (csound) => Number;';
 
 /**
  * Initialise Csound with specific flags.
@@ -84,8 +80,6 @@ csoundGetVersion.toString = () =>
  * @param {Object} wasm
  * @return {csoundGetVersion}
  */
-export const csoundInitialize = wasm => flags =>
-  wasm.exports.csoundInitialize(flags);
+export const csoundInitialize = wasm => flags => wasm.exports.csoundInitialize(flags);
 
-csoundInitialize.toString = () =>
-  'csoundInitialize = async (csound) => Number;';
+csoundInitialize.toString = () => 'csoundInitialize = async (csound) => Number;';

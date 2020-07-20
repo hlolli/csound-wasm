@@ -32,7 +32,7 @@ class AudioWorkletMainThread {
         break;
       }
       case 'realtimePerformanceEnded': {
-        cleanupPorts(this.csoundWorkerMain);
+        !this.csoundWorkerMain.hasSharedArrayBuffer && cleanupPorts(this.csoundWorkerMain);
         this.audioCtx.close();
         this.audioWorkletNode.disconnect();
         break;
@@ -44,18 +44,12 @@ class AudioWorkletMainThread {
   }
 
   connectPorts() {
-    this.audioWorkletNode.port.postMessage({ msg: 'initMessagePort' }, [
-      workerMessagePortAudio,
-    ]);
+    this.audioWorkletNode.port.postMessage({ msg: 'initMessagePort' }, [workerMessagePortAudio]);
 
     // SAB bypasses this mechanism!
-    this.audioWorkletNode.port.postMessage({ msg: 'initAudioInputPort' }, [
-      audioWorkerAudioInputPort,
-    ]);
+    this.audioWorkletNode.port.postMessage({ msg: 'initAudioInputPort' }, [audioWorkerAudioInputPort]);
 
-    this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [
-      audioWorkerFrameRequestPort,
-    ]);
+    this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [audioWorkerFrameRequestPort]);
 
     try {
       this.workletProxy = Comlink.wrap(this.audioWorkletNode.port);
@@ -83,37 +77,27 @@ class AudioWorkletMainThread {
     }
 
     const createWorkletNode = inputsCount =>
-      (this.audioWorkletNode = new AudioWorkletNode(
-        this.audioCtx,
-        'csound-worklet-processor',
-        {
-          processorOptions: {
-            hardwareBufferSize: this.hardwareBufferSize,
-            softwareBufferSize: this.softwareBufferSize,
-            isRequestingInput: this.isRequestingInput,
-            inputsCount,
-            outputsCount: this.outputsCount,
-            sampleRate: this.sampleRate,
-            maybeSharedArrayBuffer:
-              this.csoundWorkerMain.hasSharedArrayBuffer &&
-              this.csoundWorkerMain.audioStatePointer,
-            maybeSharedArrayBufferAudioIn:
-              this.csoundWorkerMain.hasSharedArrayBuffer &&
-              this.csoundWorkerMain.audioStreamIn,
-            maybeSharedArrayBufferAudioOut:
-              this.csoundWorkerMain.hasSharedArrayBuffer &&
-              this.csoundWorkerMain.audioStreamOut,
-          },
-        }
-      ));
+      (this.audioWorkletNode = new AudioWorkletNode(this.audioCtx, 'csound-worklet-processor', {
+        processorOptions: {
+          hardwareBufferSize: this.hardwareBufferSize,
+          softwareBufferSize: this.softwareBufferSize,
+          isRequestingInput: this.isRequestingInput,
+          inputsCount,
+          outputsCount: this.outputsCount,
+          sampleRate: this.sampleRate,
+          maybeSharedArrayBuffer: this.csoundWorkerMain.hasSharedArrayBuffer && this.csoundWorkerMain.audioStatePointer,
+          maybeSharedArrayBufferAudioIn:
+            this.csoundWorkerMain.hasSharedArrayBuffer && this.csoundWorkerMain.audioStreamIn,
+          maybeSharedArrayBufferAudioOut:
+            this.csoundWorkerMain.hasSharedArrayBuffer && this.csoundWorkerMain.audioStreamOut,
+        },
+      }));
 
     if (this.isRequestingInput) {
       const getUserMedia =
         typeof navigator.mediaDevices !== 'undefined'
           ? navigator.mediaDevices.getUserMedia
-          : navigator.getUserMedia ||
-            navigator.webkitGetUserMedia ||
-            navigator.mozGetUserMedia;
+          : navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
 
       // (typeof navigator.mediaDevices !== 'undefined'
       //   ? navigator.mediaDevices.getUserMedia
@@ -124,9 +108,7 @@ class AudioWorkletMainThread {
           const liveInput = this.audioCtx.createMediaStreamSource(stream);
           this.inputsCount = liveInput.channelCount;
           this.audioWorkletNode = createWorkletNode(liveInput.channelCount);
-          liveInput
-            .connect(this.audioWorkletNode)
-            .connect(this.audioCtx.destination);
+          liveInput.connect(this.audioWorkletNode).connect(this.audioCtx.destination);
         } else {
           // Continue as before if user cancels
           this.inputsCount = 0;

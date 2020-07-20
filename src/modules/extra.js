@@ -14,5 +14,4 @@ export const csoundAppendEnv = wasm => (csound, variable, value) => {
   return res;
 };
 
-csoundAppendEnv.toString = () =>
-  'csoundAppendEnv = async (csound, variable, value) => Number;';
+csoundAppendEnv.toString = () => 'csoundAppendEnv = async (csound, variable, value) => Number;';

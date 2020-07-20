@@ -7,6 +7,7 @@ export const initialSharedState = [
   0, // 1 = Worklet requests new buffer data (atomic notify)
   0, // 1 = Csound is currently performing
   0, // 1 = Csound is currently paused
+  0, // 1 = STOP
   2, // n = nchnls
   0, // n = ncnls_i
   DEFAULT_HARDWARE_BUFFER_SIZE, // n = [hardware -B] bufferSize
@@ -27,17 +28,18 @@ export const AUDIO_STATE = {
   ATOMIC_NOTIFY: 0,
   IS_PERFORMING: 1,
   IS_PAUSED: 2,
-  NCHNLS: 3,
-  NCHNLS_I: 4,
-  HW_BUFFER_SIZE: 5,
-  SW_BUFFER_SIZE: 6,
-  AVAIL_IN_BUFS: 7,
-  AVAIL_OUT_BUFS: 8,
-  INPUT_READ_INDEX: 9,
-  OUTPUT_READ_INDEX: 10,
-  INPUT_WRITE_INDEX: 11,
-  OUTPUT_WRITE_INDEX: 12,
-  CALLBACK_BUFFER_INDEX: 13,
-  AVAIL_CALLBACKS: 14,
-  SAMPLE_RATE: 15,
+  STOP: 3,
+  NCHNLS: 4,
+  NCHNLS_I: 5,
+  HW_BUFFER_SIZE: 6,
+  SW_BUFFER_SIZE: 7,
+  AVAIL_IN_BUFS: 8,
+  AVAIL_OUT_BUFS: 9,
+  INPUT_READ_INDEX: 10,
+  OUTPUT_READ_INDEX: 11,
+  INPUT_WRITE_INDEX: 12,
+  OUTPUT_WRITE_INDEX: 13,
+  CALLBACK_BUFFER_INDEX: 14,
+  AVAIL_CALLBACKS: 15,
+  SAMPLE_RATE: 16,
 };

@@ -1,16 +1,11 @@
-export const handleCsoundStart = (
-  workerMessagePort,
-  libraryCsound,
-  createRealtimeAudioThread
-) => args => {
+export const handleCsoundStart = (workerMessagePort, libraryCsound, createRealtimeAudioThread) => args => {
   const { csound } = args;
   // account for slash csound in wasi-memfs system
   libraryCsound.csoundAppendEnv(csound, 'SFDIR', '/csound');
   const startError = libraryCsound.csoundStart(csound);
   if (startError !== 0) {
     workerMessagePort.post(
-      `error: csoundStart failed while trying to render ${outputName},` +
-        ' look out for errors in options and syntax'
+      `error: csoundStart failed while trying to render ${outputName},` + ' look out for errors in options and syntax'
     );
     return startError;
   }

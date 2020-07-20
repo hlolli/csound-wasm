@@ -4,10 +4,7 @@ export const onWorkerMessageEvent = async event => {
     switch (data.type) {
       case 'returnValue': {
         const promiseReturn = mainThreadCallbackQueue[queueId];
-        if (
-          typeof promiseReturn === 'object' &&
-          typeof promiseReturn.resolve === 'function'
-        ) {
+        if (typeof promiseReturn === 'object' && typeof promiseReturn.resolve === 'function') {
           promiseReturn.resolve(data.returnValue);
         }
       }
@@ -34,7 +31,6 @@ export const onWorkerMessageEvent = async event => {
       }
 
       default: {
-
       }
     }
   }

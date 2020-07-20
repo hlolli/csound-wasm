@@ -9,12 +9,7 @@ import {
 } from '@root/mains/messages.main';
 import SABWorker from '@root/workers/sab.worker';
 import getUserMedia from 'get-user-media-promise';
-import {
-  AUDIO_STATE,
-  MAX_CHANNELS,
-  MAX_HARDWARE_BUFFER_SIZE,
-  initialSharedState,
-} from '@root/constants';
+import { AUDIO_STATE, MAX_CHANNELS, MAX_HARDWARE_BUFFER_SIZE, initialSharedState } from '@root/constants';
 
 class SharedArrayBufferMainThread {
   constructor(audioWorker, wasmDataURI) {
@@ -25,9 +20,7 @@ class SharedArrayBufferMainThread {
     this.messageCallbacks = [];
     this.csoundPlayStateChangeCallbacks = [];
 
-    this.audioStateBuffer = new SharedArrayBuffer(
-      initialSharedState.length * Int32Array.BYTES_PER_ELEMENT
-    );
+    this.audioStateBuffer = new SharedArrayBuffer(initialSharedState.length * Int32Array.BYTES_PER_ELEMENT);
 
     this.audioStatePointer = new Int32Array(this.audioStateBuffer);
 
@@ -67,9 +60,7 @@ class SharedArrayBufferMainThread {
   // User-land hook to csound's play-state changes
   async setCsoundPlayStateChangeCallback(callback) {
     if (typeof callback !== 'function') {
-      console.error(
-        `Can't assign ${typeof callback} as a playstate change callback`
-      );
+      console.error(`Can't assign ${typeof callback} as a playstate change callback`);
     } else {
       this.csoundPlayStateChangeCallbacks = [callback];
     }
@@ -77,25 +68,24 @@ class SharedArrayBufferMainThread {
 
   async addCsoundPlayStateChangeCallback(callback) {
     if (typeof callback !== 'function') {
-      console.error(
-        `Can't assign ${typeof callback} as a playstate change callback`
-      );
+      console.error(`Can't assign ${typeof callback} as a playstate change callback`);
     } else {
       this.csoundPlayStateChangeCallbacks.push(callback);
     }
   }
 
   async csoundPause() {
-    Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 1);
-    if (typeof this.csoundPlayStateChangeCallback === 'function') {
-      this.csoundPlayStateChangeCallback('realtimePerformancePaused');
+    if (!Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PAUSED)) {
+      Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 1);
+      this.onPlayStateChange('realtimePerformancePaused');
     }
   }
 
   async csoundResume() {
-    Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 0);
-    if (typeof this.csoundPlayStateChangeCallback === 'function') {
-      this.csoundPlayStateChangeCallback('realtimePerformanceResumed');
+    if (Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PAUSED)) {
+      Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 0);
+      Atomics.notify(this.audioStatePointer, AUDIO_STATE.IS_PAUSED);
+      this.onPlayStateChange('realtimePerformanceResumed');
     }
   }
 
@@ -129,31 +119,16 @@ class SharedArrayBufferMainThread {
   }
 
   async prepareRealtimePerformance() {
-    const outputsCount = Atomics.load(
-      this.audioStatePointer,
-      AUDIO_STATE.NCHNLS
-    );
-    const inputCount = Atomics.load(
-      this.audioStatePointer,
-      AUDIO_STATE.NCHNLS_I
-    );
+    const outputsCount = Atomics.load(this.audioStatePointer, AUDIO_STATE.NCHNLS);
+    const inputCount = Atomics.load(this.audioStatePointer, AUDIO_STATE.NCHNLS_I);
 
     this.audioWorker.isRequestingInput = inputCount > 0;
 
-    const sampleRate = Atomics.load(
-      this.audioStatePointer,
-      AUDIO_STATE.SAMPLE_RATE
-    );
+    const sampleRate = Atomics.load(this.audioStatePointer, AUDIO_STATE.SAMPLE_RATE);
 
-    const hardwareBufferSize = Atomics.load(
-      this.audioStatePointer,
-      AUDIO_STATE.HW_BUFFER_SIZE
-    );
+    const hardwareBufferSize = Atomics.load(this.audioStatePointer, AUDIO_STATE.HW_BUFFER_SIZE);
 
-    const softwareBufferSize = Atomics.load(
-      this.audioStatePointer,
-      AUDIO_STATE.SW_BUFFER_SIZE
-    );
+    const softwareBufferSize = Atomics.load(this.audioStatePointer, AUDIO_STATE.SW_BUFFER_SIZE);
 
     this.audioWorker.sampleRate = sampleRate;
     this.audioWorker.inputCount = inputCount;
@@ -178,12 +153,11 @@ class SharedArrayBufferMainThread {
 
     this.exportApi.setMessageCallback = this.setMessageCallback.bind(this);
     this.exportApi.addMessageCallback = this.addMessageCallback.bind(this);
-    this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(
-      this
-    );
-    this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(
-      this
-    );
+    this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(this);
+    this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(this);
+
+    this.exportApi.csoundPause = this.csoundPause.bind(this);
+    this.exportApi.csoundResume = this.csoundResume.bind(this);
 
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
@@ -194,9 +168,7 @@ class SharedArrayBufferMainThread {
         case 'csoundStart': {
           const csoundStart = async function(csound) {
             if (!csound || typeof csound !== 'number') {
-              console.error(
-                'csoundStart expects first parameter to be instance of Csound'
-              );
+              console.error('csoundStart expects first parameter to be instance of Csound');
               return -1;
             }
 
@@ -215,16 +187,9 @@ class SharedArrayBufferMainThread {
 
         case 'csoundStop': {
           this.exportApi.csoundStop = async csound => {
-            if (
-              Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PERFORMING)
-            ) {
-              Atomics.store(
-                this.audioStatePointer,
-                AUDIO_STATE.IS_PERFORMING,
-                0
-              );
+            if (Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PERFORMING)) {
+              Atomics.store(this.audioStatePointer, AUDIO_STATE.STOP, 1);
             }
-            await callback(csound);
           };
           break;
         }

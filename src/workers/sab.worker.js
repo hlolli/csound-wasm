@@ -7,22 +7,13 @@ import { handleCsoundStart } from '@root/workers/common.utils';
 import { nearestPowerOf2 } from '@root/utils';
 import { Buffer } from 'buffer';
 
-import {
-  AUDIO_STATE,
-  MAX_HARDWARE_BUFFER_SIZE,
-  initialSharedState,
-} from '@root/constants.js';
+import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE, initialSharedState } from '@root/constants.js';
 
 let wasm;
 let libraryCsound;
 let combined;
 
-const sabCreateRealtimeAudioThread = ({
-  audioStateBuffer,
-  audioStreamIn,
-  audioStreamOut,
-  csound,
-}) => {
+const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioStreamOut, csound }) => {
   if (!wasm || !libraryCsound) {
     workerMessagePort.post("error: csound wasn't initialized before starting");
     return -1;
@@ -34,8 +25,7 @@ const sabCreateRealtimeAudioThread = ({
   const startError = libraryCsound.csoundStart(csound);
   if (startError !== 0) {
     workerMessagePort.post(
-      'error: csoundStart failed in realtime-performance,' +
-        ' look out for errors in options and syntax'
+      'error: csoundStart failed in realtime-performance,' + ' look out for errors in options and syntax'
     );
     return -1;
   }
@@ -48,15 +38,11 @@ const sabCreateRealtimeAudioThread = ({
   });
 
   // Prompt for microphone only on demand!
-  const isExpectingInput = libraryCsound
-    .csoundGetInputName(csound)
-    .includes('adc');
+  const isExpectingInput = libraryCsound.csoundGetInputName(csound).includes('adc');
 
   // Store Csound AudioParams for upcoming performance
   const nchnls = libraryCsound.csoundGetNchnls(csound);
-  const nchnlsInput = isExpectingInput
-    ? libraryCsound.csoundGetNchnlsInput(csound)
-    : 0;
+  const nchnlsInput = isExpectingInput ? libraryCsound.csoundGetNchnlsInput(csound) : 0;
   const sampleRate = libraryCsound.csoundGetSr(csound);
 
   Atomics.store(audioStatePointer, AUDIO_STATE.NCHNLS, nchnls);
@@ -67,9 +53,7 @@ const sabCreateRealtimeAudioThread = ({
   const ksmps2 = nearestPowerOf2(ksmps);
 
   if (ksmps !== ksmps2) {
-    orkerMessagePort.post(
-      `warning: ksmps value ${ksmps} is not 2^n number, the audio will sound choppy`
-    );
+    orkerMessagePort.post(`warning: ksmps value ${ksmps} is not 2^n number, the audio will sound choppy`);
   }
 
   const zeroDecibelFullScale = libraryCsound.csoundGet0dBFS(csound);
@@ -83,21 +67,13 @@ const sabCreateRealtimeAudioThread = ({
   const channelsInput = [];
   for (let channelIndex = 0; channelIndex < nchnls; ++channelIndex) {
     channelsOutput.push(
-      new Float64Array(
-        audioStreamOut,
-        MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-        MAX_HARDWARE_BUFFER_SIZE
-      )
+      new Float64Array(audioStreamOut, MAX_HARDWARE_BUFFER_SIZE * channelIndex, MAX_HARDWARE_BUFFER_SIZE)
     );
   }
 
   for (let channelIndex = 0; channelIndex < nchnlsInput; ++channelIndex) {
     channelsInput.push(
-      new Float64Array(
-        audioStreamIn,
-        MAX_HARDWARE_BUFFER_SIZE * channelIndex,
-        MAX_HARDWARE_BUFFER_SIZE
-      )
+      new Float64Array(audioStreamIn, MAX_HARDWARE_BUFFER_SIZE * channelIndex, MAX_HARDWARE_BUFFER_SIZE)
     );
   }
 
@@ -109,53 +85,44 @@ const sabCreateRealtimeAudioThread = ({
   Atomics.store(audioStatePointer, AUDIO_STATE.IS_PERFORMING, 1);
   workerMessagePort.broadcastPlayState('realtimePerformanceStarted');
 
-  while (
-    Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0) === 'ok'
-  ) {
+  while (Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0) === 'ok') {
+    if (Atomics.load(audioStatePointer, AUDIO_STATE.STOP) === 1) {
+      libraryCsound.csoundStop(csound);
+      Atomics.store(audioStatePointer, AUDIO_STATE.STOP, 0);
+    }
+
+    if (Atomics.load(audioStatePointer, AUDIO_STATE.IS_PAUSED) === 1) {
+      Atomics.wait(audioStatePointer, AUDIO_STATE.IS_PAUSED, 0) === 'ok';
+    }
+
     if (Atomics.load(audioStatePointer, AUDIO_STATE.IS_PERFORMING) !== 1) {
+      Atomics.store(audioStatePointer, AUDIO_STATE.STOP, 0);
       workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
       break;
     }
 
     const framesRequested = _b;
 
-    const availableInputFrames = Atomics.load(
-      audioStatePointer,
-      AUDIO_STATE.AVAIL_IN_BUFS
-    );
+    const availableInputFrames = Atomics.load(audioStatePointer, AUDIO_STATE.AVAIL_IN_BUFS);
 
     const hasInput = availableInputFrames >= framesRequested;
     const inputBufferPtr = libraryCsound.csoundGetSpin(csound);
     const outputBufferPtr = libraryCsound.csoundGetSpout(csound);
 
     const csoundInputBuffer =
-      hasInput &&
-      new Float64Array(
-        wasm.exports.memory.buffer,
-        inputBufferPtr,
-        ksmps * nchnlsInput
-      );
+      hasInput && new Float64Array(wasm.exports.memory.buffer, inputBufferPtr, ksmps * nchnlsInput);
 
-    const csoundOutputBuffer = new Float64Array(
-      wasm.exports.memory.buffer,
-      outputBufferPtr,
-      ksmps * nchnls
-    );
+    const csoundOutputBuffer = new Float64Array(wasm.exports.memory.buffer, outputBufferPtr, ksmps * nchnls);
 
-    const inputReadIndex =
-      hasInput && Atomics.load(audioStatePointer, AUDIO_STATE.INPUT_READ_INDEX);
+    const inputReadIndex = hasInput && Atomics.load(audioStatePointer, AUDIO_STATE.INPUT_READ_INDEX);
 
-    const outputWriteIndex = Atomics.load(
-      audioStatePointer,
-      AUDIO_STATE.OUTPUT_WRITE_INDEX
-    );
+    const outputWriteIndex = Atomics.load(audioStatePointer, AUDIO_STATE.OUTPUT_WRITE_INDEX);
 
     for (let i = 0; i < framesRequested; i++) {
       const currentInputReadIndex = hasInput && (inputReadIndex + i) % _B;
       const currentOutputWriteIndex = (outputWriteIndex + i) % _B;
 
-      const currentCsoundInputBufferPos =
-        hasInput && currentInputReadIndex % ksmps;
+      const currentCsoundInputBufferPos = hasInput && currentInputReadIndex % ksmps;
       const currentCsoundOutputBufferPos = currentOutputWriteIndex % ksmps;
 
       if (currentCsoundOutputBufferPos === 0) {
@@ -170,44 +137,32 @@ const sabCreateRealtimeAudioThread = ({
 
       channelsOutput.forEach((channel, channelIndex) => {
         channel[currentOutputWriteIndex] =
-          (csoundOutputBuffer[
-            currentCsoundOutputBufferPos * nchnls + channelIndex
-          ] || 0) / zeroDecibelFullScale;
+          (csoundOutputBuffer[currentCsoundOutputBufferPos * nchnls + channelIndex] || 0) / zeroDecibelFullScale;
       });
 
       if (hasInput) {
         channelsInput.forEach((channel, channelIndex) => {
-          csoundInputBuffer[
-            currentCsoundInputBufferPos * nchnlsInput + channelIndex
-          ] = (channel[currentInputReadIndex] || 0) * zeroDecibelFullScale;
+          csoundInputBuffer[currentCsoundInputBufferPos * nchnlsInput + channelIndex] =
+            (channel[currentInputReadIndex] || 0) * zeroDecibelFullScale;
         });
 
         Atomics.add(audioStatePointer, AUDIO_STATE.INPUT_READ_INDEX, 1);
 
-        if (
-          Atomics.load(audioStatePointer, AUDIO_STATE.INPUT_READ_INDEX) >= _B
-        ) {
+        if (Atomics.load(audioStatePointer, AUDIO_STATE.INPUT_READ_INDEX) >= _B) {
           Atomics.store(audioStatePointer, AUDIO_STATE.INPUT_READ_INDEX, 0);
         }
       }
 
       Atomics.add(audioStatePointer, AUDIO_STATE.OUTPUT_WRITE_INDEX, 1);
 
-      if (
-        Atomics.load(audioStatePointer, AUDIO_STATE.OUTPUT_WRITE_INDEX) >= _B
-      ) {
+      if (Atomics.load(audioStatePointer, AUDIO_STATE.OUTPUT_WRITE_INDEX) >= _B) {
         Atomics.store(audioStatePointer, AUDIO_STATE.OUTPUT_WRITE_INDEX, 0);
       }
     }
 
     // only decrease available input buffers if
     // they were actually consumed
-    hasInput &&
-      Atomics.sub(
-        audioStatePointer,
-        AUDIO_STATE.AVAIL_IN_BUFS,
-        framesRequested
-      );
+    hasInput && Atomics.sub(audioStatePointer, AUDIO_STATE.AVAIL_IN_BUFS, framesRequested);
     Atomics.add(audioStatePointer, AUDIO_STATE.AVAIL_OUT_BUFS, framesRequested);
     // perpare to wait
     Atomics.store(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0);
@@ -223,8 +178,7 @@ onmessage = function(event) {
   if (event.data.msg === 'initMessagePort') {
     const port = event.ports[0];
     workerMessagePort.post = log => port.postMessage({ log });
-    workerMessagePort.broadcastPlayState = playStateChange =>
-      port.postMessage({ playStateChange });
+    workerMessagePort.broadcastPlayState = playStateChange => port.postMessage({ playStateChange });
     workerMessagePort.ready = true;
   }
 };
@@ -232,15 +186,8 @@ onmessage = function(event) {
 const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
-  const startHandler = handleCsoundStart(
-    workerMessagePort,
-    libraryCsound,
-    sabCreateRealtimeAudioThread
-  );
-  const allAPI = pipe(
-    assoc('csoundStart', startHandler),
-    assoc('wasm', wasm)
-  )(libraryCsound);
+  const startHandler = handleCsoundStart(workerMessagePort, libraryCsound, sabCreateRealtimeAudioThread);
+  const allAPI = pipe(assoc('csoundStart', startHandler), assoc('wasm', wasm))(libraryCsound);
   combined = new Map(Object.entries(allAPI));
 };
 
