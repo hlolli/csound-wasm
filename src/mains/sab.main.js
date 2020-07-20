@@ -8,7 +8,6 @@ import {
   workerMessagePort,
 } from '@root/mains/messages.main';
 import SABWorker from '@root/workers/sab.worker';
-import getUserMedia from 'get-user-media-promise';
 import { AUDIO_STATE, MAX_CHANNELS, MAX_HARDWARE_BUFFER_SIZE, initialSharedState } from '@root/constants';
 
 class SharedArrayBufferMainThread {
