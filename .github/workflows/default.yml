@@ -1,0 +1,26 @@
+name: "default"
+env:
+ CI: 1
+on:
+  [pull_request]
+  push:
+    branches:
+      - master
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: cachix/install-nix-action@v8
+    - uses: cachix/cachix-action@v6
+      with:
+        name: csound-wasm
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+    - name: Compile csound to wasm
+      run: nix-env -i -f nix/compile.nix
+    - name: Install npm dependencies via yarn
+      run: yarn
+    - name: Test
+      run: yarn lint
+    - name: Build javascript bundle
+      run: yarn build
