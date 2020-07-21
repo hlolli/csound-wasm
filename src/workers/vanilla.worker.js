@@ -1,4 +1,4 @@
-import * as Comlink from 'comlink/dist/esm/comlink.js';
+import * as Comlink from 'comlink';
 import { workerMessagePort } from '@root/filesystem';
 import { MAX_HARDWARE_BUFFER_SIZE } from '@root/constants.js';
 import { handleCsoundStart, instantiateAudioPacket } from '@root/workers/common.utils';
@@ -52,8 +52,6 @@ const createRealtimeAudioThread = ({ csound }) => {
   // Store Csound AudioParams for upcoming performance
   const nchnls = libraryCsound.csoundGetNchnls(csound);
   const nchnlsInput = isExpectingInput ? libraryCsound.csoundGetNchnlsInput(csound) : 0;
-  // const sampleRate = libraryCsound.csoundGetSr(csound);
-
   const zeroDecibelFullScale = libraryCsound.csoundGet0dBFS(csound);
 
   workerMessagePort.broadcastPlayState('realtimePerformanceStarted');
@@ -138,15 +136,16 @@ self.addEventListener('message', event => {
     };
     workerMessagePort.ready = true;
   } else if (event.data.msg === 'initRequestPort') {
-    const requestPort = event.ports[0];
-    requestPort.addEventListener('message', requestEvent => {
+    const csoundWorkerFrameRequestPort = event.ports[0];
+    csoundWorkerFrameRequestPort.addEventListener('message', requestEvent => {
       const { framesLeft = 0, audioPacket } = generateAudioFrames(requestEvent.data) || {};
-      requestPort.postMessage({
+      csoundWorkerFrameRequestPort.postMessage({
         numFrames: requestEvent.data.numFrames - framesLeft,
         audioPacket,
         ...requestEvent.data,
       });
     });
+    csoundWorkerFrameRequestPort.start();
   } else if (event.data.msg === 'initAudioInputPort') {
     const audioInputPort = event.ports[0];
     audioInputPort.addEventListener('message', ({ data: pkgs }) => {

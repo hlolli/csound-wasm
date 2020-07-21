@@ -1,4 +1,4 @@
-import * as Comlink from 'comlink/dist/esm/comlink.js';
+import * as Comlink from 'comlink';
 import WorkletWorker from '@root/workers/worklet.worker';
 import {
   cleanupPorts,
@@ -43,12 +43,10 @@ class AudioWorkletMainThread {
     }
   }
 
+  // SAB bypasses this mechanism!
   connectPorts() {
     this.audioWorkletNode.port.postMessage({ msg: 'initMessagePort' }, [workerMessagePortAudio]);
-
-    // SAB bypasses this mechanism!
     this.audioWorkletNode.port.postMessage({ msg: 'initAudioInputPort' }, [audioWorkerAudioInputPort]);
-
     this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [audioWorkerFrameRequestPort]);
 
     try {

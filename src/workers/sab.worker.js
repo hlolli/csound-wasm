@@ -1,4 +1,4 @@
-import * as Comlink from 'comlink/dist/esm/comlink.js';
+import * as Comlink from 'comlink';
 import { workerMessagePort } from '@root/filesystem';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
@@ -180,14 +180,14 @@ const callUncloned = async (k, arguments_) => {
   return caller && caller.apply({}, arguments_ || []);
 };
 
-onmessage = function(event) {
+self.addEventListener('message', event => {
   if (event.data.msg === 'initMessagePort') {
     const port = event.ports[0];
     workerMessagePort.post = log => port.postMessage({ log });
     workerMessagePort.broadcastPlayState = playStateChange => port.postMessage({ playStateChange });
     workerMessagePort.ready = true;
   }
-};
+});
 
 const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);

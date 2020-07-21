@@ -1,4 +1,4 @@
-import * as Comlink from 'comlink/dist/esm/comlink.js';
+import * as Comlink from 'comlink';
 import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants';
 import { instantiateAudioPacket } from '@root/workers/common.utils';
 
@@ -11,7 +11,7 @@ const workerMessagePort = {
 };
 
 const audioFramePort = {
-  requestFrames: undefined,
+  requestFrames: () => {},
 };
 
 const audioInputPort = {
@@ -179,28 +179,6 @@ function processVanillaBuffers(inputs, outputs) {
   return true;
 }
 
-const vanillaMessagePort = updateFrames => {
-  return function(event) {
-    if (event.data.msg === 'initMessagePort') {
-      const port = event.ports[0];
-      workerMessagePort.post = log => port.postMessage({ log });
-      workerMessagePort.broadcastPlayState = playStateChange => port.postMessage({ playStateChange });
-      workerMessagePort.ready = true;
-    } else if (event.data.msg === 'initRequestPort') {
-      const requestPort = event.ports[0];
-      requestPort.addEventListener('message', requestPortEvent => {
-        const { audioPacket, readIndex, numFrames } = requestPortEvent.data;
-        updateFrames({ audioPacket, numFrames, readIndex });
-      });
-      this.port.addEventListener('message', vanillaMessagePort.bind(this));
-      audioFramePort.requestFrames = requestPort.postMessage;
-    } else if (event.data.msg === 'initAudioInputPort') {
-      const inputPort = event.ports[0];
-      audioInputPort.transferInputFrames = frames => inputPort.postMessage(frames);
-    }
-  };
-};
-
 class CsoundWorkletProcessor extends AudioWorkletProcessor {
   constructor({
     processorOptions: {
@@ -250,7 +228,6 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
           new Float64Array(this.audioStreamOut, MAX_HARDWARE_BUFFER_SIZE * channelIndex, MAX_HARDWARE_BUFFER_SIZE)
         );
       }
-
       this.actualProcess = processSharedArrayBuffer.bind(this);
     } else {
       // Bit more agressive buffering with vanilla
@@ -262,43 +239,65 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
       this.vanillaAvailableFrames = 0;
       this.pendingFrames = 0;
 
-      this.updateFrames = ({ audioPacket, numFrames, readIndex }) => {
-        // aways dec pending Frames even for empty ones
-        this.pendingFrames -= numFrames;
-        if (audioPacket) {
-          for (let channelIndex = 0; channelIndex < outputsCount; ++channelIndex) {
-            let hasLeftover = false;
-            let framesLeft = numFrames;
-            const nextReadIndex = readIndex % this.hardwareBufferSize;
-            if (nextReadIndex < readIndex) {
-              hasLeftover = true;
-              framesLeft = this.hardwareBufferSize - readIndex;
-            }
-
-            this.vanillaOutputChannels[channelIndex].set(audioPacket[channelIndex].subarray(0, framesLeft), readIndex);
-
-            if (hasLeftover) {
-              this.vanillaOutputChannels[channelIndex].set(audioPacket[channelIndex].subarray(framesLeft));
-            }
-          }
-          this.vanillaAvailableFrames += numFrames;
-          if (!this.vanillaFirstTransferDone) {
-            this.vanillaFirstTransferDone = true;
-          }
-        }
-      };
-
       this.vanillaInitialized = false;
       this.vanillaFirstTransferDone = false;
       this.vanillaInputChannels = instantiateAudioPacket(inputsCount, MAX_HARDWARE_BUFFER_SIZE);
       this.vanillaOutputChannels = instantiateAudioPacket(outputsCount, MAX_HARDWARE_BUFFER_SIZE);
 
       this.actualProcess = processVanillaBuffers.bind(this);
+      this.port.addEventListener('message', this.vanillaMessageHandler(this.updateVanillaFrames.bind(this)));
+      this.port.start();
     }
 
-    this.port.addEventListener('message', vanillaMessagePort(this.updateFrames).bind(this));
-
     Comlink.expose(this, this.port);
+  }
+
+  updateVanillaFrames({ audioPacket, numFrames, readIndex }) {
+    // aways dec pending Frames even for empty ones
+    this.pendingFrames -= numFrames;
+    if (audioPacket) {
+      for (let channelIndex = 0; channelIndex < this.outputsCount; ++channelIndex) {
+        let hasLeftover = false;
+        let framesLeft = numFrames;
+        const nextReadIndex = readIndex % this.hardwareBufferSize;
+        if (nextReadIndex < readIndex) {
+          hasLeftover = true;
+          framesLeft = this.hardwareBufferSize - readIndex;
+        }
+
+        this.vanillaOutputChannels[channelIndex].set(audioPacket[channelIndex].subarray(0, framesLeft), readIndex);
+
+        if (hasLeftover) {
+          this.vanillaOutputChannels[channelIndex].set(audioPacket[channelIndex].subarray(framesLeft));
+        }
+      }
+      this.vanillaAvailableFrames += numFrames;
+      if (!this.vanillaFirstTransferDone) {
+        this.vanillaFirstTransferDone = true;
+      }
+    }
+  }
+
+  vanillaMessageHandler(updateVanillaFrames) {
+    return function(event) {
+      if (event.data.msg === 'initMessagePort') {
+        const port = event.ports[0];
+        workerMessagePort.post = log => port.postMessage({ log });
+        workerMessagePort.broadcastPlayState = playStateChange => port.postMessage({ playStateChange });
+        workerMessagePort.ready = true;
+      } else if (event.data.msg === 'initRequestPort') {
+        const requestPort = event.ports[0];
+        requestPort.addEventListener('message', requestPortEvent => {
+          const { audioPacket, readIndex, numFrames } = requestPortEvent.data;
+          updateVanillaFrames({ audioPacket, numFrames, readIndex });
+        });
+        audioFramePort.requestFrames = arguments_ => requestPort.postMessage(arguments_);
+        requestPort.start();
+      } else if (event.data.msg === 'initAudioInputPort') {
+        const inputPort = event.ports[0];
+        audioInputPort.transferInputFrames = frames => inputPort.postMessage(frames);
+      }
+    };
   }
 
   pause() {

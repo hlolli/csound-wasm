@@ -3,7 +3,7 @@
    https://csound.com/docs/api/modules.html
 */
 
-import { trimNull, uint2Str } from '@root/utils';
+import { trimNull, uint2String } from '@root/utils';
 
 /**
  * Returns the audio output name (-o)
@@ -19,7 +19,7 @@ export const csoundGetOutputName = wasm => csound => {
   const { buffer } = wasm.exports.memory;
   const ptr = wasm.exports.csoundGetOutputName(csound);
   const stringBuffer = new Uint8Array(buffer, ptr, 64);
-  return trimNull(uint2Str(stringBuffer)) || '';
+  return trimNull(uint2String(stringBuffer)) || '';
 };
 
 csoundGetOutputName.toString = () => 'csoundGetOutputName = async (csound) => String;';
@@ -38,7 +38,7 @@ export const csoundGetInputName = wasm => csound => {
   const { buffer } = wasm.exports.memory;
   const ptr = wasm.exports.csoundGetInputName(csound);
   const stringBuffer = new Uint8Array(buffer, ptr, 64);
-  return trimNull(uint2Str(stringBuffer)) || '';
+  return trimNull(uint2String(stringBuffer)) || '';
 };
 
 csoundGetInputName.toString = () => 'csoundGetInputName = async (csound) => String;';

@@ -14,11 +14,6 @@ export const messageEventHandler = worker => event => {
   }
 };
 
-export const audioFramesRequestHandler = worker => event =>
-  event.data.log
-    ? loggerPool.forEach(callback => callback(event.data.log))
-    : worker.onPlayStateChange(event.data.playStateChange);
-
 export let { port1: mainMessagePort, port2: workerMessagePort } = new MessageChannel();
 
 export let { port1: mainMessagePortAudio, port2: workerMessagePortAudio } = new MessageChannel();
@@ -36,14 +31,14 @@ export const cleanupPorts = csoundWorkerMain => {
   [mainMessagePort, workerMessagePort] = iterableMessageChannel();
   [mainMessagePortAudio, workerMessagePortAudio] = iterableMessageChannel();
   [csoundWorkerFrameRequestPort, audioWorkerFrameRequestPort] = iterableMessageChannel();
-
   [csoundWorkerAudioInputPort, audioWorkerAudioInputPort] = iterableMessageChannel();
 
   mainMessagePort.addEventListener('message', messageEventHandler(csoundWorkerMain));
   mainMessagePortAudio.addEventListener('message', messageEventHandler(csoundWorkerMain));
 
+  mainMessagePort.start();
+  mainMessagePortAudio.start();
+
   csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRequestPort' }, [csoundWorkerFrameRequestPort]);
   csoundWorkerMain.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [csoundWorkerAudioInputPort]);
-
-  workerMessagePort.start();
 };

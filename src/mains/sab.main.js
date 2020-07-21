@@ -141,12 +141,17 @@ class SharedArrayBufferMainThread {
     const audioStateBuffer = this.audioStateBuffer;
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
+
     // both audio worker and csound worker use 1 handler
     // simplifies flow of data (csound main.worker is always first to receive)
     mainMessagePort.addEventListener('message', messageEventHandler(this));
     mainMessagePortAudio.addEventListener('message', messageEventHandler(this));
     csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
+
+    mainMessagePort.start();
+    mainMessagePortAudio.start();
     workerMessagePort.start();
+
     const proxyPort = Comlink.wrap(csoundWorker);
     await proxyPort.initialize(this.wasmDataURI);
 

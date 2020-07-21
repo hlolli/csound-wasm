@@ -150,13 +150,16 @@ class VanillaWorkerMainThread {
     this.csoundWorker = csoundWorker;
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
+
     mainMessagePort.addEventListener('message', messageEventHandler(this));
     mainMessagePortAudio.addEventListener('message', messageEventHandler(this));
+
+    mainMessagePort.start();
+    mainMessagePortAudio.start();
+
     csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
     csoundWorker.postMessage({ msg: 'initRequestPort' }, [csoundWorkerFrameRequestPort]);
     csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [csoundWorkerAudioInputPort]);
-
-    workerMessagePort.start();
 
     const proxyPort = Comlink.wrap(csoundWorker);
     this.proxyPort = proxyPort;

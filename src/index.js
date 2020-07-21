@@ -1,3 +1,5 @@
+// eslint-disable-next-line no-unused-vars
+import * as Comlink from 'comlink';
 import VanillaWorkerMainThread from '@root/mains/vanilla.main';
 import SharedArrayBufferMainThread from '@root/mains/sab.main';
 import AudioWorkletMainThread from '@root/mains/worklet.main';

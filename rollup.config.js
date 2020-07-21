@@ -26,7 +26,7 @@ const pluginsCommon = [
 export default [
   {
     input: 'src/workers/sab.worker.js',
-    external: ['comlink'],
+    // external: ['comlink'],
     output: {
       file: 'dist/__compiled.sab.worker.js',
       format: 'iife',
@@ -41,7 +41,7 @@ export default [
   },
   {
     input: 'src/workers/vanilla.worker.js',
-    external: ['comlink'],
+    // external: ['comlink'],
     output: {
       file: 'dist/__compiled.vanilla.worker.js',
       format: 'iife',
@@ -53,7 +53,7 @@ export default [
   },
   {
     input: 'src/workers/worklet.worker.js',
-    external: ['comlink'],
+    // external: ['comlink'],
     output: {
       file: 'dist/__compiled.worklet.worker.js',
       format: 'iife',
@@ -65,7 +65,7 @@ export default [
   },
   {
     input: 'src/index.js',
-    external: ['comlink'],
+    // external: ['comlink'],
     output: {
       file: 'dist/libcsound.mjs',
       format: 'module',
