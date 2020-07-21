@@ -15,12 +15,11 @@
     "wasi"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "compile": "nix-shell nix/compile.nix",
-    "compile:debug": "nix-shell nix/compile.nix --arg debug true",
+    "compile": "nix build '(with import <nixpkgs> {}; import ./nix/native/compile.nix)' -o lib",
+    "compile:debug": "nix-shell nix/native/compile.nix --arg debug true",
     "compile:dev": "nix-shell nix/compile.nix --arg debug true --arg dev true",
     "lint": "eslint 'src/**/*.js'",
-    "build": "npx rollup -c"
+    "build": "nix build '(with import <nixpkgs> {}; import ./nix/nodejs/build.nix)' -o dist"
   },
   "devDependencies": {
     "@rollup/plugin-alias": "^3.1.1",

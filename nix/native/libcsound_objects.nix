@@ -321,8 +321,8 @@ pkgs.callPackage
 
           buildPhase = ''
             mkdir -p build && cd build
-            cp ${../c/csound_wasm.c} ./csound_wasm.c
-            cp ${../c/unsupported_opcodes.c} ./unsupported_opcodes.c
+            cp ${../../c/csound_wasm.c} ./csound_wasm.c
+            cp ${../../c/unsupported_opcodes.c} ./unsupported_opcodes.c
 
             # ../OOps/lpred.c
 

@@ -16,11 +16,11 @@ jobs:
       with:
         name: csound-wasm
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-    - name: Compile csound to wasm
-      run: nix-env -i -f nix/compile.nix
     - name: Install npm dependencies via yarn
       run: yarn
     - name: Test
       run: yarn lint
+    - name: Compile csound natively to wasm
+      run: yarn compile
     - name: Build javascript bundle
       run: yarn build
