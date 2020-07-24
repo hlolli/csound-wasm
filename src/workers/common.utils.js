@@ -1,7 +1,7 @@
 export const handleCsoundStart = (workerMessagePort, libraryCsound, createRealtimeAudioThread) => arguments_ => {
   const { csound } = arguments_;
   // account for slash csound in wasi-memfs system
-  libraryCsound.csoundAppendEnv(csound, 'SFDIR', '/csound');
+  // libraryCsound.csoundAppendEnv(csound, 'SFDIR', '/csound');
   const startError = libraryCsound.csoundStart(csound);
   const outputName = libraryCsound.csoundGetOutputName(csound) || 'test.wav';
 

@@ -227,18 +227,24 @@ pkgs.callPackage
             --replace 'static double timeResolutionSeconds = -1.0;' \
                       'static double timeResolutionSeconds = 0.000001;'
 
-          substituteInPlace InOut/libsnd.c \
-            --replace 'fullName = csoundFindOutputFile(csound, fName, "SFDIR");' \
-                      'fullName = csoundFindOutputFile(csound, fName, "SFDIR"); printf("FULL NAME: %s fName: %s\n", fullName, fName);'
+          # substituteInPlace InOut/libsnd.c \
+          #   --replace 'fullName = csoundFindOutputFile(csound, fName, "SFDIR");' \
+          #             'fullName = csoundConcatenatePaths(csound, "/csound", fName);'
+
+            # --replace 'char *csoundFindOutputFile(CSOUND *csound,' \
+            #           'char *csoundFindOutputFile_DISALBED(CSOUND *csound,' \
 
           substituteInPlace Engine/envvar.c \
+            --replace 'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList);' \
+                      'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList); printf("fd: %d envList %s \n", fd, envList);' \
             --replace 'return name;' \
                       'char* fsPrefix = csound->Malloc(
                          csound, (size_t) strlen(name) + 9);
                        strcpy(fsPrefix, (name[0] == DIRSEP) ? "/csound" : "/csound/");
                        strcat(fsPrefix, name);
-                       printf("FILENAME: %s FSPREFIX: %s\n", filename, fsPrefix);
                        return fsPrefix;' \
+            --replace 'fd = open(name, WR_OPTS);' \
+                      'fd = open(name, O_RDWR);' \
             --replace 'fd = open(name, RD_OPTS);' \
                       'fd = open(name, O_RDONLY);' \
             --replace '#define RD_OPTS  O_RDONLY | O_BINARY, 0' \

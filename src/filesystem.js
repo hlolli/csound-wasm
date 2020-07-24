@@ -6,6 +6,7 @@ export const wasmFs = new WasmFs();
 
 export const preopens = {
   '/': '/',
+  // '/csound': '/',
 };
 
 export const workerMessagePort = {
@@ -100,8 +101,8 @@ export async function mkdirp(filePath) {
   });
 }
 
-export const intiFS = async () => {
-  await wasmFs.volume.mkdirSync('/csound');
+export const initFS = async () => {
+  wasmFs.volume.mkdirSync('/csound');
   createStdErrorStream();
   createStdOutStream();
 };

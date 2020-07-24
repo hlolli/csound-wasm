@@ -1,6 +1,6 @@
 {
   "name": "csound-wasm",
-  "version": "6.14.0-alpha17",
+  "version": "6.14.0-alpha20",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "LGPL-3.0",
   "main": "./dist/libcsound.mjs",
@@ -15,11 +15,9 @@
     "wasi"
   ],
   "scripts": {
-    "compile": "nix build '(with import <nixpkgs> {}; import ./nix/native/compile.nix)' -o lib",
-    "compile:debug": "nix-shell nix/native/compile.nix --arg debug true",
-    "compile:dev": "nix-shell nix/compile.nix --arg debug true --arg dev true",
+    "compile": "bash compile.sh",
     "lint": "eslint 'src/**/*.js'",
-    "build": "nix build '(with import <nixpkgs> {}; import ./nix/nodejs/build.nix)' -o dist"
+    "build": "rollup -c"
   },
   "devDependencies": {
     "@rollup/plugin-alias": "^3.1.1",

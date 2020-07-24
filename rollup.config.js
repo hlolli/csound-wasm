@@ -9,6 +9,7 @@ import * as R from 'ramda';
 
 const globals = {
   comlink: 'Comlink',
+  buffer: 'Buffer',
 };
 
 const pluginsCommon = [

@@ -2,7 +2,7 @@ import { WASI } from '@wasmer/wasi';
 import browserBindings from '@wasmer/wasi/lib/bindings/browser';
 import { lowerI64Imports } from '@wasmer/wasm-transformer';
 import { inflate } from 'pako';
-import { intiFS, preopens, wasmFs } from '@root/filesystem';
+import { initFS, preopens, wasmFs } from '@root/filesystem';
 import * as path from 'path';
 
 export const bindings = {
@@ -24,7 +24,7 @@ export default async function(wasmDataURI) {
   const module = await WebAssembly.compile(transformedBinary);
   const options = wasi.getImports(module);
   const instance = await WebAssembly.instantiate(module, options);
-  intiFS();
   wasi.start(instance);
+  await initFS();
   return instance;
 }

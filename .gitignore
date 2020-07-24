@@ -15,7 +15,7 @@ libcsound.wasm
 github-prefetch.json
 src/worklet.bundle.js
 result
-result-dev
+result_*
 lib
 dist
 deps.js
