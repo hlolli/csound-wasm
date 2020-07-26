@@ -1,12 +1,12 @@
 { stdenv, fetchFromGitHub, lib }:
 
 stdenv.mkDerivation {
-  name = "wasilibc-20202202";
+  name = "wasilibc";
   src = fetchFromGitHub {
     owner = "WebAssembly";
     repo = "wasi-libc";
     rev = "00cc5944dfc8c85ab5c5bee4cdef221afa2121f7";
-    sha256 = "02qjkxqys82fh27ny503pjgw4yqy85k69l7cfnv5p98fagf7l2ps";
+    sha256 = "1i41lmgpdp00pn5r5ddd2hzmk0dv0l2pzbc4b84nrsiwp605m10r";
   };
   makeFlags = [
     "WASM_CC=${stdenv.cc.targetPrefix}cc"

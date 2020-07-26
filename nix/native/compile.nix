@@ -1,7 +1,6 @@
 { pkgs ? import <nixpkgs> {}, dev ? false }:
 let
   L = pkgs.callPackage ./libcsound_objects.nix {};
-  clangCustom = import ./clangCustom.nix { pkgsOrig = pkgs; };
 
 in pkgs.runCommand "csound-native-wasm" {} ''
   mkdir $out

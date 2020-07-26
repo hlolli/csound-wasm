@@ -15,6 +15,7 @@ const wasi = new WASI({
   preopens,
   env: {},
   bindings,
+  traceSyscalls: true,
 });
 
 export default async function(wasmDataURI) {

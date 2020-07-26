@@ -1,12 +1,12 @@
 import path from 'path';
 import { cleanStdout, uint2String } from '@root/utils';
 import { WasmFs } from '@wasmer/wasmfs';
+import { Buffer } from 'buffer';
 
 export const wasmFs = new WasmFs();
 
 export const preopens = {
-  '/': '/',
-  // '/csound': '/',
+  '.': '.',
 };
 
 export const workerMessagePort = {
@@ -86,7 +86,7 @@ export const createStdOutStream = () => {
 };
 
 export async function copyToFs(arrayBuffer, filePath) {
-  const realPath = path.join('/csound', filePath);
+  const realPath = path.join('/', filePath);
   const buf = Buffer.from(new Uint8Array(arrayBuffer));
   wasmFs.fs.writeFileSync(realPath, buf);
 }
@@ -96,13 +96,17 @@ export async function copyToFs(arrayBuffer, filePath) {
 // nested from 1 and same root,
 // this implementation is hidden from the Csound runtime itself with a hack
 export async function mkdirp(filePath) {
-  wasmFs.volume.mkdirpSync(path.join('/csound', filePath), {
+  wasmFs.volume.mkdirpSync(path.join('/', filePath), {
     mode: '0o777',
   });
 }
 
 export const initFS = async () => {
-  wasmFs.volume.mkdirSync('/csound');
+  console.log(wasmFs);
+  // wasmFs.volume.chmodSync('/', '0o777');
+  console.log('STAT', wasmFs.volume.statSync('/'));
+  console.log('ESITST', wasmFs.volume.existsSync('/'));
+
   createStdErrorStream();
   createStdOutStream();
 };

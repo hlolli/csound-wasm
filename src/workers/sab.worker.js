@@ -1,5 +1,5 @@
 import * as Comlink from 'comlink';
-import { workerMessagePort } from '@root/filesystem';
+import { copyToFs, workerMessagePort } from '@root/filesystem';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
 import { handleCsoundStart } from '@root/workers/common.utils';
@@ -26,6 +26,7 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
     workerMessagePort.post(
       'error: csoundStart failed in realtime-performance,' + ' look out for errors in options and syntax'
     );
+    workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
     return -1;
   }
 
@@ -84,11 +85,12 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
   Atomics.store(audioStatePointer, AUDIO_STATE.IS_PERFORMING, 1);
   workerMessagePort.broadcastPlayState('realtimePerformanceStarted');
 
-  while (Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0, 1000) === 'ok') {
+  for (let waitResult = Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0, 1000); waitResult === 'ok'; ) {
     if (Atomics.load(audioStatePointer, AUDIO_STATE.STOP) === 1) {
       libraryCsound.csoundStop(csound);
+
       // Trigger "performance ended"
-      if (lastReturn === 0) {
+      if (lastReturn !== 0 || waitResult === 'timed-out') {
         workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
         libraryCsound.csoundPerformKsmps(csound);
       }
@@ -193,7 +195,11 @@ const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
   const startHandler = handleCsoundStart(workerMessagePort, libraryCsound, sabCreateRealtimeAudioThread);
-  const allAPI = pipe(assoc('csoundStart', startHandler), assoc('wasm', wasm))(libraryCsound);
+  const allAPI = pipe(
+    assoc('copyToFs', copyToFs),
+    assoc('csoundStart', startHandler),
+    assoc('wasm', wasm)
+  )(libraryCsound);
   combined = new Map(Object.entries(allAPI));
 };
 

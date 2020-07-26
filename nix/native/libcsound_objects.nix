@@ -1,21 +1,35 @@
 { pkgs ? import <nixpkgs> {} }:
 
-with import <nixpkgs> {
+let
+
+nixpkgsCanaryTar = (builtins.fetchTarball {
+  url = "https://github.com/NixOS/nixpkgs/archive/61506314588b01df0b15ffe7b3bf94c4d1a3d2c8.tar.gz";
+  sha256 = "sha256:0k7m12d89a4aqbxpr45n1jpsjj455s6lxq6n77lggj2xgmznmn1d";
+});
+
+nixpkgsCanary = import nixpkgsCanaryTar {};
+
+# wasi-sdk = nixpkgsCanary.llvmPackages_10.lldClang; # pkgs.callPackage ./wasi-sdk.nix {};
+
+pkgsCross = (import nixpkgsCanaryTar {
   # config = { allowUnsupportedSystem = true; };
   crossSystem = {
     config = "wasm32-unknown-wasi";
     libc = "wasilibc";
-    cc = (import <nixpkgs> {}).llvmPackages_10.lldClang;
+    # cc = pkgsCross.llvmPackages_10.lldClang;
     useLLVM = true;
   };
-};
+});
 
-pkgs.callPackage
+in pkgs.callPackage
   (
     { mkShell }:
     let
-      exports = with builtins; (fromJSON (readFile ./exports.json));
+      wasi-libc = pkgsCross.callPackage ./wasilibc.nix {
+        stdenv = pkgsCross.clangStdenv;
+      };
       wasi-sdk = pkgs.callPackage ./wasi-sdk.nix {};
+      exports = with builtins; (fromJSON (readFile ./exports.json));
       patchClock = pkgs.writeTextFile {
         name = "patchClock";
         executable = true;
@@ -234,21 +248,24 @@ pkgs.callPackage
             # --replace 'char *csoundFindOutputFile(CSOUND *csound,' \
             #           'char *csoundFindOutputFile_DISALBED(CSOUND *csound,' \
 
+            # --replace 'return name;' \
+            #           'char* fsPrefix = csound->Malloc(
+            #              csound, (size_t) strlen(name) + 9);
+            #            strcpy(fsPrefix, (name[0] == DIRSEP) ? "/csound" : "/csound/");
+            #            strcat(fsPrefix, name);
+            #            return fsPrefix;' \
+            # --replace 'fd = open(name, WR_OPTS);' \
+            #           'fd = open(name, O_RDONLY); printf("RW fd: %d name: %s \n", fd, name);' \
+            # --replace 'fd = open(name, RD_OPTS);' \
+            #           'fd = open(name, O_RDONLY);' \
+
           substituteInPlace Engine/envvar.c \
             --replace 'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList);' \
-                      'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList); printf("fd: %d envList %s \n", fd, envList);' \
-            --replace 'return name;' \
-                      'char* fsPrefix = csound->Malloc(
-                         csound, (size_t) strlen(name) + 9);
-                       strcpy(fsPrefix, (name[0] == DIRSEP) ? "/csound" : "/csound/");
-                       strcat(fsPrefix, name);
-                       return fsPrefix;' \
-            --replace 'fd = open(name, WR_OPTS);' \
-                      'fd = open(name, O_RDWR);' \
-            --replace 'fd = open(name, RD_OPTS);' \
-                      'fd = open(name, O_RDONLY);' \
+                      'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList); printf("fd: %d, filename: %s, envList %s \n", fd, filename, envList);' \
             --replace '#define RD_OPTS  O_RDONLY | O_BINARY, 0' \
                       '#define RD_OPTS  O_RDONLY' \
+            --replace '#define WR_OPTS  O_TRUNC | O_CREAT | O_WRONLY | O_BINARY, 0644' \
+                      '#define WR_OPTS  O_WRONLY | O_CREAT, 0660' \
             --replace 'UNLIKELY(getcwd(cwd, len)==NULL)' '0' \
             --replace '#include <math.h>' \
                       '#include <math.h>
@@ -343,6 +360,7 @@ pkgs.callPackage
               -D_WASI_EMULATED_MMAN \
               -D__BUILDING_LIBCSOUND \
               -DWASM_BUILD=1 ${preprocFlags} \
+              -fno-exceptions \
               csound_wasm.c \
               unsupported_opcodes.c \
               ../Engine/auxfd.c \
@@ -614,7 +632,7 @@ pkgs.callPackage
                 -L${libsndfileP.out}/lib \
                 -lc -lm -ldl -lsndfile -lc++ -lc++abi \
                 -lwasi-emulated-mman -lwasi-emulated-signal \
-                ${lib.concatMapStrings (x: " --export=" + x + " ")
+                ${pkgs.lib.concatMapStrings (x: " --export=" + x + " ")
                   (with builtins; fromJSON (readFile ./exports.json))} \
                 ${wasi-sdk}/share/wasi-sysroot/lib/wasm32-wasi/crt1.o \
                  *.o \
@@ -635,7 +653,7 @@ pkgs.callPackage
       inherit csoundP;
       inherit libsndfileP;
     }
-  ) {}
+  ) { }
 
 
 # -z stack-size=5242880 \
