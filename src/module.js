@@ -26,6 +26,6 @@ export default async function(wasmDataURI) {
   const options = wasi.getImports(module);
   const instance = await WebAssembly.instantiate(module, options);
   wasi.start(instance);
-  await initFS();
+  await initFS(instance);
   return instance;
 }

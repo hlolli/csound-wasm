@@ -16,6 +16,11 @@ export const handleCsoundStart = (workerMessagePort, libraryCsound, createRealti
 
   if (isExpectingRealtimeOutput) {
     createRealtimeAudioThread(arguments_);
+  } else {
+    // Do rendering
+    workerMessagePort.broadcastPlayState('renderStarted');
+    while (libraryCsound.csoundPerformKsmps(csound) === 0) {}
+    workerMessagePort.broadcastPlayState('renderEnded');
   }
 };
 

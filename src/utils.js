@@ -1,3 +1,5 @@
+// import { TextDecoder, TextEncoder } from 'text-encoding-shim';
+
 const sizeOf = {
   int: 4,
   MYFLT: 4,

@@ -259,14 +259,16 @@ in pkgs.callPackage
             # --replace 'fd = open(name, RD_OPTS);' \
             #           'fd = open(name, O_RDONLY);' \
 
+          # # export the rootFD global variable
+          # substituteInPlace H/envvar.h \
+          #   --replace 'int csoundFileClose(CSOUND *, void *fd);' \
+          #             'int csoundFileClose(CSOUND *, void *fd);
+          #              extern int rootFD;'
           substituteInPlace Engine/envvar.c \
-            --replace 'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList);' \
-                      'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList); printf("fd: %d, filename: %s, envList %s \n", fd, filename, envList);' \
             --replace '#define RD_OPTS  O_RDONLY | O_BINARY, 0' \
                       '#define RD_OPTS  O_RDONLY' \
             --replace '#define WR_OPTS  O_TRUNC | O_CREAT | O_WRONLY | O_BINARY, 0644' \
-                      '#define WR_OPTS  O_WRONLY | O_CREAT, 0660' \
-            --replace 'UNLIKELY(getcwd(cwd, len)==NULL)' '0' \
+                      '#define WR_OPTS  O_WRONLY | O_CREAT' \
             --replace '#include <math.h>' \
                       '#include <math.h>
                        #include <string.h>
@@ -274,7 +276,36 @@ in pkgs.callPackage
                        #include <unistd.h>
                        #include <fcntl.h>
                        #include <errno.h>
+                       #define getcwd(x,y) "/"
                      '
+          #   --replace 'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList);' \
+          #             'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList);
+          #              int fd2; int fd3; int fd4;
+          #              fd2 = open("/sandbox/test2.txt", O_RDWR | O_CREAT, 0660);
+          #              fd3 = __wasilibc_openat_nomode(rootFD, "/sandbox", O_RDONLY);
+          #              fd4 = open("text4", O_RDWR | O_CREAT, 0660);
+          #              printf("ROOTFD: %d \n",  rootFD);
+          #              printf("fd: %d, filename: %s, envList %s fd2: %d fd3: %d fd4: %d \n", fd, filename, envList, fd2, fd3, fd4);
+          #              struct stat buf;
+          #              stat("/csound", &buf);
+          #              int statchmod = buf.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO);
+          #              printf("chmod: %o\n", statchmod);
+          #                  if(access("/csound", W_OK) == 0) {
+          #                    printf("%s\n", "OKEY MA SKRIFA");
+          #                  } else {
+          #                    printf("%s\n", "BANNAÐ AÐ SKRIFA");
+          #                   }
+          #              DIR *d;
+          #              struct dirent *dir;
+          #              d = opendir("/");
+          #              if (d) {
+          #                while ((dir = readdir(d)) != NULL) {
+          #                printf("%s\n", dir->d_name);
+          #              }
+          #              int dirFd = dirfd(d);
+          #              printf("DIRFD: %d \n", dirFd);
+          #              closedir(d);
+          #              }' \
 
           # since we recommend n^2 number,
           # let's make sure that it's default too
@@ -343,6 +374,12 @@ in pkgs.callPackage
         ";
 
           buildPhase = ''
+            # overrides
+            # cp {../../c/envvar.override.c} ./Engine/envvar.c
+            # cp {../../c/envvar.override.h} ./H/envvar.h
+            cp ${../../c/libsnd.override.c} ./InOut/libsnd.c
+
+            # entrypoints
             mkdir -p build && cd build
             cp ${../../c/csound_wasm.c} ./csound_wasm.c
             cp ${../../c/unsupported_opcodes.c} ./unsupported_opcodes.c
@@ -360,7 +397,6 @@ in pkgs.callPackage
               -D_WASI_EMULATED_MMAN \
               -D__BUILDING_LIBCSOUND \
               -DWASM_BUILD=1 ${preprocFlags} \
-              -fno-exceptions \
               csound_wasm.c \
               unsupported_opcodes.c \
               ../Engine/auxfd.c \
@@ -622,7 +658,6 @@ in pkgs.callPackage
               echo "Link togeather libcsound"
               # mv csound_wasm_exe.s.o csound_wasm_exe.s.o_bak
               ${wasi-sdk}/bin/wasm-ld \
-                -entry=_start \
                 --lto-O3 \
                 -z stack-size=5242880 \
                 --initial-memory=536870912 \

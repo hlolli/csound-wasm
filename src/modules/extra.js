@@ -17,3 +17,10 @@ export const csoundAppendEnv = wasm => (csound, variable, value) => {
 };
 
 csoundAppendEnv.toString = () => 'csoundAppendEnv = async (csound, variable, value) => Number;';
+
+/**
+ * Internal function for setting-up browser-fs
+ */
+export const setupWasmBrowserFS = wasm => () => {
+  wasm.exports.setupWasmBrowserFS();
+};

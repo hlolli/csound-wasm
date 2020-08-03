@@ -1,12 +1,25 @@
 import path from 'path';
 import { cleanStdout, uint2String } from '@root/utils';
+import { isBrowser, isWebWorker } from 'browser-or-node';
+import { forEach, range } from 'ramda';
 import { WasmFs } from '@wasmer/wasmfs';
 import { Buffer } from 'buffer';
 
+export const touchFile = filename => {
+  wasmFs.fs.writeFileSync(`/sandbox/${filename}`, '');
+};
+
 export const wasmFs = new WasmFs();
 
+wasmFs.volume.mkdirpSync('/sandbox', { mode: '0o777' });
+
+if (isBrowser || isWebWorker) {
+  forEach(i => touchFile(i), range(0, 255));
+}
+
+// --dir <wasm path>:<host path>
 export const preopens = {
-  '.': '.',
+  '/sandbox': '/sandbox',
 };
 
 export const workerMessagePort = {
@@ -101,12 +114,32 @@ export async function mkdirp(filePath) {
   });
 }
 
-export const initFS = async () => {
+export const initFS = async wasm => {
   console.log(wasmFs);
-  // wasmFs.volume.chmodSync('/', '0o777');
+  // console.log('WASM', wasm);
+  wasm.exports.setupWasmBrowserFS();
+  // setupWasmBrowserFS(wasm);
+  /*
+  wasmFs.volume.mkdirpSync('/sandbox', { mode: '0o777' });
+  const link = wasmFs.volume.getResolvedLink('/sandbox');
+  const rootFd = Object.keys(wasmFs.volume.fds).reduce((a, b) => Math.max(a, b));
+  wasm.exports.setRootFD(rootFd);
+  console.log('rootFd', rootFd);
+  console.log('LINK', link);
+  const stat = wasmFs.fs.fstatSync(rootFd);
+  console.log('isB', stat.isBlockDevice());
+  console.log('isCharacterDevice', stat.isCharacterDevice());
+  console.log('isDirectory', stat.isDirectory());
+  console.log('isFIFO', stat.isFIFO());
+  console.log('isFile', stat.isFile());
+  console.log('isSocket', stat.isSocket());
+  console.log('isSymbolicLink', stat.isSymbolicLink());
+  // link.vol.chmodSync('/', '0o777');
+  // wasmFs.volume.lchmodSync('/', '0o777');
+
   console.log('STAT', wasmFs.volume.statSync('/'));
   console.log('ESITST', wasmFs.volume.existsSync('/'));
-
+*/
   createStdErrorStream();
   createStdOutStream();
 };
