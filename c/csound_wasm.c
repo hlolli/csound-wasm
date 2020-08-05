@@ -33,7 +33,7 @@ void freeStringMem (char* ptr) {
   free(ptr);
 }
 
-CSOUND_PARAMS* allocCsoundParams() {
+CSOUND_PARAMS* allocCsoundParamsStruct() {
   CSOUND_PARAMS* ptr = NULL;
   ptr = malloc(sizeof(CSOUND_PARAMS));
   return ptr;
@@ -42,6 +42,25 @@ CSOUND_PARAMS* allocCsoundParams() {
 void freeCsoundParams(CSOUND_PARAMS* ptr) {
   free(ptr);
 }
+
+
+// START CS_MIDIDEVICE
+int sizeOfMidiStruct() {
+  // TODO: write comparison test of js/c sizeof
+  return sizeof(CS_MIDIDEVICE);
+}
+
+CS_MIDIDEVICE* allocCsMidiDeviceStruct(int num) {
+  CS_MIDIDEVICE* ptr = NULL;
+  ptr = malloc(sizeof(CS_MIDIDEVICE) * num);
+  return ptr;
+}
+
+
+void freeCsMidiDeviceStruct(CSOUND_PARAMS* ptr) {
+  free(ptr);
+}
+// END CS_MIDIDEVICE
 
 int csoundStartWasi(CSOUND *csound) {
   // got annoyed, fix this before adding more targets!
@@ -79,6 +98,100 @@ int csoundPerformKsmpsWasi(CSOUND *csound)
   }
 }
 
+// copy/paste from upstream csound-emscripten
+// https://github.com/csound/csound/blob/develop/Emscripten/src/CsoundObj.c
+
+#define MIDI_QUEUE_SIZE 1024
+
+struct MidiData {
+  unsigned char status;
+  unsigned char data1;
+  unsigned char data2;
+  unsigned char flag;
+};
+
+struct MidiCallbackData {
+  struct MidiData *midiData;
+  int p, q;
+};
+
+struct MidiData midiData[MIDI_QUEUE_SIZE];
+struct MidiCallbackData midiCallbackData = { midiData, 0, 0 };
+
+void pushMidiMessage(CSOUND *csound, unsigned char status, unsigned char data1, unsigned char data2){
+  midiCallbackData.midiData[midiCallbackData.p].status = status;
+  midiCallbackData.midiData[midiCallbackData.p].data1 = data1;
+  midiCallbackData.midiData[midiCallbackData.p].data2= data2;
+  midiCallbackData.midiData[midiCallbackData.p].flag = 1;
+  midiCallbackData.p++;
+  if (midiCallbackData.p == MIDI_QUEUE_SIZE) {
+    midiCallbackData.p = 0;
+  }
+}
+
+/* used to distinguish between 1 and 2-byte messages */
+static const int datbyts[8] = { 2, 2, 2, 2, 1, 1, 2, 0  };
+
+/* csound MIDI read callback, called every k-cycle */
+static int midiDataRead(CSOUND *csound, void *userData, unsigned char *mbuf, int nbytes) {
+  struct MidiData *mdata = midiCallbackData.midiData;
+  int *q = &midiCallbackData.q, st, d1, d2, n = 0;
+  /* check if there is new data on circular queue */
+  while (mdata[*q].flag) {
+    st = (int) mdata[*q].status;
+    d1 = (int) mdata[*q].data1;
+    d2 = (int) mdata[*q].data2;
+    if (st < 0x80)
+      goto next;
+    if (st >= 0xF0 &&
+        !(st == 0xF8 || st == 0xFA || st == 0xFB ||
+          st == 0xFC || st == 0xFF))
+      goto next;
+    nbytes -= (datbyts[(st - 0x80) >> 4] + 1);
+    if (nbytes < 0) break;
+    /* write to csound midi buffer */
+    n += (datbyts[(st - 0x80) >> 4] + 1);
+    switch (datbyts[(st - 0x80) >> 4]) {
+    case 0:
+      *mbuf++ = (unsigned char) st;
+      break;
+    case 1:
+      *mbuf++ = (unsigned char) st;
+      *mbuf++ = (unsigned char) d1;
+      break;
+    case 2:
+      *mbuf++ = (unsigned char) st;
+      *mbuf++ = (unsigned char) d1;
+      *mbuf++ = (unsigned char) d2;
+      break;
+    }
+  next:
+    mdata[*q].flag = 0;
+    (*q)++;
+    if(*q== MIDI_QUEUE_SIZE) *q = 0;
+  }
+  /* return the number of bytes read */
+  return n;
+}
+
+static int midiInOpen(CSOUND *csound, void **userData, const char *dev) {
+  return OK;
+}
+
+static int midiInClose(CSOUND *csound, void *userData) {
+  return OK;
+}
+
+void csoundSetMidiCallbacks(CSOUND *csound) {
+  csoundSetHostImplementedMIDIIO(csound, 1);
+  csoundSetExternalMidiInOpenCallback(csound, midiInOpen);
+  csoundSetExternalMidiReadCallback(csound, midiDataRead);
+  csoundSetExternalMidiInCloseCallback(csound, midiInClose);
+}
+
+// END
+
+
 // c
 
 // same as csoundCreate but also loads
@@ -87,6 +200,7 @@ int csoundPerformKsmpsWasi(CSOUND *csound)
 CSOUND *csoundCreateWasi() {
   CSOUND *csound = csoundCreate(NULL);
   init_static_modules(csound);
+  csoundSetMidiCallbacks(csound);
   scansyn_init_(csound);
   scansynx_init_(csound);
   emugens_init_(csound);
@@ -102,6 +216,7 @@ CSOUND *csoundCreateWasi() {
 void csoundResetWasi(CSOUND *csound) {
   csoundReset(csound);
   init_static_modules(csound);
+  csoundSetMidiCallbacks(csound);
   scansyn_init_(csound);
   scansynx_init_(csound);
   emugens_init_(csound);
@@ -110,6 +225,34 @@ void csoundResetWasi(CSOUND *csound) {
   unsupported_opdoces_init_(csound);
 }
 
+int isRequestingRtMidiInput(CSOUND *csound) {
+  if (csound->oparms->Midiin || csound->oparms->FMidiin || csound->oparms->RMidiin) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+char* getRtMidiName(CSOUND *csound) {
+  return csound->QueryGlobalVariable(csound, "_RTMIDI");
+}
+
+char* getMidiOutFileName(CSOUND *csound) {
+  if (csound->oparms->FMidiname == NULL) {
+    printf("NIX\n");
+    return "\0";
+  } else {
+    /* char* str = (char*) malloc((100)*sizeof(char)); */
+    printf("FMIDINAME %s \n", csound->oparms->FMidiname);
+    /* sprintf(str, "%s\n", csound->oparms->FMidiname); */
+    /* printf("STR %s \n", str); */
+    return csound->oparms->FMidiname;
+  }
+}
+
+/* char* csoundGetMidiOptions(CSOUND *csound) { */
+/*   csoundGetParams(); */
+/* } */
 
 /* #if defined(CSOUND_EXE_WASM) */
 /* #else */
@@ -118,7 +261,7 @@ int main (int argc, char *argv[] ) {}
 /* #endif */
 
 // HACK FIX
-int __multi3(int a, int b) {
+int __multi3(int a, double b, double c, double d, double e) {
   return 0;
 }
 

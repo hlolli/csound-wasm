@@ -11,11 +11,17 @@ let wasm, combined, libraryCsound;
 let audioProcessCallback = () => {};
 
 const audioInputs = {
-  buffers: [],
-  inputWriteIndex: 0,
-  inputReadIndex: 0,
   availableFrames: 0,
+  buffers: [],
+  inputReadIndex: 0,
+  inputWriteIndex: 0,
+  port: undefined,
 };
+
+let csoundWorkerFrameRequestPort;
+
+let rtmidiPort;
+let rtmidiQueue = [];
 
 const createAudioInputBuffers = inputsCount => {
   for (let channelIndex = 0; channelIndex < inputsCount; ++channelIndex) {
@@ -45,6 +51,9 @@ const createRealtimeAudioThread = ({ csound }) => {
     );
     return -1;
   }
+
+  // Prompt for midi-input on demand
+  // const isRequestingRtMidiInput = libraryCsound._isRequestingRtMidiInput(csound);
 
   // Prompt for microphone only on demand!
   const isExpectingInput = libraryCsound.csoundGetInputName(csound).includes('adc');
@@ -88,6 +97,17 @@ const createRealtimeAudioThread = ({ csound }) => {
     const outputAudioPacket = instantiateAudioPacket(nchnls, numFrames);
     const hasInput = audioInputs.buffers.length > 0 && audioInputs.availableFrames >= numFrames;
 
+    if (rtmidiQueue.length > 0) {
+      rtmidiQueue.forEach(event => {
+        try {
+          libraryCsound.csoundPushMidiMessage(csound, event[0], event[1], event[2]);
+        } catch (error) {
+          console.error(error);
+        }
+      });
+      rtmidiQueue = [];
+    }
+
     for (let i = 0; i < numFrames; i++) {
       const currentCsoundBufferPos = i % ksmps;
 
@@ -96,6 +116,10 @@ const createRealtimeAudioThread = ({ csound }) => {
         if (lastPerformance !== 0) {
           workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
           audioProcessCallback = () => {};
+          rtmidiQueue = [];
+          rtmidiPort = undefined;
+          audioInputs.port = undefined;
+          csoundWorkerFrameRequestPort = undefined;
           return { framesLeft: i };
         }
       }
@@ -126,7 +150,7 @@ const callUncloned = async (k, arguments_) => {
   return caller && caller.apply({}, arguments_ || []);
 };
 
-self.addEventListener('message', event => {
+addEventListener('message', event => {
   if (event.data.msg === 'initMessagePort') {
     const port = event.ports[0];
     workerMessagePort.post = log => port.postMessage({ log });
@@ -136,19 +160,20 @@ self.addEventListener('message', event => {
     };
     workerMessagePort.ready = true;
   } else if (event.data.msg === 'initRequestPort') {
-    const csoundWorkerFrameRequestPort = event.ports[0];
+    csoundWorkerFrameRequestPort = event.ports[0];
     csoundWorkerFrameRequestPort.addEventListener('message', requestEvent => {
       const { framesLeft = 0, audioPacket } = generateAudioFrames(requestEvent.data) || {};
-      csoundWorkerFrameRequestPort.postMessage({
-        numFrames: requestEvent.data.numFrames - framesLeft,
-        audioPacket,
-        ...requestEvent.data,
-      });
+      csoundWorkerFrameRequestPort &&
+        csoundWorkerFrameRequestPort.postMessage({
+          numFrames: requestEvent.data.numFrames - framesLeft,
+          audioPacket,
+          ...requestEvent.data,
+        });
     });
     csoundWorkerFrameRequestPort.start();
   } else if (event.data.msg === 'initAudioInputPort') {
-    const audioInputPort = event.ports[0];
-    audioInputPort.addEventListener('message', ({ data: pkgs }) => {
+    audioInputs.port = event.ports[0];
+    audioInputs.port.addEventListener('message', ({ data: pkgs }) => {
       if (audioInputs.buffers.length === 0) {
         createAudioInputBuffers(pkgs.length);
       }
@@ -161,10 +186,29 @@ self.addEventListener('message', event => {
         audioInputs.inputWriteIndex = 0;
       }
     });
+    audioInputs.port.start();
+  } else if (event.data.msg === 'initRtMidiEventPort') {
+    rtmidiPort = event.ports[0];
+    rtmidiPort.addEventListener('message', ({ data: payload }) => {
+      rtmidiQueue.push(payload);
+    });
+    rtmidiPort.start();
   } else if (event.data.playStateChange) {
     workerMessagePort.vanillaWorkerState = event.data.playStateChange.playStateChange;
   }
 });
+
+const waitUntilInitialized = async () => {
+  return await new Promise(function(resolve) {
+    (function wait() {
+      if (rtmidiPort && csoundWorkerFrameRequestPort && workerMessagePort.ready) {
+        setTimeout(() => resolve(true), 5);
+      } else {
+        setTimeout(wait, 5);
+      }
+    })();
+  });
+};
 
 const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);
@@ -177,4 +221,5 @@ const initialize = async wasmDataURI => {
 Comlink.expose({
   initialize,
   callUncloned,
+  waitUntilInitialized,
 });

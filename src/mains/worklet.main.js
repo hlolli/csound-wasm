@@ -1,11 +1,14 @@
 import * as Comlink from 'comlink';
 import WorkletWorker from '@root/workers/worklet.worker';
 import {
-  cleanupPorts,
-  workerMessagePortAudio,
-  audioWorkerFrameRequestPort,
   audioWorkerAudioInputPort,
+  audioWorkerFrameRequestPort,
+  cleanupPorts,
+  emitInternalCsoundLogEvent,
+  workerMessagePortAudio,
 } from '@root/mains/messages.main';
+
+const connectedMidiDevices = new Set();
 
 class AudioWorkletMainThread {
   constructor() {
@@ -35,6 +38,16 @@ class AudioWorkletMainThread {
         !this.csoundWorkerMain.hasSharedArrayBuffer && cleanupPorts(this.csoundWorkerMain);
         this.audioCtx.close();
         this.audioWorkletNode.disconnect();
+
+        this.audioCtx = undefined;
+        this.audioWorkletNode = undefined;
+        this.currentPlayState = undefined;
+        this.workletProxy = undefined;
+        this.sampleRate = undefined;
+        this.inputsCount = undefined;
+        this.outputsCount = undefined;
+        this.hardwareBufferSize = undefined;
+        this.softwareBufferSize = undefined;
         break;
       }
       default: {
@@ -90,6 +103,31 @@ class AudioWorkletMainThread {
             this.csoundWorkerMain.hasSharedArrayBuffer && this.csoundWorkerMain.audioStreamOut,
         },
       }));
+
+    if (this.isRequestingMidi) {
+      emitInternalCsoundLogEvent('requesting for web-midi connection');
+      if (navigator && navigator.requestMIDIAccess) {
+        try {
+          const midiDevices = await navigator.requestMIDIAccess;
+          if (midiDevices.inputs) {
+            const midiInputs = midiDevices.inputs.values();
+            for (let input = midiInputs.next(); input && !input.done; input = midiInputs.next()) {
+              emitInternalCsoundLogEvent(`Connecting midi-input: ${input.value.name || 'unkown'}`);
+              if (!connectedMidiDevices.has(input.value.name || 'unkown')) {
+                input.value.onmidimessage = this.csoundWorkerMain.handleMidiInput.bind(this.csoundWorkerMain);
+                connectedMidiDevices.add(input.value.name || 'unkown');
+              }
+            }
+          } else {
+            emitInternalCsoundLogEvent('no midi-device detected');
+          }
+        } catch (error) {
+          emitInternalCsoundLogEvent('error while connecting web-midi: ' + error);
+        }
+      } else {
+        emitInternalCsoundLogEvent('no web-midi support found, midi-input will not work!');
+      }
+    }
 
     if (this.isRequestingInput) {
       const getUserMedia =

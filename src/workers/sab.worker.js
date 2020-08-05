@@ -6,13 +6,19 @@ import { handleCsoundStart } from '@root/workers/common.utils';
 import { nearestPowerOf2 } from '@root/utils';
 import { assoc, pipe } from 'ramda';
 
-import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE, initialSharedState } from '@root/constants.js';
+import {
+  AUDIO_STATE,
+  MAX_HARDWARE_BUFFER_SIZE,
+  MIDI_BUFFER_SIZE,
+  MIDI_BUFFER_PAYLOAD_SIZE,
+  initialSharedState,
+} from '@root/constants.js';
 
 let wasm;
 let libraryCsound;
 let combined;
 
-const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioStreamOut, csound }) => {
+const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioStreamOut, midiBuffer, csound }) => {
   if (!wasm || !libraryCsound) {
     workerMessagePort.post("error: csound wasn't initialized before starting");
     return -1;
@@ -37,6 +43,9 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
     Atomics.store(audioStatePointer, index, value);
   });
 
+  // Prompt for midi-input on demand
+  const isRequestingRtMidiInput = libraryCsound._isRequestingRtMidiInput(csound);
+
   // Prompt for microphone only on demand!
   const isExpectingInput = libraryCsound.csoundGetInputName(csound).includes('adc');
 
@@ -48,6 +57,7 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
   Atomics.store(audioStatePointer, AUDIO_STATE.NCHNLS, nchnls);
   Atomics.store(audioStatePointer, AUDIO_STATE.NCHNLS_I, nchnlsInput);
   Atomics.store(audioStatePointer, AUDIO_STATE.SAMPLE_RATE, sampleRate);
+  Atomics.store(audioStatePointer, AUDIO_STATE.IS_REQUESTING_RTMIDI, isRequestingRtMidiInput);
 
   const ksmps = libraryCsound.csoundGetKsmps(csound);
   const ksmps2 = nearestPowerOf2(ksmps);
@@ -85,6 +95,7 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
   Atomics.store(audioStatePointer, AUDIO_STATE.IS_PERFORMING, 1);
   workerMessagePort.broadcastPlayState('realtimePerformanceStarted');
 
+  // eslint-disable-next-line no-unmodified-loop-condition
   for (const waitResult = Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0, 1000); waitResult === 'ok'; ) {
     if (Atomics.load(audioStatePointer, AUDIO_STATE.STOP) === 1) {
       libraryCsound.csoundStop(csound);
@@ -107,6 +118,25 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
       Atomics.store(audioStatePointer, AUDIO_STATE.STOP, 0);
       workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
       break;
+    }
+
+    if (isRequestingRtMidiInput) {
+      const availableMidiEvents = Atomics.load(audioStatePointer, AUDIO_STATE.AVAIL_RTMIDI_EVENTS);
+      if (availableMidiEvents > 0) {
+        const rtmidiBufferIndex = Atomics.load(audioStatePointer, AUDIO_STATE.RTMIDI_INDEX);
+        let absIdx = rtmidiBufferIndex;
+        for (let idx = 0; idx < availableMidiEvents; idx++) {
+          // MIDI_BUFFER_PAYLOAD_SIZE
+          absIdx = (rtmidiBufferIndex + MIDI_BUFFER_PAYLOAD_SIZE * idx) % MIDI_BUFFER_SIZE;
+          const status = Atomics.load(midiBuffer, absIdx);
+          const data1 = Atomics.load(midiBuffer, absIdx + 1);
+          const data2 = Atomics.load(midiBuffer, absIdx + 2);
+          libraryCsound.csoundPushMidiMessage(csound, status, data1, data2);
+        }
+
+        Atomics.store(audioStatePointer, AUDIO_STATE.RTMIDI_INDEX, (absIdx + 1) % MIDI_BUFFER_SIZE);
+        Atomics.sub(audioStatePointer, AUDIO_STATE.AVAIL_RTMIDI_EVENTS, availableMidiEvents);
+      }
     }
 
     const framesRequested = _b;

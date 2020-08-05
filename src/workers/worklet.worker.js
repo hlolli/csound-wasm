@@ -12,6 +12,7 @@ const workerMessagePort = {
 
 const audioFramePort = {
   requestFrames: () => {},
+  ready: false,
 };
 
 const audioInputPort = {
@@ -96,7 +97,7 @@ function processSharedArrayBuffer(inputs, outputs) {
 }
 
 function processVanillaBuffers(inputs, outputs) {
-  if (!this.vanillaInitialized) {
+  if (!this.vanillaInitialized || !audioFramePort.ready) {
     if (audioFramePort.requestFrames) {
       // this minimizes startup glitches
       const firstTransferSize = this.softwareBufferSize * 4;
@@ -153,13 +154,20 @@ function processVanillaBuffers(inputs, outputs) {
     this.vanillaOutputReadIndex = nextOutputReadIndex;
     this.vanillaInputReadIndex = nextInputReadIndex;
     this.vanillaAvailableFrames -= writeableOutputChannels[0].length;
+    this.bufferUnderrunCount = 0;
   } else {
     // minimize noise
-    if (this.bufferUnderrunCount > 1) {
+    if (this.bufferUnderrunCount > 1 && this.bufferUnderrunCount < 12) {
       workerMessagePort.post('Buffer underrun');
     }
     this.bufferUnderrunCount += 1;
-    return true;
+    if (this.bufferUnderrunCount === 100) {
+      // 100 buffer Underruns in a row
+      // means a fatal situation and browser
+      // may crash
+      workerMessagePort.post('FATAL: 100 buffers failed in a row');
+      workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
+    }
   }
 
   if (
@@ -193,7 +201,6 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     },
   }) {
     super();
-
     this.currentPlayState = undefined;
     this.pause = this.pause.bind(this);
     this.resume = this.resume.bind(this);
@@ -245,7 +252,10 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
       this.vanillaOutputChannels = instantiateAudioPacket(outputsCount, MAX_HARDWARE_BUFFER_SIZE);
 
       this.actualProcess = processVanillaBuffers.bind(this);
-      this.port.addEventListener('message', this.vanillaMessageHandler(this.updateVanillaFrames.bind(this)));
+      const updateVanillaFrames = this.updateVanillaFrames.bind(this);
+      this.vanillaMessageHandler = this.vanillaMessageHandler.bind(this);
+      const messageHandlerCallback = this.vanillaMessageHandler(updateVanillaFrames).bind(this);
+      this.port.addEventListener('message', messageHandlerCallback);
       this.port.start();
     }
 
@@ -279,7 +289,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
   }
 
   vanillaMessageHandler(updateVanillaFrames) {
-    return function(event) {
+    return event => {
       if (event.data.msg === 'initMessagePort') {
         const port = event.ports[0];
         workerMessagePort.post = log => port.postMessage({ log });
@@ -292,7 +302,11 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
           updateVanillaFrames({ audioPacket, numFrames, readIndex });
         });
         audioFramePort.requestFrames = arguments_ => requestPort.postMessage(arguments_);
-        requestPort.start();
+
+        if (!audioFramePort.ready) {
+          requestPort.start();
+          audioFramePort.ready = true;
+        }
       } else if (event.data.msg === 'initAudioInputPort') {
         const inputPort = event.ports[0];
         audioInputPort.transferInputFrames = frames => inputPort.postMessage(frames);

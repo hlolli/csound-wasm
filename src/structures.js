@@ -68,3 +68,19 @@ export const CSOUND_PARAMS = [
   /* fft_lib */
   ['FFT_library', 'int'],
 ];
+
+// typedef struct {
+//   char device_name[64];
+//   char interface_name[64];
+//   char device_id[64];
+//   char midi_module[64];
+//   int isOutput;
+// } CS_MIDIDEVICE;
+export const CS_MIDIDEVICE = [
+  /* debug mode, 0 or 1 */
+  ['device_name', 'char', 64],
+  ['interface_name', 'char', 64],
+  ['device_id', 'char', 64],
+  ['midi_module', 'char', 64],
+  ['isOutput', 'int'],
+];

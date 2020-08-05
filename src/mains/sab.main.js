@@ -7,12 +7,20 @@ import {
   workerMessagePort,
 } from '@root/mains/messages.main';
 import SABWorker from '@root/workers/sab.worker';
-import { AUDIO_STATE, MAX_CHANNELS, MAX_HARDWARE_BUFFER_SIZE, initialSharedState } from '@root/constants';
+import {
+  AUDIO_STATE,
+  MAX_CHANNELS,
+  MAX_HARDWARE_BUFFER_SIZE,
+  MIDI_BUFFER_PAYLOAD_SIZE,
+  MIDI_BUFFER_SIZE,
+  initialSharedState,
+} from '@root/constants';
 import { makeProxyCallback } from '@root/utils';
 
 class SharedArrayBufferMainThread {
   constructor(audioWorker, wasmDataURI) {
     this.audioWorker = audioWorker;
+    this.csoundInstance = undefined;
     this.wasmDataURI = wasmDataURI;
     this.currentPlayState = undefined;
     this.exportApi = {};
@@ -30,14 +38,26 @@ class SharedArrayBufferMainThread {
       MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
     );
 
-    // This will sadly create circular structure
-    // that's still mostly harmless.
-    audioWorker.csoundWorkerMain = this;
-    this.hasSharedArrayBuffer = true;
+    this.midiBufferSAB = new SharedArrayBuffer(
+      MIDI_BUFFER_SIZE * MIDI_BUFFER_PAYLOAD_SIZE * Int32Array.BYTES_PER_ELEMENT
+    );
+
+    this.midiBuffer = new Int32Array(this.midiBufferSAB);
   }
 
   get api() {
     return this.exportApi;
+  }
+
+  handleMidiInput({ data: [status, data1, data2] }) {
+    const currentQueueLength = Atomics.load(this.audioStatePointer, AUDIO_STATE.AVAIL_RTMIDI_EVENTS);
+    const rtmidiBufferIndex = Atomics.load(this.audioStatePointer, AUDIO_STATE.RTMIDI_INDEX);
+    const nextIndex = (currentQueueLength * MIDI_BUFFER_PAYLOAD_SIZE + rtmidiBufferIndex) % MIDI_BUFFER_SIZE;
+
+    Atomics.store(this.midiBuffer, nextIndex, status);
+    Atomics.store(this.midiBuffer, nextIndex + 1, data1);
+    Atomics.store(this.midiBuffer, nextIndex + 2, data2);
+    Atomics.add(this.audioStatePointer, AUDIO_STATE.AVAIL_RTMIDI_EVENTS, 1);
   }
 
   async addMessageCallback(callback) {
@@ -96,6 +116,10 @@ class SharedArrayBufferMainThread {
         await this.prepareRealtimePerformance();
         break;
       }
+      case 'realtimePerformanceEnded': {
+        this.csoundInstance = undefined;
+        break;
+      }
       default: {
         break;
       }
@@ -122,6 +146,7 @@ class SharedArrayBufferMainThread {
     const inputCount = Atomics.load(this.audioStatePointer, AUDIO_STATE.NCHNLS_I);
 
     this.audioWorker.isRequestingInput = inputCount > 0;
+    this.audioWorker.isRequestingMidi = Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_REQUESTING_RTMIDI);
 
     const sampleRate = Atomics.load(this.audioStatePointer, AUDIO_STATE.SAMPLE_RATE);
 
@@ -141,6 +166,12 @@ class SharedArrayBufferMainThread {
     const audioStateBuffer = this.audioStateBuffer;
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
+    const midiBuffer = this.midiBuffer;
+
+    // This will sadly create circular structure
+    // that's still mostly harmless.
+    this.audioWorker.csoundWorkerMain = this;
+    this.hasSharedArrayBuffer = true;
 
     // both audio worker and csound worker use 1 handler
     // simplifies flow of data (csound main.worker is always first to receive)
@@ -170,6 +201,16 @@ class SharedArrayBufferMainThread {
       const reference = API[apiK];
 
       switch (apiK) {
+        case 'csoundCreate': {
+          const csoundCreate = async () => {
+            const csoundInstance = await proxyCallback();
+            this.csoundInstance = csoundInstance;
+            return csoundInstance;
+          };
+          this.exportApi.csoundCreate = csoundCreate.bind(this);
+          csoundCreate.toString = () => reference.toString();
+          break;
+        }
         case 'csoundStart': {
           const csoundStart = async function(csound) {
             if (!csound || typeof csound !== 'number') {
@@ -181,6 +222,7 @@ class SharedArrayBufferMainThread {
               audioStateBuffer,
               audioStreamIn,
               audioStreamOut,
+              midiBuffer,
               csound,
             });
           };

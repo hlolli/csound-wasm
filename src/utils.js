@@ -3,6 +3,7 @@
 const sizeOf = {
   int: 4,
   MYFLT: 4,
+  char: 1,
 };
 
 export const decoder = new TextDecoder('utf-8');
@@ -12,7 +13,7 @@ export const uint2String = uint => decoder.decode(uint);
 
 // smth I found on stackoverflow
 export const trimNull = a => {
-  const c = a.indexOf('\0');
+  const c = Math.min(a.indexOf('\u{10}') || a.length, a.indexOf('\0') || a.length);
   if (c > -1) {
     return a.slice(0, Math.max(0, c));
   }
@@ -45,8 +46,12 @@ export const string2ptr = (wasm, string) => {
 };
 
 export const sizeofStruct = jsStruct => {
-  const result = jsStruct.reduce((total, [_, primitive]) => {
-    return (total += sizeOf[primitive]);
+  const result = jsStruct.reduce((total, [_, primitive, ...rest]) => {
+    if (primitive === 'char') {
+      return (total += sizeOf[primitive] * rest[0]);
+    } else {
+      return (total += sizeOf[primitive]);
+    }
   }, 0);
   return result;
 };
@@ -57,9 +62,10 @@ export const freeStringPtr = (wasm, ptr) => {
 
 export const structBuffer2Object = (jsStruct, buffer) => {
   const [result] = jsStruct.reduce(
-    ([parameters, offset], [parameterName, primitive]) => {
-      const currentSize = sizeOf[primitive];
-      const currentValue = buffer[offset];
+    ([parameters, offset], [parameterName, primitive, ...rest]) => {
+      const currentSize = primitive === 'char' ? sizeOf[primitive] * rest[0] : sizeOf[primitive];
+      const currentValue =
+        primitive === 'char' ? trimNull(uint2String(buffer.subarray(offset, currentSize))) || '' : buffer[offset];
       parameters[parameterName] = currentValue;
       return [parameters, offset + currentSize];
     },

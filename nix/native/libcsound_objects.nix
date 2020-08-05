@@ -235,6 +235,7 @@ in pkgs.callPackage
 
           substituteInPlace Top/csound.c \
             --replace 'strcpy(s, "alsa");' 'strcpy(s, "wasi");' \
+            --replace 'strcpy(s, "hostbased");' "" \
             --replace 'signal(sigs[i], signal_handler);' "" \
             --replace 'static void psignal' 'static void psignal_' \
             --replace 'HAVE_RDTSC' '__NOT_HERE___' \

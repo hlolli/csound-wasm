@@ -6,14 +6,18 @@ import {
   DEFAULT_SOFTWARE_BUFFER_SIZE,
   MAX_CHANNELS,
   MAX_HARDWARE_BUFFER_SIZE,
+  MIDI_BUFFER_PAYLOAD_SIZE,
+  MIDI_BUFFER_SIZE,
 } from '@root/constants.js';
 import { makeProxyCallback } from '@root/utils';
 import {
+  csoundMainRtMidiPort,
   messageEventHandler,
   mainMessagePortAudio,
   mainMessagePort,
   workerMessagePort,
   csoundWorkerAudioInputPort,
+  csoundWorkerRtMidiPort,
   csoundWorkerFrameRequestPort,
 } from '@root/mains/messages.main';
 
@@ -23,19 +27,25 @@ class VanillaWorkerMainThread {
 
     this.audioStreamOut = new Float64Array(MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT);
 
+    this.midiBuffer = new Int32Array(MIDI_BUFFER_SIZE * MIDI_BUFFER_PAYLOAD_SIZE * Int32Array.BYTES_PER_ELEMENT);
+
     audioWorker.csoundWorkerMain = this;
     this.audioWorker = audioWorker;
     this.wasmDataURI = wasmDataURI;
     this.exportApi = {};
     this.csound = undefined;
     this.currentPlayState = undefined;
-    this.intervalCb = undefined;
     this.messageCallbacks = [];
     this.csoundPlayStateChangeCallbacks = [];
+    this.midiPortStarted = false;
   }
 
   get api() {
     return this.exportApi;
+  }
+
+  handleMidiInput({ data: payload }) {
+    csoundMainRtMidiPort.postMessage && csoundMainRtMidiPort.postMessage(payload);
   }
 
   async prepareRealtimePerformance() {
@@ -46,6 +56,7 @@ class VanillaWorkerMainThread {
     this.audioWorker.sampleRate = await this.exportApi.csoundGetSr(this.csound);
 
     this.audioWorker.isRequestingInput = (await this.exportApi.csoundGetInputName(this.csound)).includes('adc');
+    this.audioWorker.isRequestingMidi = await this.exportApi._isRequestingRtMidiInput(this.csound);
     this.audioWorker.outputsCount = await this.exportApi.csoundGetNchnls(this.csound);
     this.audioWorker.hardwareBufferSize = DEFAULT_HARDWARE_BUFFER_SIZE;
     this.audioWorker.softwareBufferSize = DEFAULT_SOFTWARE_BUFFER_SIZE;
@@ -61,7 +72,9 @@ class VanillaWorkerMainThread {
       }
 
       case 'realtimePerformanceEnded': {
-        workerMessagePort.close();
+        this.midiPortStarted = false;
+        this.csound = undefined;
+        this.currentPlayState = undefined;
         break;
       }
 
@@ -146,10 +159,10 @@ class VanillaWorkerMainThread {
   }
 
   async initialize() {
-    const csoundWorker = new Worker(VanillaWorker());
-    this.csoundWorker = csoundWorker;
+    this.csoundWorker = new Worker(VanillaWorker());
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
+    const midiBuffer = this.midiBuffer;
 
     mainMessagePort.addEventListener('message', messageEventHandler(this));
     mainMessagePortAudio.addEventListener('message', messageEventHandler(this));
@@ -157,11 +170,12 @@ class VanillaWorkerMainThread {
     mainMessagePort.start();
     mainMessagePortAudio.start();
 
-    csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
-    csoundWorker.postMessage({ msg: 'initRequestPort' }, [csoundWorkerFrameRequestPort]);
-    csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [csoundWorkerAudioInputPort]);
+    this.csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
+    this.csoundWorker.postMessage({ msg: 'initRequestPort' }, [csoundWorkerFrameRequestPort]);
+    this.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [csoundWorkerAudioInputPort]);
+    this.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [csoundWorkerRtMidiPort]);
 
-    const proxyPort = Comlink.wrap(csoundWorker);
+    const proxyPort = Comlink.wrap(this.csoundWorker);
     this.proxyPort = proxyPort;
     await proxyPort.initialize(this.wasmDataURI);
 
@@ -186,10 +200,11 @@ class VanillaWorkerMainThread {
             }
 
             this.csound = csound;
-
+            await proxyPort.waitUntilInitialized();
             await proxyCallback({
               audioStreamIn,
               audioStreamOut,
+              midiBuffer,
               csound,
             });
           };
@@ -200,6 +215,7 @@ class VanillaWorkerMainThread {
         }
 
         case 'csoundStop': {
+          const brodcastTheEnd = async () => await this.onPlayStateChange('realtimePerformanceEnded');
           const csoundStop = async function(csound) {
             if (!csound || typeof csound !== 'number') {
               console.error('csoundStop expects first parameter to be instance of Csound');
@@ -207,8 +223,12 @@ class VanillaWorkerMainThread {
             }
             await proxyCallback(csound);
             if (this.currentPlayState === 'realtimePerformancePaused') {
-              await proxyPort.callUncloned('csoundPerformKsmps', [csound]);
-              await this.onPlayStateChange('realtimePerformanceEnded');
+              try {
+                await proxyPort.callUncloned('csoundPerformKsmps', [csound]);
+              } catch {}
+              try {
+                await brodcastTheEnd();
+              } catch {}
             }
           };
           this.exportApi.csoundStop = csoundStop.bind(this);

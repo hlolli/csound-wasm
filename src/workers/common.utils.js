@@ -12,7 +12,8 @@ export const handleCsoundStart = (workerMessagePort, libraryCsound, createRealti
     return startError;
   }
 
-  const isExpectingRealtimeOutput = outputName.includes('dac');
+  const isRequestingRtMidiInput = libraryCsound._isRequestingRtMidiInput(csound);
+  const isExpectingRealtimeOutput = isRequestingRtMidiInput || outputName.includes('dac');
 
   if (isExpectingRealtimeOutput) {
     createRealtimeAudioThread(arguments_);
