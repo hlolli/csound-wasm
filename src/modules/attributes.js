@@ -75,7 +75,9 @@ csoundGetNchnls.toString = () => 'csoundGetNchnls = async (csound) => Number;';
  * @param {Object} wasm
  * @return {csoundGetNchnlsInput}
  */
-export const csoundGetNchnlsInput = curry((wasm, csound) => wasm.exports.csoundGetNchnlsInput(csound));
+export const csoundGetNchnlsInput = curry((wasm, csound) =>
+  wasm.exports.csoundGetNchnlsInput(csound)
+);
 
 csoundGetNchnlsInput.toString = () => 'csoundGetNchnlsInput = async (csound) => Number;';
 
@@ -117,9 +119,12 @@ csoundGetA4.toString = () => 'csoundGetA4 = async (csound) => Number;';
  * @param {Object} wasm
  * @return {csoundGetCurrentTimeSamples}
  */
-export const csoundGetCurrentTimeSamples = curry((wasm, csound) => wasm.exports.csoundGetCurrentTimeSamples(csound));
+export const csoundGetCurrentTimeSamples = curry((wasm, csound) =>
+  wasm.exports.csoundGetCurrentTimeSamples(csound)
+);
 
-csoundGetCurrentTimeSamples.toString = () => 'csoundGetCurrentTimeSamples = async (csound) => Number;';
+csoundGetCurrentTimeSamples.toString = () =>
+  'csoundGetCurrentTimeSamples = async (csound) => Number;';
 
 /**
  * Return the size of MYFLT in number of bytes
@@ -131,7 +136,9 @@ csoundGetCurrentTimeSamples.toString = () => 'csoundGetCurrentTimeSamples = asyn
  * @param {Object} wasm
  * @return {csoundGetSizeOfMYFLT}
  */
-export const csoundGetSizeOfMYFLT = curry((wasm, csound) => wasm.exports.csoundGetSizeOfMYFLT(csound));
+export const csoundGetSizeOfMYFLT = curry((wasm, csound) =>
+  wasm.exports.csoundGetSizeOfMYFLT(csound)
+);
 
 csoundGetSizeOfMYFLT.toString = () => 'csoundGetSizeOfMYFLT = async (csound) => Number;';
 

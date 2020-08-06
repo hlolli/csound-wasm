@@ -2,6 +2,7 @@ import * as Comlink from 'comlink';
 import { copyToFs, workerMessagePort } from '@root/filesystem';
 import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
+import { logSAB } from '@root/logger';
 import { handleCsoundStart } from '@root/workers/common.utils';
 import { nearestPowerOf2 } from '@root/utils';
 import { assoc, pipe } from 'ramda';
@@ -18,21 +19,15 @@ let wasm;
 let libraryCsound;
 let combined;
 
-const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioStreamOut, midiBuffer, csound }) => {
+const sabCreateRealtimeAudioThread = ({
+  audioStateBuffer,
+  audioStreamIn,
+  audioStreamOut,
+  midiBuffer,
+  csound,
+}) => {
   if (!wasm || !libraryCsound) {
     workerMessagePort.post("error: csound wasn't initialized before starting");
-    return -1;
-  }
-
-  // The actual realtime start
-  // doing this early to detect errors
-  // derive options and attributes for the performance
-  const startError = libraryCsound.csoundStart(csound);
-  if (startError !== 0) {
-    workerMessagePort.post(
-      'error: csoundStart failed in realtime-performance,' + ' look out for errors in options and syntax'
-    );
-    workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
     return -1;
   }
 
@@ -60,11 +55,6 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
   Atomics.store(audioStatePointer, AUDIO_STATE.IS_REQUESTING_RTMIDI, isRequestingRtMidiInput);
 
   const ksmps = libraryCsound.csoundGetKsmps(csound);
-  const ksmps2 = nearestPowerOf2(ksmps);
-
-  if (ksmps !== ksmps2) {
-    workerMessagePort.post(`warning: ksmps value ${ksmps} is not 2^n number, the audio will sound choppy`);
-  }
 
   const zeroDecibelFullScale = libraryCsound.csoundGet0dBFS(csound);
   // Hardware buffer size
@@ -77,13 +67,21 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
   const channelsInput = [];
   for (let channelIndex = 0; channelIndex < nchnls; ++channelIndex) {
     channelsOutput.push(
-      new Float64Array(audioStreamOut, MAX_HARDWARE_BUFFER_SIZE * channelIndex, MAX_HARDWARE_BUFFER_SIZE)
+      new Float64Array(
+        audioStreamOut,
+        MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+        MAX_HARDWARE_BUFFER_SIZE
+      )
     );
   }
 
   for (let channelIndex = 0; channelIndex < nchnlsInput; ++channelIndex) {
     channelsInput.push(
-      new Float64Array(audioStreamIn, MAX_HARDWARE_BUFFER_SIZE * channelIndex, MAX_HARDWARE_BUFFER_SIZE)
+      new Float64Array(
+        audioStreamIn,
+        MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+        MAX_HARDWARE_BUFFER_SIZE
+      )
     );
   }
 
@@ -91,33 +89,60 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
   // != 0 would mean the performance has ended
   let lastReturn = 0;
 
+  // Indicator for end of performance
+  // we want to last buffers to go trough
+  // without any stopping mechanism starting
+  // so this is local scoped stuff
+  let performanceEnded = 0;
+
+  // First round indicator
+  let firstRound = true;
+
   // Let's notify the audio-worker that performance has started
   Atomics.store(audioStatePointer, AUDIO_STATE.IS_PERFORMING, 1);
   workerMessagePort.broadcastPlayState('realtimePerformanceStarted');
+  logSAB(
+    `Atomic.wait started (thread is now locked)\n` +
+      JSON.stringify({
+        sr: sampleRate,
+        ksmps: ksmps,
+        nchnls_i: nchnlsInput,
+        nchnls: nchnls,
+        _B,
+        _b,
+      })
+  );
 
-  // eslint-disable-next-line no-unmodified-loop-condition
-  for (const waitResult = Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0, 1000); waitResult === 'ok'; ) {
-    if (Atomics.load(audioStatePointer, AUDIO_STATE.STOP) === 1) {
-      libraryCsound.csoundStop(csound);
+  while (Atomics.wait(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0) === 'ok' || true) {
+    if (firstRound) {
+      firstRound = false;
+      logSAB(`Atomic.wait unlocked, performance started`);
+    }
 
-      // Trigger "performance ended"
-      if (lastReturn !== 0 || waitResult === 'timed-out') {
-        workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
+    if (
+      Atomics.load(audioStatePointer, AUDIO_STATE.STOP) === 1 ||
+      Atomics.load(audioStatePointer, AUDIO_STATE.IS_PERFORMING) !== 1 ||
+      performanceEnded
+    ) {
+      if (lastReturn === 0 && !performanceEnded) {
+        logSAB(`calling csoundStop and one performKsmps to trigger endof logs`);
+        // Trigger "performance ended" logs
+        libraryCsound.csoundStop(csound);
         libraryCsound.csoundPerformKsmps(csound);
       }
+
+      logSAB(`nulling all playState stuff in SAB`);
       Atomics.store(audioStatePointer, AUDIO_STATE.STOP, 0);
+      Atomics.store(audioStatePointer, AUDIO_STATE.IS_PAUSED, 0);
+      Atomics.store(audioStatePointer, AUDIO_STATE.IS_PERFORMING, 0);
+      logSAB(`triggering realtimePerformanceEnded event`);
+      workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
       break;
     }
 
     if (Atomics.load(audioStatePointer, AUDIO_STATE.IS_PAUSED) === 1) {
       // eslint-disable-next-line no-unused-expressions
       Atomics.wait(audioStatePointer, AUDIO_STATE.IS_PAUSED, 0) === 'ok';
-    }
-
-    if (Atomics.load(audioStatePointer, AUDIO_STATE.IS_PERFORMING) !== 1) {
-      Atomics.store(audioStatePointer, AUDIO_STATE.STOP, 0);
-      workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
-      break;
     }
 
     if (isRequestingRtMidiInput) {
@@ -150,9 +175,14 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
     const csoundInputBuffer =
       hasInput && new Float64Array(wasm.exports.memory.buffer, inputBufferPtr, ksmps * nchnlsInput);
 
-    const csoundOutputBuffer = new Float64Array(wasm.exports.memory.buffer, outputBufferPtr, ksmps * nchnls);
+    const csoundOutputBuffer = new Float64Array(
+      wasm.exports.memory.buffer,
+      outputBufferPtr,
+      ksmps * nchnls
+    );
 
-    const inputReadIndex = hasInput && Atomics.load(audioStatePointer, AUDIO_STATE.INPUT_READ_INDEX);
+    const inputReadIndex =
+      hasInput && Atomics.load(audioStatePointer, AUDIO_STATE.INPUT_READ_INDEX);
 
     const outputWriteIndex = Atomics.load(audioStatePointer, AUDIO_STATE.OUTPUT_WRITE_INDEX);
 
@@ -163,19 +193,18 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
       const currentCsoundInputBufferPos = hasInput && currentInputReadIndex % ksmps;
       const currentCsoundOutputBufferPos = currentOutputWriteIndex % ksmps;
 
-      if (currentCsoundOutputBufferPos === 0) {
-        lastReturn = libraryCsound.csoundPerformKsmps(csound);
-        if (lastReturn !== 0) {
-          // Let's notify that performance has ended
-          workerMessagePort.broadcastPlayState('realtimePerformanceEnded');
-          Atomics.store(audioStatePointer, AUDIO_STATE.IS_PERFORMING, 0);
-          return;
+      if (currentCsoundOutputBufferPos === 0 && !performanceEnded) {
+        if (lastReturn === 0) {
+          lastReturn = libraryCsound.csoundPerformKsmps(csound);
+        } else {
+          performanceEnded = true;
         }
       }
 
       channelsOutput.forEach((channel, channelIndex) => {
         channel[currentOutputWriteIndex] =
-          (csoundOutputBuffer[currentCsoundOutputBufferPos * nchnls + channelIndex] || 0) / zeroDecibelFullScale;
+          (csoundOutputBuffer[currentCsoundOutputBufferPos * nchnls + channelIndex] || 0) /
+          zeroDecibelFullScale;
       });
 
       if (hasInput) {
@@ -202,9 +231,12 @@ const sabCreateRealtimeAudioThread = ({ audioStateBuffer, audioStreamIn, audioSt
     // they were actually consumed
     hasInput && Atomics.sub(audioStatePointer, AUDIO_STATE.AVAIL_IN_BUFS, framesRequested);
     Atomics.add(audioStatePointer, AUDIO_STATE.AVAIL_OUT_BUFS, framesRequested);
+
     // perpare to wait
     Atomics.store(audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY, 0);
   }
+
+  logSAB(`End of realtimePerformance loop!`);
 };
 
 const callUncloned = async (k, arguments_) => {
@@ -222,9 +254,15 @@ self.addEventListener('message', event => {
 });
 
 const initialize = async wasmDataURI => {
+  logSAB(`initializing SABWorker and WASM`);
   wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
-  const startHandler = handleCsoundStart(workerMessagePort, libraryCsound, sabCreateRealtimeAudioThread);
+  const startHandler = handleCsoundStart(
+    workerMessagePort,
+    libraryCsound,
+    sabCreateRealtimeAudioThread,
+    logSAB
+  );
   const allAPI = pipe(
     assoc('copyToFs', copyToFs),
     assoc('csoundStart', startHandler),

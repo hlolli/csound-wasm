@@ -13,7 +13,8 @@
  * @param {Object} wasm
  * @return {csoundGetInputBufferSize}
  */
-export const csoundGetInputBufferSize = wasm => csound => wasm.exports.csoundGetInputBufferSize(csound);
+export const csoundGetInputBufferSize = wasm => csound =>
+  wasm.exports.csoundGetInputBufferSize(csound);
 
 csoundGetInputBufferSize.toString = () => 'csoundGetInputBufferSize = async (csound) => Number;';
 
@@ -27,7 +28,8 @@ csoundGetInputBufferSize.toString = () => 'csoundGetInputBufferSize = async (cso
  * @param {Object} wasm
  * @return {csoundGetOutputBufferSize}
  */
-export const csoundGetOutputBufferSize = wasm => csound => wasm.exports.csoundGetOutputBufferSize(csound);
+export const csoundGetOutputBufferSize = wasm => csound =>
+  wasm.exports.csoundGetOutputBufferSize(csound);
 
 csoundGetOutputBufferSize.toString = () => 'csoundGetOutputBufferSize = async (csound) => Number;';
 

@@ -13,12 +13,12 @@ export const uint2String = uint => decoder.decode(uint);
 
 // smth I found on stackoverflow
 export const trimNull = a => {
-  const c = Math.min(a.indexOf('\u{10}') || a.length, a.indexOf('\0') || a.length);
-  if (c > -1) {
-    return a.slice(0, Math.max(0, c));
-  }
-
-  return a;
+  const c = Math.min.apply(undefined, [
+    a.indexOf('\u{10}') > -1 ? a.indexOf('\u{10}') : a.length,
+    a.indexOf('\0') > -1 ? a.indexOf('\0') : a.length,
+    a.indexOf('\x02') > -1 ? a.indexOf('\x02') : a.length,
+  ]);
+  return a.slice(0, c);
 };
 
 // eslint-disable-next-line no-unused-vars
@@ -65,7 +65,9 @@ export const structBuffer2Object = (jsStruct, buffer) => {
     ([parameters, offset], [parameterName, primitive, ...rest]) => {
       const currentSize = primitive === 'char' ? sizeOf[primitive] * rest[0] : sizeOf[primitive];
       const currentValue =
-        primitive === 'char' ? trimNull(uint2String(buffer.subarray(offset, currentSize))) || '' : buffer[offset];
+        primitive === 'char'
+          ? trimNull(uint2String(buffer.subarray(offset, currentSize))) || ''
+          : buffer[offset];
       parameters[parameterName] = currentValue;
       return [parameters, offset + currentSize];
     },
@@ -83,8 +85,16 @@ const isFirefox = () => navigator.userAgent.toLowerCase().includes('firefox');
 export const isSabSupported = () =>
   !isFirefox() && window.Atomics !== 'undefined' && window.SharedArrayBuffer !== 'undefined';
 
-export const areWorkletsSupportet = () => typeof AudioNode !== 'undefined' && typeof AudioWorkletNode !== 'undefined';
+export const areWorkletsSupportet = () =>
+  typeof AudioNode !== 'undefined' && typeof AudioWorkletNode !== 'undefined';
 
 export const makeProxyCallback = (proxyPort, apiK) => async (...arguments_) => {
   return await proxyPort.callUncloned(apiK, arguments_);
 };
+
+export const stopableStates = new Set([
+  'realtimePerformanceStarted',
+  'realtimePerformancePaused',
+  'realtimePerformanceResumed',
+  'renderStarted',
+]);

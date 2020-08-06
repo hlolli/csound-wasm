@@ -23,11 +23,17 @@ import {
 
 class VanillaWorkerMainThread {
   constructor(audioWorker, wasmDataURI) {
-    this.audioStreamIn = new Float64Array(MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT);
+    this.audioStreamIn = new Float64Array(
+      MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
+    );
 
-    this.audioStreamOut = new Float64Array(MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT);
+    this.audioStreamOut = new Float64Array(
+      MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
+    );
 
-    this.midiBuffer = new Int32Array(MIDI_BUFFER_SIZE * MIDI_BUFFER_PAYLOAD_SIZE * Int32Array.BYTES_PER_ELEMENT);
+    this.midiBuffer = new Int32Array(
+      MIDI_BUFFER_SIZE * MIDI_BUFFER_PAYLOAD_SIZE * Int32Array.BYTES_PER_ELEMENT
+    );
 
     audioWorker.csoundWorkerMain = this;
     this.audioWorker = audioWorker;
@@ -55,7 +61,9 @@ class VanillaWorkerMainThread {
     }
     this.audioWorker.sampleRate = await this.exportApi.csoundGetSr(this.csound);
 
-    this.audioWorker.isRequestingInput = (await this.exportApi.csoundGetInputName(this.csound)).includes('adc');
+    this.audioWorker.isRequestingInput = (
+      await this.exportApi.csoundGetInputName(this.csound)
+    ).includes('adc');
     this.audioWorker.isRequestingMidi = await this.exportApi._isRequestingRtMidiInput(this.csound);
     this.audioWorker.outputsCount = await this.exportApi.csoundGetNchnls(this.csound);
     this.audioWorker.hardwareBufferSize = DEFAULT_HARDWARE_BUFFER_SIZE;
@@ -123,7 +131,8 @@ class VanillaWorkerMainThread {
     if (
       this.audioWorker &&
       typeof this.audioWorker.workletProxy !== 'undefined' &&
-      (this.currentPlayState === 'realtimePerformanceStarted' || this.currentPlayState === 'realtimePerformanceResumed')
+      (this.currentPlayState === 'realtimePerformanceStarted' ||
+        this.currentPlayState === 'realtimePerformanceResumed')
     ) {
       await this.audioWorker.workletProxy.pause();
       this.onPlayStateChange('realtimePerformancePaused');
@@ -181,8 +190,12 @@ class VanillaWorkerMainThread {
 
     this.exportApi.setMessageCallback = this.setMessageCallback.bind(this);
     this.exportApi.addMessageCallback = this.addMessageCallback.bind(this);
-    this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(this);
-    this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(this);
+    this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(
+      this
+    );
+    this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(
+      this
+    );
 
     this.exportApi.csoundPause = this.csoundPause.bind(this);
     this.exportApi.csoundResume = this.csoundResume.bind(this);
@@ -215,7 +228,8 @@ class VanillaWorkerMainThread {
         }
 
         case 'csoundStop': {
-          const brodcastTheEnd = async () => await this.onPlayStateChange('realtimePerformanceEnded');
+          const brodcastTheEnd = async () =>
+            await this.onPlayStateChange('realtimePerformanceEnded');
           const csoundStop = async function(csound) {
             if (!csound || typeof csound !== 'number') {
               console.error('csoundStop expects first parameter to be instance of Csound');

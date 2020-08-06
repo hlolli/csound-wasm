@@ -1,5 +1,6 @@
 import * as Comlink from 'comlink';
 import WorkletWorker from '@root/workers/worklet.worker';
+import log, { logWorklet } from '@root/logger';
 import {
   audioWorkerAudioInputPort,
   audioWorkerFrameRequestPort,
@@ -7,6 +8,8 @@ import {
   emitInternalCsoundLogEvent,
   workerMessagePortAudio,
 } from '@root/mains/messages.main';
+
+let asyncTimer;
 
 const connectedMidiDevices = new Set();
 
@@ -25,16 +28,19 @@ class AudioWorkletMainThread {
     this.outputsCount = undefined;
     this.hardwareBufferSize = undefined;
     this.softwareBufferSize = undefined;
+    logWorklet('AudioWorkletMainThread was constructed');
   }
 
   async onPlayStateChange(newPlayState) {
     this.currentPlayState = newPlayState;
     switch (newPlayState) {
       case 'realtimePerformanceStarted': {
+        logWorklet('event received: realtimePerformanceStarted');
         await this.initialize();
         break;
       }
       case 'realtimePerformanceEnded': {
+        logWorklet('event received: realtimePerformanceEnded');
         !this.csoundWorkerMain.hasSharedArrayBuffer && cleanupPorts(this.csoundWorkerMain);
         this.audioCtx.close();
         this.audioWorkletNode.disconnect();
@@ -58,14 +64,20 @@ class AudioWorkletMainThread {
 
   // SAB bypasses this mechanism!
   connectPorts() {
+    logWorklet('initializing MessagePort on worker threads');
     this.audioWorkletNode.port.postMessage({ msg: 'initMessagePort' }, [workerMessagePortAudio]);
-    this.audioWorkletNode.port.postMessage({ msg: 'initAudioInputPort' }, [audioWorkerAudioInputPort]);
-    this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [audioWorkerFrameRequestPort]);
+    this.audioWorkletNode.port.postMessage({ msg: 'initAudioInputPort' }, [
+      audioWorkerAudioInputPort,
+    ]);
+    this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [
+      audioWorkerFrameRequestPort,
+    ]);
 
     try {
+      logWorklet('wrapping Comlink proxy endpoint on the audioWorkletNode.port');
       this.workletProxy = Comlink.wrap(this.audioWorkletNode.port);
     } catch (error) {
-      console.error('COMLINK ERROR', error);
+      log.error('COMLINK ERROR', error);
     }
   }
 
@@ -74,16 +86,17 @@ class AudioWorkletMainThread {
       latencyHint: 'interactive',
       sampleRate: this.sampleRate,
     });
-
+    logWorklet('new AudioContext');
     try {
       await this.audioCtx.audioWorklet.addModule(WorkletWorker());
+      logWorklet('WorkletWorker module added');
     } catch (error) {
-      console.error(error);
+      log.error(error);
       return;
     }
 
     if (!this.csoundWorkerMain) {
-      console.error(`fatal: worker not reachable from worklet-main thread`);
+      log.error(`fatal: worker not reachable from worklet-main thread`);
       return;
     }
 
@@ -96,7 +109,8 @@ class AudioWorkletMainThread {
           inputsCount,
           outputsCount: this.outputsCount,
           sampleRate: this.sampleRate,
-          maybeSharedArrayBuffer: this.csoundWorkerMain.hasSharedArrayBuffer && this.csoundWorkerMain.audioStatePointer,
+          maybeSharedArrayBuffer:
+            this.csoundWorkerMain.hasSharedArrayBuffer && this.csoundWorkerMain.audioStatePointer,
           maybeSharedArrayBufferAudioIn:
             this.csoundWorkerMain.hasSharedArrayBuffer && this.csoundWorkerMain.audioStreamIn,
           maybeSharedArrayBufferAudioOut:
@@ -108,13 +122,16 @@ class AudioWorkletMainThread {
       emitInternalCsoundLogEvent('requesting for web-midi connection');
       if (navigator && navigator.requestMIDIAccess) {
         try {
+          logWorklet('requesting midi access');
           const midiDevices = await navigator.requestMIDIAccess;
           if (midiDevices.inputs) {
             const midiInputs = midiDevices.inputs.values();
             for (let input = midiInputs.next(); input && !input.done; input = midiInputs.next()) {
               emitInternalCsoundLogEvent(`Connecting midi-input: ${input.value.name || 'unkown'}`);
               if (!connectedMidiDevices.has(input.value.name || 'unkown')) {
-                input.value.onmidimessage = this.csoundWorkerMain.handleMidiInput.bind(this.csoundWorkerMain);
+                input.value.onmidimessage = this.csoundWorkerMain.handleMidiInput.bind(
+                  this.csoundWorkerMain
+                );
                 connectedMidiDevices.add(input.value.name || 'unkown');
               }
             }
@@ -135,10 +152,6 @@ class AudioWorkletMainThread {
           ? navigator.mediaDevices.getUserMedia
           : navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
 
-      // (typeof navigator.mediaDevices !== 'undefined'
-      //   ? navigator.mediaDevices.getUserMedia
-      //   : );
-
       const microphoneCallback = stream => {
         if (stream) {
           const liveInput = this.audioCtx.createMediaStreamSource(stream);
@@ -154,13 +167,14 @@ class AudioWorkletMainThread {
         !this.csoundWorkerMain.hasSharedArrayBuffer && this.connectPorts();
       };
 
+      logWorklet('requesting microphone access');
       typeof navigator.mediaDevices !== 'undefined'
         ? getUserMedia
             .call(navigator.mediaDevices, {
               audio: { echoCancellation: false, sampleSize: 32 },
             })
             .then(microphoneCallback)
-            .catch(console.error)
+            .catch(log.error)
         : getUserMedia.call(
             navigator,
             {
@@ -169,10 +183,11 @@ class AudioWorkletMainThread {
               },
             },
             microphoneCallback,
-            console.error
+            log.error
           );
     } else {
       this.audioWorkletNode = createWorkletNode();
+      logWorklet('connecting Node to AudioContext destination');
       this.audioWorkletNode.connect(this.audioCtx.destination);
       !this.csoundWorkerMain.hasSharedArrayBuffer && this.connectPorts();
     }

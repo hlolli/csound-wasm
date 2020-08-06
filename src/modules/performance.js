@@ -31,7 +31,8 @@ csoundParseOrc.toString = () => 'csoundParseOrc = async (csound, orchestra) => O
  * @param {Object} wasm
  * @return {csoundCompileTree}
  */
-export const csoundCompileTree = wasm => (csound, tree) => wasm.exports.csoundCompileTree(csound, tree);
+export const csoundCompileTree = wasm => (csound, tree) =>
+  wasm.exports.csoundCompileTree(csound, tree);
 
 csoundCompileTree.toString = () => 'csoundCompileTree = async (csound, tree) => Number;';
 
@@ -139,7 +140,8 @@ export const csoundCompileCsdText = wasm => (csound, orc) => {
   return result;
 };
 
-csoundCompileCsdText.toString = () => 'csoundCompileCsdText = async (csound, csoundDocument) => Number;';
+csoundCompileCsdText.toString = () =>
+  'csoundCompileCsdText = async (csound, csoundDocument) => Number;';
 
 /**
  * Performs(plays) audio until end is reached

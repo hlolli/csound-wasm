@@ -47,7 +47,8 @@ const createRealtimeAudioThread = ({ csound }) => {
   const startError = libraryCsound.csoundStart(csound);
   if (startError !== 0) {
     workerMessagePort.post(
-      'error: csoundStart failed in realtime-performance,' + ' look out for errors in options and syntax'
+      'error: csoundStart failed in realtime-performance,' +
+        ' look out for errors in options and syntax'
     );
     return -1;
   }
@@ -125,14 +126,16 @@ const createRealtimeAudioThread = ({ csound }) => {
       }
 
       outputAudioPacket.forEach((channel, channelIndex) => {
-        channel[i] = (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] || 0) / zeroDecibelFullScale;
+        channel[i] =
+          (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] || 0) /
+          zeroDecibelFullScale;
       });
 
       if (hasInput) {
         for (let ii = 0; ii < nchnlsInput; ii++) {
           csoundInputBuffer[currentCsoundBufferPos * nchnlsInput + ii] =
-            (audioInputs.buffers[ii][i + (audioInputs.inputReadIndex % MAX_HARDWARE_BUFFER_SIZE)] || 0) *
-            zeroDecibelFullScale;
+            (audioInputs.buffers[ii][i + (audioInputs.inputReadIndex % MAX_HARDWARE_BUFFER_SIZE)] ||
+              0) * zeroDecibelFullScale;
         }
       }
     }
@@ -213,7 +216,11 @@ const waitUntilInitialized = async () => {
 const initialize = async wasmDataURI => {
   wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
-  const startHandler = handleCsoundStart(workerMessagePort, libraryCsound, createRealtimeAudioThread);
+  const startHandler = handleCsoundStart(
+    workerMessagePort,
+    libraryCsound,
+    createRealtimeAudioThread
+  );
   const allAPI = pipe(assoc('csoundStart', startHandler), assoc('wasm', wasm))(libraryCsound);
   combined = new Map(Object.entries(allAPI));
 };

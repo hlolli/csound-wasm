@@ -4,6 +4,7 @@ import VanillaWorkerMainThread from '@root/mains/vanilla.main';
 import SharedArrayBufferMainThread from '@root/mains/sab.main';
 import AudioWorkletMainThread from '@root/mains/worklet.main';
 import wasmDataURI from '../lib/libcsound.wasm.zlib';
+import log, { logSAB, logWorklet } from '@root/logger';
 import { areWorkletsSupportet, isSabSupported } from '@root/utils';
 export { Csound };
 export default Csound;
@@ -16,22 +17,40 @@ export default Csound;
 async function Csound() {
   var csoundWasmApi;
 
-  const audioWorker = areWorkletsSupportet() && new AudioWorkletMainThread();
+  const workletSupport = areWorkletsSupportet();
+  if (workletSupport) {
+    logWorklet(`support detected`);
+  } else {
+    log.warn(`No AudioWorklet support, falling back to deprecated ScriptProcessor`);
+  }
+
+  const audioWorker = workletSupport && new AudioWorkletMainThread();
 
   if (!audioWorker) {
-    console.error('No detectable WebAudioAPI in current environment');
+    log.error('No detectable WebAudioAPI in current environment');
     return {};
   }
 
-  const worker = isSabSupported()
+  const hasSABSupport = isSabSupported();
+  if (!hasSABSupport) {
+    log.warn(`SharedArrayBuffers not found, falling back to Vanilla concurrency`);
+  } else {
+    logSAB(`using SharedArrayBuffers`);
+  }
+  const worker = hasSABSupport
     ? new SharedArrayBufferMainThread(audioWorker, wasmDataURI)
     : new VanillaWorkerMainThread(audioWorker, wasmDataURI);
 
   if (worker) {
+    if (!hasSABSupport) {
+      log(`starting Csound thread initialization via WebWorker`);
+    } else {
+      logSAB(`starting Csound thread initialization via WebWorker`);
+    }
     await worker.initialize();
     csoundWasmApi = worker.api;
   } else {
-    console.error('No detectable WebAssembly support in current environment');
+    log.error('No detectable WebAssembly support in current environment');
     return {};
   }
 

@@ -1,6 +1,7 @@
 import * as Comlink from 'comlink';
 import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants';
 import { instantiateAudioPacket } from '@root/workers/common.utils';
+import log, { logWorklet } from '@root/logger';
 
 const PERIODS = 4;
 
@@ -21,19 +22,16 @@ const audioInputPort = {
 
 function processSharedArrayBuffer(inputs, outputs) {
   const isPerforming = Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.IS_PERFORMING) === 1;
+  const isPaused = Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.IS_PAUSED) === 1;
+  const isStopped = Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.STOP) === 1;
 
-  if (!this.sharedArrayBuffer || Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.IS_PAUSED) === 1 || !isPerforming) {
-    if (!isPerforming && this.isPerformingLastTime) {
-      // Not sure if this is working, but it seems to
-      // at minimum unblock the atomic wait in the while loop
-      // by giving it another number than 0, in turn, returning
-      // "not-equal" instead of "ok"
-      Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
-      Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOTIFY);
-    }
-
+  if (!this.sharedArrayBuffer || isPaused || !isPerforming || isStopped) {
     this.isPerformingLastTime = isPerforming;
     this.preProcessCount = 0;
+
+    // Fix for that chrome 64 bug which doesn't 0 the arrays
+    // https://github.com/csound/web-ide/issues/102#issuecomment-663894059
+    (outputs[0] || []).forEach(arr => arr.fill(0));
     return true;
   }
 
@@ -50,6 +48,7 @@ function processSharedArrayBuffer(inputs, outputs) {
   const writeableOutputChannels = outputs[0];
   const hasWriteableInputChannels = writeableInputChannels.length > 0;
   const availableOutputBuffers = Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.AVAIL_OUT_BUFS);
+
   if (availableOutputBuffers < this.softwareBufferSize * PERIODS) {
     Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
     Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOTIFY);
@@ -62,7 +61,8 @@ function processSharedArrayBuffer(inputs, outputs) {
     ? (inputWriteIndex + writeableInputChannels[0].length) % this.hardwareBufferSize
     : 0;
 
-  const nextOutputReadIndex = (outputReadIndex + writeableOutputChannels[0].length) % this.hardwareBufferSize;
+  const nextOutputReadIndex =
+    (outputReadIndex + writeableOutputChannels[0].length) % this.hardwareBufferSize;
 
   if (availableOutputBuffers > 0) {
     writeableOutputChannels.forEach((channelBuffer, channelIndex) => {
@@ -82,13 +82,21 @@ function processSharedArrayBuffer(inputs, outputs) {
       Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.INPUT_WRITE_INDEX, nextInputWriteIndex);
 
       // increase availability of new input data
-      Atomics.add(this.sharedArrayBuffer, AUDIO_STATE.AVAIL_IN_BUFS, writeableInputChannels[0].length);
+      Atomics.add(
+        this.sharedArrayBuffer,
+        AUDIO_STATE.AVAIL_IN_BUFS,
+        writeableInputChannels[0].length
+      );
     }
 
     Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.OUTPUT_READ_INDEX, nextOutputReadIndex);
 
     // subtract the available output buffers, all channels are the same length
-    Atomics.sub(this.sharedArrayBuffer, AUDIO_STATE.AVAIL_OUT_BUFS, writeableOutputChannels[0].length);
+    Atomics.sub(
+      this.sharedArrayBuffer,
+      AUDIO_STATE.AVAIL_OUT_BUFS,
+      writeableOutputChannels[0].length
+    );
   } else {
     workerMessagePort.post('Buffer underrun');
   }
@@ -129,7 +137,9 @@ function processVanillaBuffers(inputs, outputs) {
       channelBuffer.set(
         this.vanillaOutputChannels[channelIndex].subarray(
           this.vanillaOutputReadIndex,
-          nextOutputReadIndex < this.vanillaOutputReadIndex ? this.hardwareBufferSize : nextOutputReadIndex
+          nextOutputReadIndex < this.vanillaOutputReadIndex
+            ? this.hardwareBufferSize
+            : nextOutputReadIndex
         )
       );
     });
@@ -142,8 +152,10 @@ function processVanillaBuffers(inputs, outputs) {
       if (nextInputReadIndex % inputBufferLength === 0) {
         const packet = [];
         const pastBufferBegin =
-          (nextInputReadIndex === 0 ? this.hardwareBufferSize : nextInputReadIndex) - inputBufferLength;
-        const thisBufferEnd = nextInputReadIndex === 0 ? this.hardwareBufferSize : nextInputReadIndex;
+          (nextInputReadIndex === 0 ? this.hardwareBufferSize : nextInputReadIndex) -
+          inputBufferLength;
+        const thisBufferEnd =
+          nextInputReadIndex === 0 ? this.hardwareBufferSize : nextInputReadIndex;
         this.vanillaInputChannels.forEach(channelBuffer => {
           packet.push(channelBuffer.subarray(pastBufferBegin, thisBufferEnd));
         });
@@ -175,10 +187,14 @@ function processVanillaBuffers(inputs, outputs) {
     this.pendingFrames < this.softwareBufferSize * PERIODS * 2
   ) {
     const futureOutputReadIndex =
-      (this.vanillaAvailableFrames + nextOutputReadIndex + this.pendingFrames) % this.hardwareBufferSize;
+      (this.vanillaAvailableFrames + nextOutputReadIndex + this.pendingFrames) %
+      this.hardwareBufferSize;
 
     audioFramePort.requestFrames({
-      readIndex: futureOutputReadIndex < this.hardwareBufferSize ? futureOutputReadIndex : futureOutputReadIndex + 1,
+      readIndex:
+        futureOutputReadIndex < this.hardwareBufferSize
+          ? futureOutputReadIndex
+          : futureOutputReadIndex + 1,
       numFrames: this.softwareBufferSize * PERIODS,
     });
     this.pendingFrames += this.softwareBufferSize * PERIODS;
@@ -226,13 +242,21 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
 
       for (let channelIndex = 0; channelIndex < inputsCount; ++channelIndex) {
         this.sabInputChannels.push(
-          new Float64Array(this.audioStreamIn, MAX_HARDWARE_BUFFER_SIZE * channelIndex, MAX_HARDWARE_BUFFER_SIZE)
+          new Float64Array(
+            this.audioStreamIn,
+            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+            MAX_HARDWARE_BUFFER_SIZE
+          )
         );
       }
 
       for (let channelIndex = 0; channelIndex < outputsCount; ++channelIndex) {
         this.sabOutputChannels.push(
-          new Float64Array(this.audioStreamOut, MAX_HARDWARE_BUFFER_SIZE * channelIndex, MAX_HARDWARE_BUFFER_SIZE)
+          new Float64Array(
+            this.audioStreamOut,
+            MAX_HARDWARE_BUFFER_SIZE * channelIndex,
+            MAX_HARDWARE_BUFFER_SIZE
+          )
         );
       }
       this.actualProcess = processSharedArrayBuffer.bind(this);
@@ -260,6 +284,16 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     }
 
     Comlink.expose(this, this.port);
+    logWorklet(`Worker thread was constructed`);
+    logWorklet(
+      JSON.stringify({
+        sr: this.sampleRate,
+        nchnls_i: this.inputsCount,
+        nchnls: this.outputsCount,
+        _B: this.hardwareBufferSize,
+        _b: this.softwareBufferSize,
+      })
+    );
   }
 
   updateVanillaFrames({ audioPacket, numFrames, readIndex }) {
@@ -275,10 +309,15 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
           framesLeft = this.hardwareBufferSize - readIndex;
         }
 
-        this.vanillaOutputChannels[channelIndex].set(audioPacket[channelIndex].subarray(0, framesLeft), readIndex);
+        this.vanillaOutputChannels[channelIndex].set(
+          audioPacket[channelIndex].subarray(0, framesLeft),
+          readIndex
+        );
 
         if (hasLeftover) {
-          this.vanillaOutputChannels[channelIndex].set(audioPacket[channelIndex].subarray(framesLeft));
+          this.vanillaOutputChannels[channelIndex].set(
+            audioPacket[channelIndex].subarray(framesLeft)
+          );
         }
       }
       this.vanillaAvailableFrames += numFrames;
@@ -289,11 +328,13 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
   }
 
   vanillaMessageHandler(updateVanillaFrames) {
+    logWorklet(`vanillaMessageHandler was assigned`);
     return event => {
       if (event.data.msg === 'initMessagePort') {
         const port = event.ports[0];
         workerMessagePort.post = log => port.postMessage({ log });
-        workerMessagePort.broadcastPlayState = playStateChange => port.postMessage({ playStateChange });
+        workerMessagePort.broadcastPlayState = playStateChange =>
+          port.postMessage({ playStateChange });
         workerMessagePort.ready = true;
       } else if (event.data.msg === 'initRequestPort') {
         const requestPort = event.ports[0];

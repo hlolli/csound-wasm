@@ -4,6 +4,9 @@ import nodejsResolve from '@rollup/plugin-node-resolve';
 import arraybufferPlugin from './script/rollup-arraybuffer';
 import inlineWebWorkerPlugin from './script/inline-webworker';
 import nodePolyfills from 'rollup-plugin-node-polyfills';
+import { terser } from 'rollup-plugin-terser';
+// import nodeBuiltins from 'rollup-plugin-node-builtins';
+import pluginJson from '@rollup/plugin-json';
 import { resolve } from 'path';
 import * as R from 'ramda';
 
@@ -19,9 +22,12 @@ const pluginsCommon = [
       { find: '@module', replacement: resolve('./src/modules') },
     ],
   }),
+  pluginJson(),
   commonjs({ transformMixedEsModules: true }),
   nodejsResolve({ preferBuiltins: false }),
-  nodePolyfills(),
+  nodePolyfills({ fs: false, crypto: false, sourceMap: false }),
+  terser(),
+  // nodeBuiltins(),
 ];
 
 export default [

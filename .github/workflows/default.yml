@@ -21,6 +21,6 @@ jobs:
     - name: Test
       run: yarn lint
     - name: Compile csound natively to wasm
-      run: yarn compile
+      run: nix-build -E '(with import <nixpkgs> {}; import ./nix/native/compile.nix)' -o result_compile
     - name: Build javascript bundle
       run: yarn build

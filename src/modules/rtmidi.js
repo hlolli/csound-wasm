@@ -1,6 +1,12 @@
 import { range } from 'ramda';
 import { CS_MIDIDEVICE } from '@root/structures';
-import { freeStringPtr, sizeofStruct, structBuffer2Object, trimNull, uint2String } from '@root/utils';
+import {
+  freeStringPtr,
+  sizeofStruct,
+  structBuffer2Object,
+  trimNull,
+  uint2String,
+} from '@root/utils';
 
 export const csoundSetMidiCallbacks = wasm => csound => {
   wasm.exports.csoundSetMidiCallbacks(csound);

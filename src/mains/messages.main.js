@@ -21,9 +21,15 @@ export let { port1: mainMessagePort, port2: workerMessagePort } = new MessageCha
 
 export let { port1: mainMessagePortAudio, port2: workerMessagePortAudio } = new MessageChannel();
 
-export let { port1: csoundWorkerFrameRequestPort, port2: audioWorkerFrameRequestPort } = new MessageChannel();
+export let {
+  port1: csoundWorkerFrameRequestPort,
+  port2: audioWorkerFrameRequestPort,
+} = new MessageChannel();
 
-export let { port1: csoundWorkerAudioInputPort, port2: audioWorkerAudioInputPort } = new MessageChannel();
+export let {
+  port1: csoundWorkerAudioInputPort,
+  port2: audioWorkerAudioInputPort,
+} = new MessageChannel();
 
 export let { port1: csoundWorkerRtMidiPort, port2: csoundMainRtMidiPort } = new MessageChannel();
 
@@ -45,7 +51,13 @@ export const cleanupPorts = csoundWorkerMain => {
   mainMessagePort.start();
   mainMessagePortAudio.start();
 
-  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRequestPort' }, [csoundWorkerFrameRequestPort]);
-  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [csoundWorkerAudioInputPort]);
-  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [csoundWorkerRtMidiPort]);
+  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRequestPort' }, [
+    csoundWorkerFrameRequestPort,
+  ]);
+  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [
+    csoundWorkerAudioInputPort,
+  ]);
+  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [
+    csoundWorkerRtMidiPort,
+  ]);
 };

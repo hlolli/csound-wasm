@@ -43,7 +43,8 @@ export const csoundInputMessageAsync = wasm => (csound, scoEvent) => {
   return result;
 };
 
-csoundInputMessageAsync.toString = () => 'csoundInputMessageAsync = async (csound, scoreEvent) => Number;';
+csoundInputMessageAsync.toString = () =>
+  'csoundInputMessageAsync = async (csound, scoreEvent) => Number;';
 
 // csoundGetChannelPtr (CSOUND *, MYFLT **p, const char *name, int type)
 // csoundListChannels (CSOUND *, controlChannelInfo_t **lst)

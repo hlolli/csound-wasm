@@ -15,7 +15,10 @@ import {
   MIDI_BUFFER_SIZE,
   initialSharedState,
 } from '@root/constants';
-import { makeProxyCallback } from '@root/utils';
+import log, { logSAB, logWorklet } from '@root/logger';
+import { makeProxyCallback, stopableStates } from '@root/utils';
+
+let antiGCRoot;
 
 class SharedArrayBufferMainThread {
   constructor(audioWorker, wasmDataURI) {
@@ -27,7 +30,9 @@ class SharedArrayBufferMainThread {
     this.messageCallbacks = [];
     this.csoundPlayStateChangeCallbacks = [];
 
-    this.audioStateBuffer = new SharedArrayBuffer(initialSharedState.length * Int32Array.BYTES_PER_ELEMENT);
+    this.audioStateBuffer = new SharedArrayBuffer(
+      initialSharedState.length * Int32Array.BYTES_PER_ELEMENT
+    );
 
     this.audioStatePointer = new Int32Array(this.audioStateBuffer);
 
@@ -43,6 +48,7 @@ class SharedArrayBufferMainThread {
     );
 
     this.midiBuffer = new Int32Array(this.midiBufferSAB);
+    logSAB(`SharedArrayBufferMainThread got constructed`);
   }
 
   get api() {
@@ -50,9 +56,13 @@ class SharedArrayBufferMainThread {
   }
 
   handleMidiInput({ data: [status, data1, data2] }) {
-    const currentQueueLength = Atomics.load(this.audioStatePointer, AUDIO_STATE.AVAIL_RTMIDI_EVENTS);
+    const currentQueueLength = Atomics.load(
+      this.audioStatePointer,
+      AUDIO_STATE.AVAIL_RTMIDI_EVENTS
+    );
     const rtmidiBufferIndex = Atomics.load(this.audioStatePointer, AUDIO_STATE.RTMIDI_INDEX);
-    const nextIndex = (currentQueueLength * MIDI_BUFFER_PAYLOAD_SIZE + rtmidiBufferIndex) % MIDI_BUFFER_SIZE;
+    const nextIndex =
+      (currentQueueLength * MIDI_BUFFER_PAYLOAD_SIZE + rtmidiBufferIndex) % MIDI_BUFFER_SIZE;
 
     Atomics.store(this.midiBuffer, nextIndex, status);
     Atomics.store(this.midiBuffer, nextIndex + 1, data1);
@@ -94,14 +104,22 @@ class SharedArrayBufferMainThread {
   }
 
   async csoundPause() {
-    if (!Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PAUSED)) {
+    if (
+      Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PAUSED) !== 1 &&
+      Atomics.load(this.audioStatePointer, AUDIO_STATE.STOP) !== 1 &&
+      Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PERFORMING) === 1
+    ) {
       Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 1);
       this.onPlayStateChange('realtimePerformancePaused');
     }
   }
 
   async csoundResume() {
-    if (Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PAUSED)) {
+    if (
+      Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PAUSED) === 1 &&
+      Atomics.load(this.audioStatePointer, AUDIO_STATE.STOP) !== 1 &&
+      Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_PERFORMING) === 1
+    ) {
       Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 0);
       Atomics.notify(this.audioStatePointer, AUDIO_STATE.IS_PAUSED);
       this.onPlayStateChange('realtimePerformanceResumed');
@@ -113,11 +131,20 @@ class SharedArrayBufferMainThread {
 
     switch (newPlayState) {
       case 'realtimePerformanceStarted': {
+        logSAB(
+          `event: realtimePerformanceStarted received,` +
+            ` proceeding to call prepareRealtimePerformance`
+        );
         await this.prepareRealtimePerformance();
         break;
       }
       case 'realtimePerformanceEnded': {
-        this.csoundInstance = undefined;
+        logSAB(`event: realtimePerformanceEnded received, beginning cleanup`);
+
+        // re-initialize SAB
+        initialSharedState.forEach((value, index) => {
+          Atomics.store(this.audioStatePointer, index, value);
+        });
         break;
       }
       default: {
@@ -142,11 +169,15 @@ class SharedArrayBufferMainThread {
   }
 
   async prepareRealtimePerformance() {
+    logSAB(`prepareRealtimePerformance`);
     const outputsCount = Atomics.load(this.audioStatePointer, AUDIO_STATE.NCHNLS);
     const inputCount = Atomics.load(this.audioStatePointer, AUDIO_STATE.NCHNLS_I);
 
     this.audioWorker.isRequestingInput = inputCount > 0;
-    this.audioWorker.isRequestingMidi = Atomics.load(this.audioStatePointer, AUDIO_STATE.IS_REQUESTING_RTMIDI);
+    this.audioWorker.isRequestingMidi = Atomics.load(
+      this.audioStatePointer,
+      AUDIO_STATE.IS_REQUESTING_RTMIDI
+    );
 
     const sampleRate = Atomics.load(this.audioStatePointer, AUDIO_STATE.SAMPLE_RATE);
 
@@ -162,7 +193,9 @@ class SharedArrayBufferMainThread {
   }
 
   async initialize() {
+    logSAB(`initialization: instantiate the SABWorker Thread`);
     const csoundWorker = new Worker(SABWorker());
+    antiGCRoot = csoundWorker;
     const audioStateBuffer = this.audioStateBuffer;
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
@@ -170,26 +203,37 @@ class SharedArrayBufferMainThread {
 
     // This will sadly create circular structure
     // that's still mostly harmless.
+    logSAB(`providing the audioWorker a pointer to SABMain's instance`);
     this.audioWorker.csoundWorkerMain = this;
     this.hasSharedArrayBuffer = true;
 
     // both audio worker and csound worker use 1 handler
     // simplifies flow of data (csound main.worker is always first to receive)
+    logSAB(`adding message eventListeners for mainMessagePort and mainMessagePortAudio`);
     mainMessagePort.addEventListener('message', messageEventHandler(this));
     mainMessagePortAudio.addEventListener('message', messageEventHandler(this));
+    logSAB(
+      `(postMessage) making a message channel from SABMain to SABWorker via workerMessagePort`
+    );
     csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
 
     mainMessagePort.start();
     mainMessagePortAudio.start();
-    workerMessagePort.start();
+    logSAB(`mainMessagePort and mainMessagePortAudio ports .started`);
+    // workerMessagePort.start();
 
     const proxyPort = Comlink.wrap(csoundWorker);
     await proxyPort.initialize(this.wasmDataURI);
+    logSAB(`A proxy port from SABMain to SABWorker established`);
 
     this.exportApi.setMessageCallback = this.setMessageCallback.bind(this);
     this.exportApi.addMessageCallback = this.addMessageCallback.bind(this);
-    this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(this);
-    this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(this);
+    this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(
+      this
+    );
+    this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(
+      this
+    );
 
     this.exportApi.csoundPause = this.csoundPause.bind(this);
     this.exportApi.csoundResume = this.csoundResume.bind(this);
@@ -233,13 +277,34 @@ class SharedArrayBufferMainThread {
         }
 
         case 'csoundStop': {
-          const csoundStop = async function(csound) {
-            if (
-              this.currentPlayState === 'realtimePerformanceStarted' ||
-              this.currentPlayState === 'realtimePerformancePaused' ||
-              this.currentPlayState === 'realtimePerformanceResumed'
-            ) {
+          const csoundStop = async csound => {
+            logSAB(
+              "Checking if it's safe to call stop:",
+              stopableStates.has(this.currentPlayState)
+            );
+            if (stopableStates.has(this.currentPlayState)) {
+              logSAB("Marking SAB's state to STOP");
               Atomics.store(this.audioStatePointer, AUDIO_STATE.STOP, 1);
+              logSAB('Marking that performance is not running anymore (stops the audio too)');
+              Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PERFORMING, 0);
+
+              // Double check if the thread didn't defenitely get the STOP message
+              setTimeout(() => {
+                logSAB('Double checking if SAB stopped');
+                if (this.currentPlayState !== 'realtimePerformanceEnded') {
+                  logSAB("stopping didn't cause the correct event to be triggered");
+                  if (Atomics.load(this.audioStatePointer, AUDIO_STATE.STOP) === 0) {
+                    logSAB(
+                      'stopped state got reset to 0 (could be fatal, but also race condition)'
+                    );
+                    Atomics.store(this.audioStatePointer, AUDIO_STATE.STOP, 1);
+                  }
+                  logSAB('making a second Atomic notify to SAB, pray for the best');
+                  Atomics.notify(this.audioStatePointer, AUDIO_STATE.ATOMIC_NOTIFY);
+                }
+              }, 1000);
+
+              // A potential case where the thread is locked because of pause
               if (this.currentPlayState === 'realtimePerformancePaused') {
                 Atomics.store(this.audioStatePointer, AUDIO_STATE.IS_PAUSED, 0);
                 Atomics.notify(this.audioStatePointer, AUDIO_STATE.IS_PAUSED);
@@ -258,6 +323,7 @@ class SharedArrayBufferMainThread {
         }
       }
     }
+    logSAB(`PUBLIC API Generated and stored`);
   }
 }
 
