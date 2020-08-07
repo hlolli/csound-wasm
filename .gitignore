@@ -9,9 +9,6 @@ package-lock.json
 yarn.lock
 bak
 nix/result
-libcsound.js
-libcsound_browser.js
-libcsound.wasm
 github-prefetch.json
 src/worklet.bundle.js
 result
