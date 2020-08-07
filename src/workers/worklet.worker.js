@@ -1,7 +1,7 @@
 import * as Comlink from 'comlink';
 import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants';
 import { instantiateAudioPacket } from '@root/workers/common.utils';
-import log, { logWorklet } from '@root/logger';
+import { logWorklet } from '@root/logger';
 
 const PERIODS = 4;
 
@@ -32,7 +32,7 @@ function processSharedArrayBuffer(inputs, outputs) {
 
     // Fix for that chrome 64 bug which doesn't 0 the arrays
     // https://github.com/csound/web-ide/issues/102#issuecomment-663894059
-    (outputs[0] || []).forEach(arr => arr.fill(0));
+    (outputs[0] || []).forEach(array => array.fill(0));
     return true;
   }
 

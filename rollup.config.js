@@ -8,10 +8,13 @@ import { terser } from 'rollup-plugin-terser';
 import strip from '@rollup/plugin-strip';
 // import nodeBuiltins from 'rollup-plugin-node-builtins';
 import pluginJson from '@rollup/plugin-json';
+import replace from '@rollup/plugin-replace';
 import { resolve } from 'path';
 import * as R from 'ramda';
 
 const PROD = process.env.BUILD_TARGET === 'production';
+
+const DEV = process.env.BUILD_TARGET === 'development';
 
 const globals = {
   comlink: 'Comlink',
@@ -25,16 +28,15 @@ const pluginsCommon = [
       { find: '@module', replacement: resolve('./src/modules') },
     ],
   }),
+  replace({ __PROD__: PROD, __DEV__: DEV }),
   strip({
-    exclude: !PROD ? ['@root/logger.js'] : [],
-    functions: !PROD ? ['log', 'logSAB', 'logWorklet', 'logVAN'] : [],
+    exclude: !PROD ? [] : ['@root/logger.js'],
+    functions: !PROD ? [] : ['log', 'logSAB', 'logWorklet', 'logVAN'],
   }),
   pluginJson(),
   commonjs({ transformMixedEsModules: true }),
   nodejsResolve({ preferBuiltins: false }),
   nodePolyfills({ fs: false, crypto: false, sourceMap: false }),
-  terser(),
-  // nodeBuiltins(),
 ];
 
 export default [
@@ -81,7 +83,7 @@ export default [
     input: 'src/index.js',
     // external: ['comlink'],
     output: {
-      file: 'dist/libcsound.mjs',
+      file: DEV ? 'dist/libcsound.dev.mjs' : 'dist/libcsound.mjs',
       format: 'module',
       sourcemap: true,
       globals,
@@ -97,6 +99,7 @@ export default [
         dataUrl: false,
       }),
       arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] }),
+      ...(PROD ? [terser()] : []),
     ],
   },
 ];

@@ -3,7 +3,7 @@ import { logVAN } from '@root/logger';
 const loggerPool = new Set();
 
 // debug mode: console.log always all messages
-if (process.env.BUILD_TARGET !== 'production') {
+if (!__PROD__) {
   loggerPool.add(console.log);
 }
 

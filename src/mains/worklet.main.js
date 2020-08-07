@@ -9,8 +9,6 @@ import {
   workerMessagePortAudio,
 } from '@root/mains/messages.main';
 
-let asyncTimer;
-
 const connectedMidiDevices = new Set();
 
 class AudioWorkletMainThread {

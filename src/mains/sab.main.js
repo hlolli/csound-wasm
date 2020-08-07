@@ -15,10 +15,8 @@ import {
   MIDI_BUFFER_SIZE,
   initialSharedState,
 } from '@root/constants';
-import log, { logSAB, logWorklet } from '@root/logger';
+import { logSAB } from '@root/logger';
 import { makeProxyCallback, stopableStates } from '@root/utils';
-
-let antiGCRoot;
 
 class SharedArrayBufferMainThread {
   constructor(audioWorker, wasmDataURI) {
@@ -195,7 +193,6 @@ class SharedArrayBufferMainThread {
   async initialize() {
     logSAB(`initialization: instantiate the SABWorker Thread`);
     const csoundWorker = new Worker(SABWorker());
-    antiGCRoot = csoundWorker;
     const audioStateBuffer = this.audioStateBuffer;
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;

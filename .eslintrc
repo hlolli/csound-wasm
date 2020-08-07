@@ -9,7 +9,8 @@
   "plugins": ["unicorn", "ramda"],
   "globals": {
     "Atomics": "readonly",
-    "SharedArrayBuffer": "readonly"
+    "SharedArrayBuffer": "readonly",
+    "__PROD__": "readonly"
   },
   "rules": {
     "unicorn/no-reduce": "off"

@@ -4,7 +4,6 @@ import libcsoundFactory from '@root/libcsound';
 import loadWasm from '@root/module';
 import { logSAB } from '@root/logger';
 import { handleCsoundStart } from '@root/workers/common.utils';
-import { nearestPowerOf2 } from '@root/utils';
 import { assoc, pipe } from 'ramda';
 
 import {

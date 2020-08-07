@@ -31,7 +31,7 @@ async function Csound() {
     return {};
   }
 
-  const hasSABSupport = false; //isSabSupported();
+  const hasSABSupport = isSabSupported();
 
   if (!hasSABSupport) {
     log.warn(`SharedArrayBuffers not found, falling back to Vanilla concurrency`);

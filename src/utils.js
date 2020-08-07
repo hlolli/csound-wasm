@@ -13,11 +13,7 @@ export const uint2String = uint => decoder.decode(uint);
 
 // smth I found on stackoverflow
 export const trimNull = a => {
-  const c = Math.min.apply(undefined, [
-    a.indexOf('\u{10}') > -1 ? a.indexOf('\u{10}') : a.length,
-    a.indexOf('\0') > -1 ? a.indexOf('\0') : a.length,
-    a.indexOf('\x02') > -1 ? a.indexOf('\x02') : a.length,
-  ]);
+  const c = Math.min(a.includes('\u{10}') ? a.indexOf('\u{10}') : a.length, a.length);
   return a.slice(0, c);
 };
 
