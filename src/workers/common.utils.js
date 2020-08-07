@@ -1,16 +1,15 @@
+import log from '@root/logger';
+
 export const handleCsoundStart = (
   workerMessagePort,
   libraryCsound,
-  createRealtimeAudioThread,
-  logINFO
+  createRealtimeAudioThread
 ) => arguments_ => {
   const { csound } = arguments_;
 
-  // account for slash csound in wasi-memfs system
-  // libraryCsound.csoundAppendEnv(csound, 'SFDIR', '/csound');
   const startError = libraryCsound.csoundStart(csound);
   const outputName = libraryCsound.csoundGetOutputName(csound) || 'test.wav';
-  logINFO(`handleCsoundStart: actual csoundStart result ${startError}, outputName: ${outputName}`);
+  log(`handleCsoundStart: actual csoundStart result ${startError}, outputName: ${outputName}`);
   if (startError !== 0) {
     workerMessagePort.post(
       `error: csoundStart failed while trying to render ${outputName},` +

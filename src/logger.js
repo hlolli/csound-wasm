@@ -1,5 +1,6 @@
 import ololog from 'ololog';
-import { bgLightCyan, bgBlack, white } from 'ansicolor';
+import { bgLightCyan, bgBlack, bgYellow, yellow, white } from 'ansicolor';
+import { isWebWorker } from 'browser-or-node';
 
 const defaultLogger = ololog.configure({
   tag: true,
@@ -17,5 +18,11 @@ export const logWorklet = (...argumentz) =>
 
 export const logSAB = (...argumentz) =>
   defaultLogger.info.apply(undefined, [`${bgBlack(white('SAB'))}`].concat(argumentz));
+
+export const logVAN = (...argumentz) =>
+  defaultLogger.info.apply(
+    undefined,
+    [isWebWorker ? `${yellow('VANILLA')}` : `${bgYellow(white('VANILLA'))}`].concat(argumentz)
+  );
 
 export default defaultLogger;

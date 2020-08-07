@@ -5,10 +5,13 @@ import arraybufferPlugin from './script/rollup-arraybuffer';
 import inlineWebWorkerPlugin from './script/inline-webworker';
 import nodePolyfills from 'rollup-plugin-node-polyfills';
 import { terser } from 'rollup-plugin-terser';
+import strip from '@rollup/plugin-strip';
 // import nodeBuiltins from 'rollup-plugin-node-builtins';
 import pluginJson from '@rollup/plugin-json';
 import { resolve } from 'path';
 import * as R from 'ramda';
+
+const PROD = process.env.BUILD_TARGET === 'production';
 
 const globals = {
   comlink: 'Comlink',
@@ -21,6 +24,10 @@ const pluginsCommon = [
       { find: '@root', replacement: resolve('./src') },
       { find: '@module', replacement: resolve('./src/modules') },
     ],
+  }),
+  strip({
+    exclude: !PROD ? ['@root/logger.js'] : [],
+    functions: !PROD ? ['log', 'logSAB', 'logWorklet', 'logVAN'] : [],
   }),
   pluginJson(),
   commonjs({ transformMixedEsModules: true }),

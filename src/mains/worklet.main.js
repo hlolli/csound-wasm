@@ -40,7 +40,11 @@ class AudioWorkletMainThread {
         break;
       }
       case 'realtimePerformanceEnded': {
-        logWorklet('event received: realtimePerformanceEnded');
+        logWorklet(
+          'event received: realtimePerformanceEnded' + !this.csoundWorkerMain.hasSharedArrayBuffer
+            ? ` cleaning up Vanilla ports`
+            : ''
+        );
         !this.csoundWorkerMain.hasSharedArrayBuffer && cleanupPorts(this.csoundWorkerMain);
         this.audioCtx.close();
         this.audioWorkletNode.disconnect();
@@ -119,15 +123,17 @@ class AudioWorkletMainThread {
       }));
 
     if (this.isRequestingMidi) {
-      emitInternalCsoundLogEvent('requesting for web-midi connection');
+      emitInternalCsoundLogEvent(this.csoundWorkerMain, 'requesting for web-midi connection');
       if (navigator && navigator.requestMIDIAccess) {
         try {
-          logWorklet('requesting midi access');
-          const midiDevices = await navigator.requestMIDIAccess;
+          const midiDevices = await navigator.requestMIDIAccess();
           if (midiDevices.inputs) {
             const midiInputs = midiDevices.inputs.values();
             for (let input = midiInputs.next(); input && !input.done; input = midiInputs.next()) {
-              emitInternalCsoundLogEvent(`Connecting midi-input: ${input.value.name || 'unkown'}`);
+              emitInternalCsoundLogEvent(
+                this.csoundWorkerMain,
+                `Connecting midi-input: ${input.value.name || 'unkown'}`
+              );
               if (!connectedMidiDevices.has(input.value.name || 'unkown')) {
                 input.value.onmidimessage = this.csoundWorkerMain.handleMidiInput.bind(
                   this.csoundWorkerMain
@@ -136,13 +142,19 @@ class AudioWorkletMainThread {
               }
             }
           } else {
-            emitInternalCsoundLogEvent('no midi-device detected');
+            emitInternalCsoundLogEvent(this.csoundWorkerMain, 'no midi-device detected');
           }
         } catch (error) {
-          emitInternalCsoundLogEvent('error while connecting web-midi: ' + error);
+          emitInternalCsoundLogEvent(
+            this.csoundWorkerMain,
+            'error while connecting web-midi: ' + error
+          );
         }
       } else {
-        emitInternalCsoundLogEvent('no web-midi support found, midi-input will not work!');
+        emitInternalCsoundLogEvent(
+          this.csoundWorkerMain,
+          'no web-midi support found, midi-input will not work!'
+        );
       }
     }
 

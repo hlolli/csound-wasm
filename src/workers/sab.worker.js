@@ -260,8 +260,7 @@ const initialize = async wasmDataURI => {
   const startHandler = handleCsoundStart(
     workerMessagePort,
     libraryCsound,
-    sabCreateRealtimeAudioThread,
-    logSAB
+    sabCreateRealtimeAudioThread
   );
   const allAPI = pipe(
     assoc('copyToFs', copyToFs),

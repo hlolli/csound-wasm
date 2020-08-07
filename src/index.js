@@ -31,22 +31,20 @@ async function Csound() {
     return {};
   }
 
-  const hasSABSupport = isSabSupported();
+  const hasSABSupport = false; //isSabSupported();
+
   if (!hasSABSupport) {
     log.warn(`SharedArrayBuffers not found, falling back to Vanilla concurrency`);
   } else {
     logSAB(`using SharedArrayBuffers`);
   }
+
   const worker = hasSABSupport
     ? new SharedArrayBufferMainThread(audioWorker, wasmDataURI)
     : new VanillaWorkerMainThread(audioWorker, wasmDataURI);
 
   if (worker) {
-    if (!hasSABSupport) {
-      log(`starting Csound thread initialization via WebWorker`);
-    } else {
-      logSAB(`starting Csound thread initialization via WebWorker`);
-    }
+    log(`starting Csound thread initialization via WebWorker`);
     await worker.initialize();
     csoundWasmApi = worker.api;
   } else {

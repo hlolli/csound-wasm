@@ -1,8 +1,11 @@
-const defaultLogger = console.log;
+import { logVAN } from '@root/logger';
+
 const loggerPool = new Set();
 
-// initial state
-loggerPool.add(defaultLogger);
+// debug mode: console.log always all messages
+if (process.env.BUILD_TARGET !== 'production') {
+  loggerPool.add(console.log);
+}
 
 // exec log-event: msg => cb(msg)
 export const messageEventHandler = worker => event => {
@@ -14,8 +17,14 @@ export const messageEventHandler = worker => event => {
   }
 };
 
-export const emitInternalCsoundLogEvent = message =>
-  typeof message === 'string' && loggerPool.forEach(callback => callback(message));
+export const emitInternalCsoundLogEvent = (worker, message) => {
+  if (typeof message === 'string') {
+    loggerPool.forEach(callback => callback(message));
+    if (worker) {
+      (worker.messageCallbacks || []).forEach(callback => callback(message));
+    }
+  }
+};
 
 export let { port1: mainMessagePort, port2: workerMessagePort } = new MessageChannel();
 
@@ -39,6 +48,7 @@ const iterableMessageChannel = () => {
 };
 
 export const cleanupPorts = csoundWorkerMain => {
+  logVAN(`cleanupPorts`);
   [mainMessagePort, workerMessagePort] = iterableMessageChannel();
   [mainMessagePortAudio, workerMessagePortAudio] = iterableMessageChannel();
   [csoundWorkerFrameRequestPort, audioWorkerFrameRequestPort] = iterableMessageChannel();

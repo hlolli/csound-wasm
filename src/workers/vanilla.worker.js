@@ -1,5 +1,6 @@
 import * as Comlink from 'comlink';
 import { workerMessagePort } from '@root/filesystem';
+import { logVAN } from '@root/logger';
 import { MAX_HARDWARE_BUFFER_SIZE } from '@root/constants.js';
 import { handleCsoundStart, instantiateAudioPacket } from '@root/workers/common.utils';
 import libcsoundFactory from '@root/libcsound';
@@ -155,6 +156,7 @@ const callUncloned = async (k, arguments_) => {
 
 addEventListener('message', event => {
   if (event.data.msg === 'initMessagePort') {
+    logVAN(`initMessagePort`);
     const port = event.ports[0];
     workerMessagePort.post = log => port.postMessage({ log });
     workerMessagePort.broadcastPlayState = playStateChange => {
@@ -163,6 +165,7 @@ addEventListener('message', event => {
     };
     workerMessagePort.ready = true;
   } else if (event.data.msg === 'initRequestPort') {
+    logVAN(`initRequestPort`);
     csoundWorkerFrameRequestPort = event.ports[0];
     csoundWorkerFrameRequestPort.addEventListener('message', requestEvent => {
       const { framesLeft = 0, audioPacket } = generateAudioFrames(requestEvent.data) || {};
@@ -175,6 +178,7 @@ addEventListener('message', event => {
     });
     csoundWorkerFrameRequestPort.start();
   } else if (event.data.msg === 'initAudioInputPort') {
+    logVAN(`initAudioInputPort`);
     audioInputs.port = event.ports[0];
     audioInputs.port.addEventListener('message', ({ data: pkgs }) => {
       if (audioInputs.buffers.length === 0) {
@@ -191,29 +195,20 @@ addEventListener('message', event => {
     });
     audioInputs.port.start();
   } else if (event.data.msg === 'initRtMidiEventPort') {
+    logVAN(`initRtMidiEventPort`);
     rtmidiPort = event.ports[0];
     rtmidiPort.addEventListener('message', ({ data: payload }) => {
       rtmidiQueue.push(payload);
     });
     rtmidiPort.start();
   } else if (event.data.playStateChange) {
+    logVAN(`playStateChange`, event.data.playStateChange.playStateChange);
     workerMessagePort.vanillaWorkerState = event.data.playStateChange.playStateChange;
   }
 });
 
-const waitUntilInitialized = async () => {
-  return await new Promise(function(resolve) {
-    (function wait() {
-      if (rtmidiPort && csoundWorkerFrameRequestPort && workerMessagePort.ready) {
-        setTimeout(() => resolve(true), 5);
-      } else {
-        setTimeout(wait, 5);
-      }
-    })();
-  });
-};
-
 const initialize = async wasmDataURI => {
+  logVAN(`initializing wasm and exposing csoundAPI functions from worker to main`);
   wasm = await loadWasm(wasmDataURI);
   libraryCsound = libcsoundFactory(wasm);
   const startHandler = handleCsoundStart(
@@ -228,5 +223,4 @@ const initialize = async wasmDataURI => {
 Comlink.expose({
   initialize,
   callUncloned,
-  waitUntilInitialized,
 });

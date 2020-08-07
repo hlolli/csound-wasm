@@ -17,6 +17,7 @@ const audioFramePort = {
 };
 
 const audioInputPort = {
+  ready: false,
   transferInputFrames: undefined,
 };
 
@@ -106,7 +107,7 @@ function processSharedArrayBuffer(inputs, outputs) {
 
 function processVanillaBuffers(inputs, outputs) {
   if (!this.vanillaInitialized || !audioFramePort.ready) {
-    if (audioFramePort.requestFrames) {
+    if (audioFramePort.requestFrames && !this.vanillaInitialized) {
       // this minimizes startup glitches
       const firstTransferSize = this.softwareBufferSize * 4;
       audioFramePort.requestFrames({
@@ -331,12 +332,14 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
     logWorklet(`vanillaMessageHandler was assigned`);
     return event => {
       if (event.data.msg === 'initMessagePort') {
+        logWorklet(`initMessagePort in worker`);
         const port = event.ports[0];
         workerMessagePort.post = log => port.postMessage({ log });
         workerMessagePort.broadcastPlayState = playStateChange =>
           port.postMessage({ playStateChange });
         workerMessagePort.ready = true;
       } else if (event.data.msg === 'initRequestPort') {
+        logWorklet(`initRequestPort in worker`);
         const requestPort = event.ports[0];
         requestPort.addEventListener('message', requestPortEvent => {
           const { audioPacket, readIndex, numFrames } = requestPortEvent.data;
@@ -349,6 +352,7 @@ class CsoundWorkletProcessor extends AudioWorkletProcessor {
           audioFramePort.ready = true;
         }
       } else if (event.data.msg === 'initAudioInputPort') {
+        logWorklet(`initAudioInputPort in worker`);
         const inputPort = event.ports[0];
         audioInputPort.transferInputFrames = frames => inputPort.postMessage(frames);
       }
