@@ -11,9 +11,8 @@ export const encoder = new TextEncoder('utf-8');
 
 export const uint2String = uint => decoder.decode(uint);
 
-// smth I found on stackoverflow
 export const trimNull = a => {
-  const c = Math.min(a.includes('\u{10}') ? a.indexOf('\u{10}') : a.length, a.length);
+  const c = Math.min(a.includes('\u{10}') ? a.indexOf('\0') : a.length, a.length);
   return a.slice(0, c);
 };
 
@@ -83,6 +82,18 @@ export const isSabSupported = () =>
 
 export const areWorkletsSupportet = () =>
   typeof AudioNode !== 'undefined' && typeof AudioWorkletNode !== 'undefined';
+
+export const WebkitAudioContext = () =>
+  typeof webkitAudioContext !== 'undefined'
+    ? webkitAudioContext
+    : typeof AudioContext !== 'undefined'
+    ? AudioContext
+    : undefined;
+
+export const isScriptProcessorNodeSupported = () => {
+  const ctx = WebkitAudioContext();
+  return typeof ctx !== 'undefined' && typeof ctx.prototype.createScriptProcessor !== 'undefined';
+};
 
 export const makeProxyCallback = (proxyPort, apiK) => async (...arguments_) => {
   return await proxyPort.callUncloned(apiK, arguments_);

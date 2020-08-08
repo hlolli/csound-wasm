@@ -172,8 +172,9 @@ function processVanillaBuffers(inputs, outputs) {
     // minimize noise
     if (this.bufferUnderrunCount > 1 && this.bufferUnderrunCount < 12) {
       workerMessagePort.post('Buffer underrun');
+      this.bufferUnderrunCount += 1;
     }
-    this.bufferUnderrunCount += 1;
+
     if (this.bufferUnderrunCount === 100) {
       // 100 buffer Underruns in a row
       // means a fatal situation and browser

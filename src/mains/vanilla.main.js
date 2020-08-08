@@ -67,6 +67,7 @@ class VanillaWorkerMainThread {
     ).includes('adc');
     this.audioWorker.isRequestingMidi = await this.exportApi._isRequestingRtMidiInput(this.csound);
     this.audioWorker.outputsCount = await this.exportApi.csoundGetNchnls(this.csound);
+    this.audioWorker.inputsCount = await this.exportApi.csoundGetNchnlsInput(this.csound);
     this.audioWorker.hardwareBufferSize = DEFAULT_HARDWARE_BUFFER_SIZE;
     this.audioWorker.softwareBufferSize = DEFAULT_SOFTWARE_BUFFER_SIZE;
 

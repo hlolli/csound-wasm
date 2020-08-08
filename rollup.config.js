@@ -31,7 +31,7 @@ const pluginsCommon = [
   replace({ __PROD__: PROD, __DEV__: DEV }),
   strip({
     exclude: !PROD ? [] : ['@root/logger.js'],
-    functions: !PROD ? [] : ['log', 'logSAB', 'logWorklet', 'logVAN'],
+    functions: !PROD ? [] : ['log', 'logSAB', 'logSPN', 'logWorklet', 'logVAN'],
   }),
   pluginJson(),
   commonjs({ transformMixedEsModules: true }),
@@ -80,6 +80,17 @@ export default [
     plugins: [...pluginsCommon],
   },
   {
+    input: 'src/workers/old-spn.worker.js',
+    output: {
+      file: 'dist/__compiled.old-spn.worker.js',
+      format: 'iife',
+      name: 'old-spn.worker',
+      sourcemap: false,
+      globals,
+    },
+    plugins: [...pluginsCommon],
+  },
+  {
     input: 'src/index.js',
     // external: ['comlink'],
     output: {
@@ -95,7 +106,7 @@ export default [
         dataUrl: true,
       }),
       inlineWebWorkerPlugin({
-        include: ['**/sab.worker.js', '**/vanilla.worker.js'],
+        include: ['**/sab.worker.js', '**/vanilla.worker.js', '**/old-spn.worker.js'],
         dataUrl: false,
       }),
       arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] }),

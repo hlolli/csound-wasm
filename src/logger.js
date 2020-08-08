@@ -1,5 +1,5 @@
 import ololog from 'ololog';
-import { bgLightCyan, bgBlack, bgYellow, yellow, white } from 'ansicolor';
+import { bgLightCyan, bgLightMagenta, bgBlack, bgYellow, yellow, white } from 'ansicolor';
 import { isWebWorker } from 'browser-or-node';
 
 const defaultLogger = ololog.configure({
@@ -15,6 +15,12 @@ const defaultLogger = ololog.configure({
 
 export const logWorklet = (...argumentz) =>
   defaultLogger.info.apply(undefined, [`${bgLightCyan('AudioWorklet')}`].concat(argumentz));
+
+export const logSPN = (...argumentz) =>
+  defaultLogger.info.apply(
+    undefined,
+    [`${bgLightMagenta('ScriptProcessorNode')}`].concat(argumentz)
+  );
 
 export const logSAB = (...argumentz) =>
   defaultLogger.info.apply(undefined, [`${bgBlack(white('SAB'))}`].concat(argumentz));
