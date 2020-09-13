@@ -2,17 +2,9 @@
 
 let
 
-nixpkgsCanaryTar = (builtins.fetchTarball {
-  url = "https://github.com/NixOS/nixpkgs/archive/61506314588b01df0b15ffe7b3bf94c4d1a3d2c8.tar.gz";
-  sha256 = "sha256:0k7m12d89a4aqbxpr45n1jpsjj455s6lxq6n77lggj2xgmznmn1d";
-});
-
-nixpkgsCanary = import nixpkgsCanaryTar {};
-
 # wasi-sdk = nixpkgsCanary.llvmPackages_10.lldClang; # pkgs.callPackage ./wasi-sdk.nix {};
 
-pkgsCross = (import nixpkgsCanaryTar {
-  # config = { allowUnsupportedSystem = true; };
+pkgsCross = (import <nixpkgs> {
   crossSystem = {
     config = "wasm32-unknown-wasi";
     libc = "wasilibc";
@@ -105,7 +97,7 @@ in pkgs.callPackage
             #endif
           '';
         };
-      csoundRev = "97fd57c57b1dfd3b5c732a9f9149097be393b12b";
+      csoundRev = "b31bedfa7a078b1560001fe3fc0ba2c0d6c0b77e";
       preprocFlags = ''
         -DGIT_HASH_VALUE=${csoundRev} \
         -DINIT_STATIC_MODULES=1 \
@@ -126,11 +118,11 @@ in pkgs.callPackage
             owner = "csound";
             repo = "csound";
             rev = csoundRev;
-            sha256 = "1ixapg3yhdj050whmv7c027rdjpsdgs96vza61bbml9sj3gwnxfr";
+            sha256 = "1lqipz92inc8grad7czhh22pm8k223qsc75kkvz3jsakmblhxzlp";
           };
 
           buildInputs = [ libsndfileP pkgs.flex pkgs.bison ];
-          patches = [ ./argdecode.patch ];
+          # patches = [ ./argdecode.patch ];
           postPatch = ''
 
           # Experimental setjmp patching
@@ -159,11 +151,14 @@ in pkgs.callPackage
           # # Patch the default test.wav output
           # find ./ -type f -exec sed -i -e 's|"test.wav"|"/csound/test.wav"|g' {} \;
 
+          sed -i -e 's/csoundUDPConsole.*//g' Top/argdecode.c
+
           cat ${csoundModLoadPatch} > include/modload.h
 
           # Don't initialize static_modules which are not compiled in wasm env
           substituteInPlace Top/csmodule.c \
-            --replace '#ifndef NACL' '#ifndef WASM_BUILD'
+            --replace '#ifndef NACL' '#ifndef WASM_BUILD' \
+            --replace 'lufs_localops_init,' ""
 
           # Patch 64bit integer clock
           ${patchClock}/bin/patchClock Top/csound.c
@@ -242,34 +237,13 @@ in pkgs.callPackage
             --replace 'static double timeResolutionSeconds = -1.0;' \
                       'static double timeResolutionSeconds = 0.000001;'
 
-          # substituteInPlace InOut/libsnd.c \
-          #   --replace 'fullName = csoundFindOutputFile(csound, fName, "SFDIR");' \
-          #             'fullName = csoundConcatenatePaths(csound, "/csound", fName);'
-
-            # --replace 'char *csoundFindOutputFile(CSOUND *csound,' \
-            #           'char *csoundFindOutputFile_DISALBED(CSOUND *csound,' \
-
-            # --replace 'return name;' \
-            #           'char* fsPrefix = csound->Malloc(
-            #              csound, (size_t) strlen(name) + 9);
-            #            strcpy(fsPrefix, (name[0] == DIRSEP) ? "/csound" : "/csound/");
-            #            strcat(fsPrefix, name);
-            #            return fsPrefix;' \
-            # --replace 'fd = open(name, WR_OPTS);' \
-            #           'fd = open(name, O_RDONLY); printf("RW fd: %d name: %s \n", fd, name);' \
-            # --replace 'fd = open(name, RD_OPTS);' \
-            #           'fd = open(name, O_RDONLY);' \
-
-          # # export the rootFD global variable
-          # substituteInPlace H/envvar.h \
-          #   --replace 'int csoundFileClose(CSOUND *, void *fd);' \
-          #             'int csoundFileClose(CSOUND *, void *fd);
-          #              extern int rootFD;'
           substituteInPlace Engine/envvar.c \
-            --replace '#define RD_OPTS  O_RDONLY | O_BINARY, 0' \
-                      '#define RD_OPTS  O_RDONLY' \
-            --replace '#define WR_OPTS  O_TRUNC | O_CREAT | O_WRONLY | O_BINARY, 0644' \
-                      '#define WR_OPTS  O_WRONLY | O_CREAT' \
+            --replace 'return name;' \
+                      'char* fsPrefix = csound->Malloc(
+                         csound, (size_t) strlen(name) + 9);
+                       strcpy(fsPrefix, (name[0] == DIRSEP) ? "/sandbox" : "/sandbox/");
+                       strcat(fsPrefix, name);
+                       return fsPrefix;' \
             --replace '#include <math.h>' \
                       '#include <math.h>
                        #include <string.h>
@@ -279,34 +253,6 @@ in pkgs.callPackage
                        #include <errno.h>
                        #define getcwd(x,y) "/"
                      '
-          #   --replace 'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList);' \
-          #             'fd = csoundFindFile_Fd(csound, &name_found, filename, 1, envList);
-          #              int fd2; int fd3; int fd4;
-          #              fd2 = open("/sandbox/test2.txt", O_RDWR | O_CREAT, 0660);
-          #              fd3 = __wasilibc_openat_nomode(rootFD, "/sandbox", O_RDONLY);
-          #              fd4 = open("text4", O_RDWR | O_CREAT, 0660);
-          #              printf("ROOTFD: %d \n",  rootFD);
-          #              printf("fd: %d, filename: %s, envList %s fd2: %d fd3: %d fd4: %d \n", fd, filename, envList, fd2, fd3, fd4);
-          #              struct stat buf;
-          #              stat("/csound", &buf);
-          #              int statchmod = buf.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO);
-          #              printf("chmod: %o\n", statchmod);
-          #                  if(access("/csound", W_OK) == 0) {
-          #                    printf("%s\n", "OKEY MA SKRIFA");
-          #                  } else {
-          #                    printf("%s\n", "BANNAÐ AÐ SKRIFA");
-          #                   }
-          #              DIR *d;
-          #              struct dirent *dir;
-          #              d = opendir("/");
-          #              if (d) {
-          #                while ((dir = readdir(d)) != NULL) {
-          #                printf("%s\n", dir->d_name);
-          #              }
-          #              int dirFd = dirfd(d);
-          #              printf("DIRFD: %d \n", dirFd);
-          #              closedir(d);
-          #              }' \
 
           # since we recommend n^2 number,
           # let's make sure that it's default too
@@ -377,15 +323,14 @@ in pkgs.callPackage
           buildPhase = ''
             # overrides
             # cp {../../c/envvar.override.c} ./Engine/envvar.c
+            # cp {../../c/libsnd_u.override.c} ./InOut/libsnd_u.c
             # cp {../../c/envvar.override.h} ./H/envvar.h
-            cp ${../../c/libsnd.override.c} ./InOut/libsnd.c
+            # cp {../../c/libsnd.override.c} ./InOut/libsnd.c
 
             # entrypoints
             mkdir -p build && cd build
             cp ${../../c/csound_wasm.c} ./csound_wasm.c
             cp ${../../c/unsupported_opcodes.c} ./unsupported_opcodes.c
-
-            # ../OOps/lpred.c
 
             echo "Compile libcsound.wasm"
             ${wasi-sdk}/bin/clang \
@@ -393,7 +338,7 @@ in pkgs.callPackage
               -fno-exceptions -O2 -c \
               -I../H -I../Engine -I../include -I../ \
               -I../InOut/libmpadec \
-              -I${libsndfileP.dev}/include \
+              -I${libsndfileP.out}/include \
               -D_WASI_EMULATED_SIGNAL \
               -D_WASI_EMULATED_MMAN \
               -D__BUILDING_LIBCSOUND \
@@ -466,6 +411,7 @@ in pkgs.callPackage
               ../OOps/dumpf.c \
               ../OOps/fftlib.c \
               ../OOps/goto_ops.c \
+              ../OOps/lpred.c \
               ../OOps/midiinterop.c \
               ../OOps/midiops.c \
               ../OOps/midiout.c \
@@ -659,9 +605,7 @@ in pkgs.callPackage
               echo "Link togeather libcsound"
               # mv csound_wasm_exe.s.o csound_wasm_exe.s.o_bak
               ${wasi-sdk}/bin/wasm-ld \
-                --lto-O3 \
-                -z stack-size=5242880 \
-                --initial-memory=536870912 \
+                --lto-O2 \
                 --demangle \
                 -error-limit=0 \
                 -L${wasi-sdk}/share/wasi-sysroot/lib/wasm32-wasi \

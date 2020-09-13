@@ -6,7 +6,6 @@
   "getRtMidiName",
   "getMidiOutFileName",
   "pushMidiMessage",
-  "setupWasmBrowserFS",
   "csoundResetWasi",
   "csoundCreateWasi",
   "csoundPerformKsmpsWasi",

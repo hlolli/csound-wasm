@@ -1,3 +1,4 @@
+// eslint-disable
 import * as Comlink from 'comlink';
 import ScriptProcessorNodeWorker from '@root/workers/old-spn.worker';
 import { logSPN } from '@root/logger';

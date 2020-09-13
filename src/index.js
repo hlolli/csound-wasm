@@ -29,13 +29,12 @@ async function Csound() {
     log.warn(`No WebAudio Support detected`);
   }
 
-  const audioWorker = new ScriptProcessorNodeMainThread();
-
-  // const audioWorker = workletSupport
-  //   ? new AudioWorkletMainThread()
-  //   : spnSupport
-  //   ? new ScriptProcessorNodeMainThread()
-  //   : undefined;
+  let audioWorker;
+  if (workletSupport) {
+    audioWorker = new AudioWorkletMainThread();
+  } else if (spnSupport) {
+    audioWorker = new ScriptProcessorNodeMainThread();
+  }
 
   if (!audioWorker) {
     log.error('No detectable WebAudioAPI in current environment');
@@ -50,7 +49,7 @@ async function Csound() {
     logSAB(`using SharedArrayBuffers`);
   }
 
-  const worker = false // hasSABSupport
+  const worker = hasSABSupport
     ? new SharedArrayBufferMainThread(audioWorker, wasmDataURI)
     : new VanillaWorkerMainThread(audioWorker, wasmDataURI);
 

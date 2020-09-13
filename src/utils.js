@@ -12,8 +12,12 @@ export const encoder = new TextEncoder('utf-8');
 export const uint2String = uint => decoder.decode(uint);
 
 export const trimNull = a => {
-  const c = Math.min(a.includes('\u{10}') ? a.indexOf('\0') : a.length, a.length);
-  return a.slice(0, c);
+  const c = a.indexOf('\0');
+  if (c > -1) {
+    // eslint-disable-next-line unicorn/prefer-string-slice
+    return a.substr(0, c);
+  }
+  return a;
 };
 
 // eslint-disable-next-line no-unused-vars
@@ -83,16 +87,20 @@ export const isSabSupported = () =>
 export const areWorkletsSupportet = () =>
   typeof AudioNode !== 'undefined' && typeof AudioWorkletNode !== 'undefined';
 
-export const WebkitAudioContext = () =>
-  typeof webkitAudioContext !== 'undefined'
-    ? webkitAudioContext
-    : typeof AudioContext !== 'undefined'
-    ? AudioContext
-    : undefined;
+export const WebkitAudioContext = () => {
+  if (typeof window.webkitAudioContext !== 'undefined') {
+    return window.webkitAudioContext;
+  } else if (typeof window.AudioContext !== 'undefined') {
+    return window.AudioContext;
+  }
+};
 
 export const isScriptProcessorNodeSupported = () => {
-  const ctx = WebkitAudioContext();
-  return typeof ctx !== 'undefined' && typeof ctx.prototype.createScriptProcessor !== 'undefined';
+  const audioContext = WebkitAudioContext();
+  return (
+    typeof ctx !== 'undefined' &&
+    typeof audioContext.prototype.createScriptProcessor !== 'undefined'
+  );
 };
 
 export const makeProxyCallback = (proxyPort, apiK) => async (...arguments_) => {

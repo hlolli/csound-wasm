@@ -1,6 +1,6 @@
 {
   "env": { "es6": true, "node": true, "browser": true },
-  "ignorePatterns": ["**/coverage", "**/dist", "**/node_modules", "**/*.config.js"],
+  "ignorePatterns": ["**/coverage", "**/dist", "**/node_modules", "**/*.config.js", "*old-spn*"],
   "extends": ["standard", "plugin:unicorn/recommended", "plugin:ramda/recommended", "prettier"],
   "parserOptions": {
     "ecmaVersion": 2020,

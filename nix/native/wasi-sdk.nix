@@ -25,8 +25,8 @@ in stdenv.mkDerivation {
   src = fetchFromGitHub {
     owner = "WebAssembly";
     repo = "wasi-sdk";
-    rev = "ceabbfe181599bca83d81e087a229797e472c09c";
-    sha256 = "17c2wzxhb5gvvm1cr11wfjvhl9ryclix3cn43ab2yx1p9x03p370";
+    rev = "8446a3f8d49f70d17e38cefd9990a9e79bf3e78a";
+    sha256 = "1z5a8kwp8xnj24bczcs3q3ikkspskwk79mxxb529siswnc30l5dk";
     fetchSubmodules = false;
   };
 
@@ -40,6 +40,9 @@ in stdenv.mkDerivation {
     cp -rf ${llvm-project} src/llvm-project
     cp -rf ${config} src/config
     chmod -R +rw src/
+    substituteInPlace Makefile \
+      --replace 'DESTDIR=$(abspath build/install)' \
+                'DESTDIR='
   '';
   buildInputs = [ cmake git perl ninja python ];
   installPhase = "true";

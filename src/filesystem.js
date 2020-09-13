@@ -1,7 +1,7 @@
 import path from 'path';
 import { cleanStdout, uint2String } from '@root/utils';
-import { isBrowser, isWebWorker } from 'browser-or-node';
-import { forEach, range } from 'ramda';
+// import { isBrowser, isWebWorker } from 'browser-or-node';
+// import { forEach, range } from 'ramda';
 import { WasmFs } from '@wasmer/wasmfs';
 import { Buffer } from 'buffer';
 
@@ -11,15 +11,16 @@ export const touchFile = filename => {
 
 export const wasmFs = new WasmFs();
 
-wasmFs.volume.mkdirpSync('/sandbox', { mode: '0o777' });
+// wasmFs.fs.mkdirpSync('/sandbox', { mode: '0o777' });
+// wasmFs.volume.mkdirpSync('/sandbox', { mode: '0o777' });
 
-if (isBrowser || isWebWorker) {
-  forEach(i => touchFile(i), range(0, 255));
-}
+// if (isBrowser || isWebWorker) {
+//   forEach(i => touchFile(i), range(0, 255));
+// }
 
 // --dir <wasm path>:<host path>
 export const preopens = {
-  '/sandbox': '/sandbox',
+  '/': '/',
 };
 
 export const workerMessagePort = {
@@ -99,7 +100,7 @@ export const createStdOutStream = () => {
 };
 
 export async function copyToFs(arrayBuffer, filePath) {
-  const realPath = path.join('/', filePath);
+  const realPath = path.join('/sandbox', filePath);
   const buf = Buffer.from(new Uint8Array(arrayBuffer));
   wasmFs.fs.writeFileSync(realPath, buf);
 }
@@ -115,7 +116,8 @@ export async function mkdirp(filePath) {
 }
 
 export const initFS = async wasm => {
-  wasm.exports.setupWasmBrowserFS();
+  // wasm.exports.setupWasmBrowserFS();
+  // wasmFs.fs.mkdirpSync('/sandbox', { mode: '0o777' });
   createStdErrorStream();
   createStdOutStream();
 };

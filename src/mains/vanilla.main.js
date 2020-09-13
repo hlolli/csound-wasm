@@ -210,6 +210,8 @@ class VanillaWorkerMainThread {
     this.exportApi.csoundPause = this.csoundPause.bind(this);
     this.exportApi.csoundResume = this.csoundResume.bind(this);
 
+    this.exportApi.copyToFs = makeProxyCallback(proxyPort, 'copyToFs');
+
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
       const proxyCallback = makeProxyCallback(proxyPort, apiK);
