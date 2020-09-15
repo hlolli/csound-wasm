@@ -252,7 +252,13 @@ in pkgs.callPackage
                        #include <fcntl.h>
                        #include <errno.h>
                        #define getcwd(x,y) "/"
-                     '
+                       static void strcat_beg(char *src, char *dst)
+                       {
+                       size_t dst_len = strlen(dst) + 1, src_len = strlen(src);
+                       memmove(dst + src_len, dst, dst_len);
+                       memcpy(dst, src, src_len);
+                       }
+                       '
 
           # since we recommend n^2 number,
           # let's make sure that it's default too

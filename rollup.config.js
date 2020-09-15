@@ -18,7 +18,7 @@ const DEV = process.env.BUILD_TARGET === 'development';
 
 const globals = {
   comlink: 'Comlink',
-  buffer: 'Buffer',
+  // buffer: 'Buffer',
 };
 
 const pluginsCommon = [

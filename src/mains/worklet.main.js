@@ -7,6 +7,9 @@ import {
   cleanupPorts,
   emitInternalCsoundLogEvent,
   workerMessagePortAudio,
+  restartMessagePortAudio,
+  restartWorkerFrameRequestPort,
+  restartWorkerAudioInputPort,
 } from '@root/mains/messages.main';
 
 const connectedMidiDevices = new Set();
@@ -26,6 +29,10 @@ class AudioWorkletMainThread {
     this.outputsCount = undefined;
     this.hardwareBufferSize = undefined;
     this.softwareBufferSize = undefined;
+
+    this.initialize = this.initialize.bind(this);
+    this.connectPorts = this.connectPorts.bind(this);
+    this.onPlayStateChange = this.onPlayStateChange.bind(this);
     logWorklet('AudioWorkletMainThread was constructed');
   }
 
@@ -43,12 +50,11 @@ class AudioWorkletMainThread {
             ? ` cleaning up Vanilla ports`
             : ''
         );
-        !this.csoundWorkerMain.hasSharedArrayBuffer && cleanupPorts(this.csoundWorkerMain);
+        !this.csoundWorkerMain.hasSharedArrayBuffer; // && cleanupPorts(this.csoundWorkerMain);
         this.audioCtx.close();
         this.audioWorkletNode.disconnect();
-
+        delete this.audioWorkletNode;
         this.audioCtx = undefined;
-        this.audioWorkletNode = undefined;
         this.currentPlayState = undefined;
         this.workletProxy = undefined;
         this.sampleRate = undefined;
@@ -67,10 +73,13 @@ class AudioWorkletMainThread {
   // SAB bypasses this mechanism!
   connectPorts() {
     logWorklet('initializing MessagePort on worker threads');
+
     this.audioWorkletNode.port.postMessage({ msg: 'initMessagePort' }, [workerMessagePortAudio]);
+
     this.audioWorkletNode.port.postMessage({ msg: 'initAudioInputPort' }, [
       audioWorkerAudioInputPort,
     ]);
+
     this.audioWorkletNode.port.postMessage({ msg: 'initRequestPort' }, [
       audioWorkerFrameRequestPort,
     ]);
@@ -84,26 +93,24 @@ class AudioWorkletMainThread {
   }
 
   async initialize() {
-    this.audioCtx = new AudioContext({
+    const newAudioContext = new AudioContext({
       latencyHint: 'interactive',
       sampleRate: this.sampleRate,
     });
+    this.audioCtx = newAudioContext;
+
     logWorklet('new AudioContext');
-    try {
-      await this.audioCtx.audioWorklet.addModule(WorkletWorker());
-      logWorklet('WorkletWorker module added');
-    } catch (error) {
-      log.error(error);
-      return;
-    }
+
+    await newAudioContext.audioWorklet.addModule(WorkletWorker());
+    logWorklet('WorkletWorker module added');
 
     if (!this.csoundWorkerMain) {
       log.error(`fatal: worker not reachable from worklet-main thread`);
       return;
     }
 
-    const createWorkletNode = inputsCount =>
-      (this.audioWorkletNode = new AudioWorkletNode(this.audioCtx, 'csound-worklet-processor', {
+    let createWorkletNode = (audoContext, inputsCount) => {
+      return new AudioWorkletNode(audoContext, 'csound-worklet-processor', {
         processorOptions: {
           hardwareBufferSize: this.hardwareBufferSize,
           softwareBufferSize: this.softwareBufferSize,
@@ -118,7 +125,8 @@ class AudioWorkletMainThread {
           maybeSharedArrayBufferAudioOut:
             this.csoundWorkerMain.hasSharedArrayBuffer && this.csoundWorkerMain.audioStreamOut,
         },
-      }));
+      });
+    };
 
     if (this.isRequestingMidi) {
       emitInternalCsoundLogEvent(this.csoundWorkerMain, 'requesting for web-midi connection');
@@ -164,15 +172,17 @@ class AudioWorkletMainThread {
 
       const microphoneCallback = stream => {
         if (stream) {
-          const liveInput = this.audioCtx.createMediaStreamSource(stream);
+          const liveInput = newAudioContext.createMediaStreamSource(stream);
           this.inputsCount = liveInput.channelCount;
-          this.audioWorkletNode = createWorkletNode(liveInput.channelCount);
-          liveInput.connect(this.audioWorkletNode).connect(this.audioCtx.destination);
+          const newNode = createWorkletNode(newAudioContext, liveInput.channelCount);
+          this.audioWorkletNode = newNode;
+          liveInput.connect(newNode).connect(newAudioContext.destination);
         } else {
           // Continue as before if user cancels
           this.inputsCount = 0;
-          this.audioWorkletNode = createWorkletNode(0);
-          this.audioWorkletNode.connect(this.audioCtx.destination);
+          const newNode = createWorkletNode(newAudioContext, 0);
+          this.audioWorkletNode = newNode;
+          this.audioWorkletNode.connect(newAudioContext.destination);
         }
         !this.csoundWorkerMain.hasSharedArrayBuffer && this.connectPorts();
       };
@@ -196,9 +206,10 @@ class AudioWorkletMainThread {
             log.error
           );
     } else {
-      this.audioWorkletNode = createWorkletNode();
+      const newNode = createWorkletNode(newAudioContext, 0);
+      this.audioWorkletNode = newNode;
       logWorklet('connecting Node to AudioContext destination');
-      this.audioWorkletNode.connect(this.audioCtx.destination);
+      this.audioWorkletNode.connect(newAudioContext.destination);
       !this.csoundWorkerMain.hasSharedArrayBuffer && this.connectPorts();
     }
   }

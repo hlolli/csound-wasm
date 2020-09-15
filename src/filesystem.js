@@ -3,7 +3,8 @@ import { cleanStdout, uint2String } from '@root/utils';
 // import { isBrowser, isWebWorker } from 'browser-or-node';
 // import { forEach, range } from 'ramda';
 import { WasmFs } from '@wasmer/wasmfs';
-import { Buffer } from 'buffer';
+import { Buffer } from 'buffer-es6';
+// import { Buffer } from 'buffer';
 
 export const touchFile = filename => {
   wasmFs.fs.writeFileSync(`/sandbox/${filename}`, '');
@@ -105,6 +106,51 @@ export async function copyToFs(arrayBuffer, filePath) {
   wasmFs.fs.writeFileSync(realPath, buf);
 }
 
+export async function readFromFs(filePath) {
+  const realPath = path.join('/sandbox', filePath);
+  return wasmFs.fs.readFileSync(realPath);
+}
+
+export async function lsFs(lsPath) {
+  const realPath = lsPath ? path.join('/sandbox', lsPath) : '/sandbox';
+  return wasmFs.fs.readdirSync(realPath);
+}
+
+export async function llFs(llPath) {
+  const realPath = llPath ? path.join('/sandbox', llPath) : '/sandbox';
+  const files = wasmFs.fs.readdirSync(realPath);
+  return files.map(file => ({ name: file, stat: wasmFs.fs.statSync(path.join(realPath, file)) }));
+}
+
+function rmrfFsRec(rmrfPath) {
+  let rmrfPathSandboxed;
+  if (typeof rmrfPath === 'string') {
+    if (rmrfPath.startsWith('/sandbox')) {
+      rmrfPathSandboxed = rmrfPath;
+    } else {
+      rmrfPathSandboxed = path.join('/sandbox', rmrfPath);
+    }
+  } else {
+    rmrfPathSandboxed = '/sandbox';
+  }
+  if (wasmFs.fs.existsSync(rmrfPathSandboxed)) {
+    wasmFs.fs.readdirSync(rmrfPathSandboxed).forEach(file => {
+      var curPath = path.join(rmrfPathSandboxed, file);
+      if (wasmFs.fs.lstatSync(curPath).isDirectory()) {
+        rmrfFsRec(curPath);
+      } else {
+        wasmFs.fs.unlinkSync(curPath);
+      }
+    });
+    wasmFs.fs.rmdirSync(rmrfPathSandboxed);
+  }
+}
+
+export async function rmrfFs(rmrfPath) {
+  rmrfFsRec(rmrfPath);
+  wasmFs.volume.mkdirSync('/sandbox');
+}
+
 // all folders are stored under /csound, it seems as if
 // sanboxing security increases, we are safer to have all assets
 // nested from 1 and same root,
@@ -116,8 +162,6 @@ export async function mkdirp(filePath) {
 }
 
 export const initFS = async wasm => {
-  // wasm.exports.setupWasmBrowserFS();
-  // wasmFs.fs.mkdirpSync('/sandbox', { mode: '0o777' });
   createStdErrorStream();
   createStdOutStream();
 };

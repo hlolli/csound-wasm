@@ -47,12 +47,50 @@ const iterableMessageChannel = () => {
   return [port1, port2];
 };
 
+const safelyClosePorts = ([p1, p2]) => {
+  if (typeof p1.close !== 'undefined') {
+    try {
+      p1.close();
+    } catch (e) {}
+  }
+  if (typeof p2.close !== 'undefined') {
+    try {
+      p2.close();
+    } catch (e) {}
+  }
+};
+
+export const restartMessagePortAudio = () => {
+  safelyClosePorts([mainMessagePortAudio, workerMessagePortAudio]);
+  [mainMessagePortAudio, workerMessagePortAudio] = iterableMessageChannel();
+};
+
+export const restartWorkerAudioInputPort = () => {
+  safelyClosePorts([csoundWorkerAudioInputPort, audioWorkerAudioInputPort]);
+  [csoundWorkerAudioInputPort, audioWorkerAudioInputPort] = iterableMessageChannel();
+};
+
+export const restartWorkerFrameRequestPort = () => {
+  safelyClosePorts([csoundWorkerFrameRequestPort, audioWorkerFrameRequestPort]);
+  [csoundWorkerFrameRequestPort, audioWorkerFrameRequestPort] = iterableMessageChannel();
+};
+
 export const cleanupPorts = csoundWorkerMain => {
   logVAN(`cleanupPorts`);
+
+  safelyClosePorts([mainMessagePort, workerMessagePort]);
   [mainMessagePort, workerMessagePort] = iterableMessageChannel();
+
+  safelyClosePorts([mainMessagePortAudio, workerMessagePortAudio]);
   [mainMessagePortAudio, workerMessagePortAudio] = iterableMessageChannel();
+
+  safelyClosePorts([csoundWorkerFrameRequestPort, audioWorkerFrameRequestPort]);
   [csoundWorkerFrameRequestPort, audioWorkerFrameRequestPort] = iterableMessageChannel();
+
+  safelyClosePorts([csoundWorkerAudioInputPort, audioWorkerAudioInputPort]);
   [csoundWorkerAudioInputPort, audioWorkerAudioInputPort] = iterableMessageChannel();
+
+  safelyClosePorts([csoundWorkerRtMidiPort, csoundMainRtMidiPort]);
   [csoundWorkerRtMidiPort, csoundMainRtMidiPort] = iterableMessageChannel();
 
   mainMessagePort.addEventListener('message', messageEventHandler(csoundWorkerMain));
@@ -61,13 +99,13 @@ export const cleanupPorts = csoundWorkerMain => {
   mainMessagePort.start();
   mainMessagePortAudio.start();
 
-  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRequestPort' }, [
-    csoundWorkerFrameRequestPort,
-  ]);
-  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [
-    csoundWorkerAudioInputPort,
-  ]);
-  csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [
-    csoundWorkerRtMidiPort,
-  ]);
+  // csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRequestPort' }, [
+  //   csoundWorkerFrameRequestPort,
+  // ]);
+  // csoundWorkerMain.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [
+  //   csoundWorkerAudioInputPort,
+  // ]);
+  // csoundWorkerMain.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [
+  //   csoundWorkerRtMidiPort,
+  // ]);
 };

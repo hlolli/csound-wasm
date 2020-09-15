@@ -1,5 +1,5 @@
 import * as Comlink from 'comlink';
-import { copyToFs, workerMessagePort } from '@root/filesystem';
+import { copyToFs, lsFs, llFs, readFromFs, rmrfFs, workerMessagePort } from '@root/filesystem';
 import { logVAN } from '@root/logger';
 import { MAX_HARDWARE_BUFFER_SIZE } from '@root/constants.js';
 import { handleCsoundStart, instantiateAudioPacket } from '@root/workers/common.utils';
@@ -209,17 +209,21 @@ addEventListener('message', event => {
 
 const initialize = async wasmDataURI => {
   logVAN(`initializing wasm and exposing csoundAPI functions from worker to main`);
-  wasm = await loadWasm(wasmDataURI);
-  libraryCsound = libcsoundFactory(wasm);
+  wasm = wasm || (await loadWasm(wasmDataURI));
+  libraryCsound = libraryCsound || libcsoundFactory(wasm);
   const startHandler = handleCsoundStart(
     workerMessagePort,
     libraryCsound,
     createRealtimeAudioThread
   );
   const allAPI = pipe(
+    assoc('copyToFs', copyToFs),
+    assoc('readFromFs', readFromFs),
+    assoc('lsFs', lsFs),
+    assoc('llFs', llFs),
+    assoc('rmrfFs', rmrfFs),
     assoc('csoundStart', startHandler),
-    assoc('wasm', wasm),
-    assoc('copyToFs', copyToFs)
+    assoc('wasm', wasm)
   )(libraryCsound);
   combined = new Map(Object.entries(allAPI));
 };

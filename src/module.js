@@ -1,12 +1,12 @@
 import { WASI } from '@wasmer/wasi';
-import browserBindings from '@wasmer/wasi/lib/bindings/browser';
+// import browserBindings from '@wasmer/wasi/lib/bindings/browser';
 import { lowerI64Imports } from '@wasmer/wasm-transformer';
 import { inflate } from 'pako';
 import { initFS, preopens, wasmFs } from '@root/filesystem';
 import * as path from 'path';
 
 export const bindings = {
-  ...(browserBindings.default || browserBindings),
+  ...WASI.defaultBindings,
   fs: wasmFs.fs,
   path,
 };

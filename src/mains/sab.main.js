@@ -46,6 +46,7 @@ class SharedArrayBufferMainThread {
     );
 
     this.midiBuffer = new Int32Array(this.midiBufferSAB);
+    this.onPlayStateChange = this.onPlayStateChange.bind(this);
     logSAB(`SharedArrayBufferMainThread got constructed`);
   }
 
@@ -145,6 +146,11 @@ class SharedArrayBufferMainThread {
         });
         break;
       }
+
+      case 'renderEnded': {
+        logSAB(`event: renderEnded received, beginning cleanup`);
+        break;
+      }
       default: {
         break;
       }
@@ -193,6 +199,7 @@ class SharedArrayBufferMainThread {
   async initialize() {
     logSAB(`initialization: instantiate the SABWorker Thread`);
     const csoundWorker = new Worker(SABWorker());
+    this.csoundWorker = csoundWorker;
     const audioStateBuffer = this.audioStateBuffer;
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
@@ -236,6 +243,10 @@ class SharedArrayBufferMainThread {
     this.exportApi.csoundResume = this.csoundResume.bind(this);
 
     this.exportApi.copyToFs = makeProxyCallback(proxyPort, 'copyToFs');
+    this.exportApi.readFromFs = makeProxyCallback(proxyPort, 'readFromFs');
+    this.exportApi.llFs = makeProxyCallback(proxyPort, 'llFs');
+    this.exportApi.lsFs = makeProxyCallback(proxyPort, 'lsFs');
+    this.exportApi.rmrfFs = makeProxyCallback(proxyPort, 'rmrfFs');
 
     for (const apiK of Object.keys(API)) {
       const proxyCallback = makeProxyCallback(proxyPort, apiK);

@@ -12,6 +12,7 @@ import {
 } from '@root/constants.js';
 import { makeProxyCallback } from '@root/utils';
 import {
+  cleanupPorts,
   csoundMainRtMidiPort,
   messageEventHandler,
   mainMessagePortAudio,
@@ -21,6 +22,8 @@ import {
   csoundWorkerRtMidiPort,
   csoundWorkerFrameRequestPort,
 } from '@root/mains/messages.main';
+
+let isInitialized = false;
 
 class VanillaWorkerMainThread {
   constructor(audioWorker, wasmDataURI) {
@@ -45,6 +48,7 @@ class VanillaWorkerMainThread {
     this.messageCallbacks = [];
     this.csoundPlayStateChangeCallbacks = [];
     this.midiPortStarted = false;
+    this.onPlayStateChange = this.onPlayStateChange.bind(this);
   }
 
   get api() {
@@ -89,6 +93,15 @@ class VanillaWorkerMainThread {
         this.midiPortStarted = false;
         this.csound = undefined;
         this.currentPlayState = undefined;
+        cleanupPorts(this);
+        // await this.initialize();
+        break;
+      }
+
+      case 'renderEnded': {
+        logVAN(`event: renderEnded received, beginning cleanup`);
+        cleanupPorts(this);
+        // await this.initialize();
         break;
       }
 
@@ -174,8 +187,8 @@ class VanillaWorkerMainThread {
   }
 
   async initialize() {
-    logVAN(`initialize`);
-    this.csoundWorker = new Worker(VanillaWorker());
+    logVAN(`vanilla.main: initialize`);
+    this.csoundWorker = this.csoundWorker || new Worker(VanillaWorker());
     const audioStreamIn = this.audioStreamIn;
     const audioStreamOut = this.audioStreamOut;
     const midiBuffer = this.midiBuffer;
@@ -187,12 +200,6 @@ class VanillaWorkerMainThread {
     mainMessagePort.start();
     mainMessagePortAudio.start();
     logVAN(`mainMessagePort- mainMessagePortAudio .start()`);
-
-    this.csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
-    this.csoundWorker.postMessage({ msg: 'initRequestPort' }, [csoundWorkerFrameRequestPort]);
-    this.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [csoundWorkerAudioInputPort]);
-    this.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [csoundWorkerRtMidiPort]);
-    logVAN(`4x message-ports sent to the worker`);
 
     const proxyPort = Comlink.wrap(this.csoundWorker);
     this.proxyPort = proxyPort;
@@ -211,6 +218,10 @@ class VanillaWorkerMainThread {
     this.exportApi.csoundResume = this.csoundResume.bind(this);
 
     this.exportApi.copyToFs = makeProxyCallback(proxyPort, 'copyToFs');
+    this.exportApi.readFromFs = makeProxyCallback(proxyPort, 'readFromFs');
+    this.exportApi.llFs = makeProxyCallback(proxyPort, 'llFs');
+    this.exportApi.lsFs = makeProxyCallback(proxyPort, 'lsFs');
+    this.exportApi.rmrfFs = makeProxyCallback(proxyPort, 'rmrfFs');
 
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
@@ -225,7 +236,17 @@ class VanillaWorkerMainThread {
             }
 
             this.csound = csound;
-            // await proxyPort.waitUntilInitialized();
+
+            this.csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
+            this.csoundWorker.postMessage({ msg: 'initRequestPort' }, [
+              csoundWorkerFrameRequestPort,
+            ]);
+            this.csoundWorker.postMessage({ msg: 'initAudioInputPort' }, [
+              csoundWorkerAudioInputPort,
+            ]);
+            this.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [csoundWorkerRtMidiPort]);
+            logVAN(`4x message-ports sent to the worker`);
+
             await proxyCallback({
               audioStreamIn,
               audioStreamOut,

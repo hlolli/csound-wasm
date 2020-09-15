@@ -10,14 +10,18 @@ import { areWorkletsSupportet, isSabSupported, isScriptProcessorNodeSupported } 
 export { Csound };
 export default Csound;
 
+let audioWorker, csoundWasmApi;
+
 /**
  * The default entry for libcsound es7 module
  * @async
  * @return {Promise.<Object>}
  */
 async function Csound() {
-  var csoundWasmApi;
-
+  // prevent multiple initializations
+  if (csoundWasmApi) {
+    return csoundWasmApi;
+  }
   const workletSupport = areWorkletsSupportet();
   const spnSupport = isScriptProcessorNodeSupported();
 
@@ -29,7 +33,6 @@ async function Csound() {
     log.warn(`No WebAudio Support detected`);
   }
 
-  let audioWorker;
   if (workletSupport) {
     audioWorker = new AudioWorkletMainThread();
   } else if (spnSupport) {
