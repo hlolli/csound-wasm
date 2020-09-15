@@ -97,6 +97,7 @@ class AudioWorkletMainThread {
       latencyHint: 'interactive',
       sampleRate: this.sampleRate,
     });
+
     this.audioCtx = newAudioContext;
 
     logWorklet('new AudioContext');
@@ -111,6 +112,10 @@ class AudioWorkletMainThread {
 
     let createWorkletNode = (audoContext, inputsCount) => {
       return new AudioWorkletNode(audoContext, 'csound-worklet-processor', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        inputChannelCount: [inputsCount],
+        outputChannelCount: [this.outputsCount],
         processorOptions: {
           hardwareBufferSize: this.hardwareBufferSize,
           softwareBufferSize: this.softwareBufferSize,

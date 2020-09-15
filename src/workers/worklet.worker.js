@@ -45,8 +45,9 @@ function processSharedArrayBuffer(inputs, outputs) {
     return true;
   }
 
-  const writeableInputChannels = inputs[0];
-  const writeableOutputChannels = outputs[0];
+  const writeableInputChannels = inputs[0] || [];
+  const writeableOutputChannels = outputs[0] || [];
+
   const hasWriteableInputChannels = writeableInputChannels.length > 0;
   const availableOutputBuffers = Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.AVAIL_OUT_BUFS);
 
@@ -122,8 +123,8 @@ function processVanillaBuffers(inputs, outputs) {
     }
   }
 
-  const writeableInputChannels = inputs[0];
-  const writeableOutputChannels = outputs[0];
+  const writeableInputChannels = inputs[0] || [];
+  const writeableOutputChannels = outputs[0] || [];
   const hasWriteableInputChannels = writeableInputChannels.length > 0;
 
   const nextOutputReadIndex =
