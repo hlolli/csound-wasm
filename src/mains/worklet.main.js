@@ -101,7 +101,6 @@ class AudioWorkletMainThread {
     this.audioCtx = newAudioContext;
 
     logWorklet('new AudioContext');
-
     await newAudioContext.audioWorklet.addModule(WorkletWorker());
     logWorklet('WorkletWorker module added');
 

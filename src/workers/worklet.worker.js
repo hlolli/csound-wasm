@@ -3,7 +3,7 @@ import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants';
 import { instantiateAudioPacket } from '@root/workers/common.utils';
 import { logWorklet } from '@root/logger';
 
-const PERIODS = 4;
+const PERIODS = 3;
 
 const workerMessagePort = {
   ready: false,
