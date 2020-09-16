@@ -17,6 +17,7 @@ extern int emugens_init_(CSOUND *csound);
 extern int pvsops_init_(CSOUND *csound);
 extern int liveconv_init_(CSOUND *csound);
 extern int unsupported_opdoces_init_(CSOUND *csound);
+extern int dateops_init_(CSOUND *csound);
 #endif
 
 // returns the address of a string
@@ -206,6 +207,7 @@ CSOUND *csoundCreateWasi() {
   emugens_init_(csound);
   pvsops_init_(csound);
   liveconv_init_(csound);
+  dateops_init_(csound);
   unsupported_opdoces_init_(csound);
   return csound;
 }
@@ -222,6 +224,7 @@ void csoundResetWasi(CSOUND *csound) {
   emugens_init_(csound);
   pvsops_init_(csound);
   liveconv_init_(csound);
+  dateops_init_(csound);
   unsupported_opdoces_init_(csound);
 }
 

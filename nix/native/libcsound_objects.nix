@@ -54,34 +54,6 @@ in pkgs.callPackage
         '';
       };
 
-      patchGetCWD = pkgs.writeTextFile {
-        name = "patchGetCWD";
-        executable = true;
-        destination = "/bin/patchGetCWD";
-        text = ''
-          #!${pkgs.nodejs}/bin/node
-
-          const myArgs = process.argv.slice(2);
-          const myFile = myArgs[0];
-          const fs = require('fs')
-          fs.readFile(myFile, 'utf8', function (err,data) {
-            if (err) { return console.log(err); }
-            const regex = "static int32_t getcurdir.*" +
-                          "#ifndef MAXLINE";
-            const result = data.replace(new RegExp(regex, 'is'),
-             `
-             static int32_t getcurdir(CSOUND *csound, GETCWD *p) {
-               p->Scd->size = 2;
-               p->Scd->data = "/";
-               return OK;
-             }
-             #ifndef MAXLINE`);
-            fs.writeFile(myFile, result, 'utf8', function (err) {
-              if (err) return console.log(err);
-            });
-           });
-        '';
-      };
       libsndfileP = import ./sndfileWasi.nix;
 
       csoundModLoadPatch = pkgs.writeTextFile
@@ -162,9 +134,6 @@ in pkgs.callPackage
 
           # Patch 64bit integer clock
           ${patchClock}/bin/patchClock Top/csound.c
-
-          # Patch getCWD
-          ${patchGetCWD}/bin/patchGetCWD Opcodes/date.c
 
           touch include/float-version.h
           substituteInPlace Top/csmodule.c \
@@ -308,6 +277,16 @@ in pkgs.callPackage
              'int32_t liveconv_init_(CSOUND *csound) {
                  return csound->AppendOpcodes(csound,
                    &(localops[0]), (int32_t) (sizeof(localops) / sizeof(OENTRY))); }'
+
+          # date and fs
+          sed -i '1s|^|char *getcwd(x,y) {return "/";}\n|' Opcodes/date.c
+          sed -i '1s/^/#include <unistd.h>\n/' Opcodes/date.c
+          sed -i -e 's/LINUX/1/g' Opcodes/date.c
+          substituteInPlace Opcodes/date.c \
+            --replace 'LINKAGE_BUILTIN(date_localops)' \
+             'int32_t dateops_init_(CSOUND *csound) {
+                 return csound->AppendOpcodes(csound,
+                   &(date_localops[0]), (int32_t) (sizeof(date_localops) / sizeof(OENTRY))); }'
 
           echo 'extern "C" {
            extern int pvsops_init_(CSOUND *csound) {
