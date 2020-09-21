@@ -4,12 +4,8 @@ import log, { logWorklet } from '@root/logger';
 import {
   audioWorkerAudioInputPort,
   audioWorkerFrameRequestPort,
-  cleanupPorts,
   emitInternalCsoundLogEvent,
   workerMessagePortAudio,
-  restartMessagePortAudio,
-  restartWorkerFrameRequestPort,
-  restartWorkerAudioInputPort,
 } from '@root/mains/messages.main';
 
 const connectedMidiDevices = new Set();
@@ -48,9 +44,8 @@ class AudioWorkletMainThread {
         logWorklet(
           'event received: realtimePerformanceEnded' + !this.csoundWorkerMain.hasSharedArrayBuffer
             ? ` cleaning up Vanilla ports`
-            : ''
+            : '',
         );
-        !this.csoundWorkerMain.hasSharedArrayBuffer; // && cleanupPorts(this.csoundWorkerMain);
         this.audioCtx.close();
         this.audioWorkletNode.disconnect();
         delete this.audioWorkletNode;
@@ -109,7 +104,7 @@ class AudioWorkletMainThread {
       return;
     }
 
-    let createWorkletNode = (audoContext, inputsCount) => {
+    const createWorkletNode = (audoContext, inputsCount) => {
       return new AudioWorkletNode(audoContext, 'csound-worklet-processor', {
         numberOfInputs: 1,
         numberOfOutputs: 1,
@@ -142,11 +137,11 @@ class AudioWorkletMainThread {
             for (let input = midiInputs.next(); input && !input.done; input = midiInputs.next()) {
               emitInternalCsoundLogEvent(
                 this.csoundWorkerMain,
-                `Connecting midi-input: ${input.value.name || 'unkown'}`
+                `Connecting midi-input: ${input.value.name || 'unkown'}`,
               );
               if (!connectedMidiDevices.has(input.value.name || 'unkown')) {
                 input.value.onmidimessage = this.csoundWorkerMain.handleMidiInput.bind(
-                  this.csoundWorkerMain
+                  this.csoundWorkerMain,
                 );
                 connectedMidiDevices.add(input.value.name || 'unkown');
               }
@@ -157,13 +152,13 @@ class AudioWorkletMainThread {
         } catch (error) {
           emitInternalCsoundLogEvent(
             this.csoundWorkerMain,
-            'error while connecting web-midi: ' + error
+            'error while connecting web-midi: ' + error,
           );
         }
       } else {
         emitInternalCsoundLogEvent(
           this.csoundWorkerMain,
-          'no web-midi support found, midi-input will not work!'
+          'no web-midi support found, midi-input will not work!',
         );
       }
     }
@@ -174,7 +169,7 @@ class AudioWorkletMainThread {
           ? navigator.mediaDevices.getUserMedia
           : navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
 
-      const microphoneCallback = stream => {
+      const microphoneCallback = (stream) => {
         if (stream) {
           const liveInput = newAudioContext.createMediaStreamSource(stream);
           this.inputsCount = liveInput.channelCount;
@@ -207,7 +202,7 @@ class AudioWorkletMainThread {
               },
             },
             microphoneCallback,
-            log.error
+            log.error,
           );
     } else {
       const newNode = createWorkletNode(newAudioContext, 0);

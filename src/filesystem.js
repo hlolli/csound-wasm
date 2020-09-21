@@ -135,11 +135,11 @@ function rmrfFsRec(rmrfPath) {
   }
   if (wasmFs.fs.existsSync(rmrfPathSandboxed)) {
     wasmFs.fs.readdirSync(rmrfPathSandboxed).forEach(file => {
-      var curPath = path.join(rmrfPathSandboxed, file);
-      if (wasmFs.fs.lstatSync(curPath).isDirectory()) {
-        rmrfFsRec(curPath);
-      } else {
-        wasmFs.fs.unlinkSync(curPath);
+      var currentPath = path.join(rmrfPathSandboxed, file);
+      if (wasmFs.fs.lstatSync(currentPath).isDirectory()) {
+        rmrfFsRec(currentPath);
+       } else {
+        wasmFs.fs.unlinkSync(currentPath);
       }
     });
     wasmFs.fs.rmdirSync(rmrfPathSandboxed);

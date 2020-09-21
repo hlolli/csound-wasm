@@ -23,7 +23,6 @@ import {
   csoundWorkerFrameRequestPort,
 } from '@root/mains/messages.main';
 
-let isInitialized = false;
 
 class VanillaWorkerMainThread {
   constructor(audioWorker, wasmDataURI) {

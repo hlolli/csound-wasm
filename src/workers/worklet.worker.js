@@ -3,7 +3,8 @@ import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants';
 import { instantiateAudioPacket } from '@root/workers/common.utils';
 import { logWorklet } from '@root/logger';
 
-const PERIODS = 3;
+const SAB_PERIODS = 3;
+const VANILLA_PERIODS = 4;
 
 const workerMessagePort = {
   ready: false,
@@ -38,7 +39,7 @@ function processSharedArrayBuffer(inputs, outputs) {
 
   this.isPerformingLastTime = isPerforming;
 
-  if (this.preProcessCount < PERIODS && this.isPerformingLastTime && isPerforming) {
+  if (this.preProcessCount < SAB_PERIODS && this.isPerformingLastTime && isPerforming) {
     Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
     Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOTIFY);
     this.preProcessCount += 1;
@@ -51,7 +52,7 @@ function processSharedArrayBuffer(inputs, outputs) {
   const hasWriteableInputChannels = writeableInputChannels.length > 0;
   const availableOutputBuffers = Atomics.load(this.sharedArrayBuffer, AUDIO_STATE.AVAIL_OUT_BUFS);
 
-  if (availableOutputBuffers < this.softwareBufferSize * PERIODS) {
+  if (availableOutputBuffers < this.softwareBufferSize * SAB_PERIODS) {
     Atomics.store(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOFITY, 1);
     Atomics.notify(this.sharedArrayBuffer, AUDIO_STATE.ATOMIC_NOTIFY);
   }
@@ -147,7 +148,7 @@ function processVanillaBuffers(inputs, outputs) {
     });
 
     if (this.inputsCount > 0 && hasWriteableInputChannels && writeableInputChannels[0].length > 0) {
-      const inputBufferLength = this.softwareBufferSize * PERIODS;
+      const inputBufferLength = this.softwareBufferSize * VANILLA_PERIODS;
       writeableInputChannels.forEach((channelBuffer, channelIndex) => {
         this.vanillaInputChannels[channelIndex].set(channelBuffer, this.vanillaInputReadIndex);
       });
@@ -186,8 +187,8 @@ function processVanillaBuffers(inputs, outputs) {
   }
 
   if (
-    this.vanillaAvailableFrames < this.softwareBufferSize * PERIODS &&
-    this.pendingFrames < this.softwareBufferSize * PERIODS * 2
+    this.vanillaAvailableFrames < this.softwareBufferSize * VANILLA_PERIODS &&
+    this.pendingFrames < this.softwareBufferSize * VANILLA_PERIODS * 2
   ) {
     const futureOutputReadIndex =
       (this.vanillaAvailableFrames + nextOutputReadIndex + this.pendingFrames) %
@@ -198,9 +199,9 @@ function processVanillaBuffers(inputs, outputs) {
         futureOutputReadIndex < this.hardwareBufferSize
           ? futureOutputReadIndex
           : futureOutputReadIndex + 1,
-      numFrames: this.softwareBufferSize * PERIODS,
+      numFrames: this.softwareBufferSize * VANILLA_PERIODS
     });
-    this.pendingFrames += this.softwareBufferSize * PERIODS;
+    this.pendingFrames += this.softwareBufferSize * VANILLA_PERIODS;
   }
 
   return true;

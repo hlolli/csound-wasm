@@ -3,6 +3,6 @@
   "printWidth": 100,
   "tabWidth": 2,
   "singleQuote": true,
-  "trailingComma": true,
+  "trailingComma": 'all',
   "jsxBracketSameLine": false
 }

@@ -51,12 +51,12 @@ const safelyClosePorts = ([p1, p2]) => {
   if (typeof p1.close !== 'undefined') {
     try {
       p1.close();
-    } catch (e) {}
+    } catch {}
   }
   if (typeof p2.close !== 'undefined') {
     try {
       p2.close();
-    } catch (e) {}
+    } catch {}
   }
 };
 
