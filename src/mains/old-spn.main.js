@@ -28,11 +28,14 @@ class ScriptProcessorNodeMainThread {
 
     this.initIframe = this.initIframe.bind(this);
     this.initialize = this.initialize.bind(this);
+    this.onPlayStateChange = this.onPlayStateChange.bind(this);
     logSPN('ScriptProcessorNodeMainThread was constructed');
   }
 
   async onPlayStateChange(newPlayState) {
     this.currentPlayState = newPlayState;
+    this.spnWorker &&
+      this.spnWorker.postMessage({ playStateChange: newPlayState }, '*');
     switch (newPlayState) {
       case 'realtimePerformanceStarted': {
         logSPN('event received: realtimePerformanceStarted');
@@ -41,7 +44,7 @@ class ScriptProcessorNodeMainThread {
       }
       case 'realtimePerformanceEnded': {
         logSPN('event received: realtimePerformanceEnded');
-        cleanupPorts(this.csoundWorkerMain);
+        // cleanupPorts(this.csoundWorkerMain);
         this.currentPlayState = undefined;
         this.sampleRate = undefined;
         this.inputsCount = undefined;
@@ -61,6 +64,7 @@ class ScriptProcessorNodeMainThread {
     this.spnWorker.postMessage({ msg: 'initMessagePort' }, '*', [workerMessagePortAudio]);
     this.spnWorker.postMessage({ msg: 'initAudioInputPort' }, '*', [audioWorkerAudioInputPort]);
     this.spnWorker.postMessage({ msg: 'initRequestPort' }, '*', [audioWorkerFrameRequestPort]);
+    this.spnWorker.postMessage({ playStateChange: this.currentPlayState }, '*');
   }
 
   async initIframe() {
@@ -88,7 +92,7 @@ class ScriptProcessorNodeMainThread {
     iFrame.style.cssText = 'position:absolute;left:0;top:-999px;width:1px;height:1px;';
 
     // appending early to have access to contentWindow
-    const iFrameOnLoad = new Promise(resolve => {
+    const iFrameOnLoad = new Promise((resolve) => {
       iFrame.onload = resolve;
     });
     parentScope.body.appendChild(iFrame);

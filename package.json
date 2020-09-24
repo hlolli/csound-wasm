@@ -1,6 +1,6 @@
 {
   "name": "csound-wasm",
-  "version": "6.15.0-0",
+  "version": "6.15.0-1",
   "author": "Hlödver Sigurdsson <hlolli@gmail.com>",
   "license": "LGPL-3.0",
   "main": "./dist/libcsound.mjs",

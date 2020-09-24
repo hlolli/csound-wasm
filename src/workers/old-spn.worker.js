@@ -7,14 +7,13 @@ import { WebkitAudioContext } from '@root/utils';
 
 let spnClassInstance;
 
-const lowestQuantum = 256;
-
 const PERIODS = 4;
 
 const workerMessagePort = {
   ready: false,
   post: () => {},
   broadcastPlayState: () => {},
+  vanillaWorkerState: undefined,
 };
 
 const audioFramePort = {
@@ -32,7 +31,6 @@ class CsoundScriptNodeProcessor {
     this.softwareBufferSize = softwareBufferSize;
     this.inputsCount = inputsCount;
     this.outputsCount = outputsCount;
-    console.log('COUNTZ', this.inputsCount, this.outputsCount);
     this.sampleRate = sampleRate;
 
     this.vanillaOutputChannels = [];
@@ -49,17 +47,14 @@ class CsoundScriptNodeProcessor {
 
     // SPN
     const AudioCTX = WebkitAudioContext();
-    console.log('AUDIOCTX', AudioCTX, typeof webkitAudioContext, typeof AudioContext);
-    this.audioContext = new AudioCTX({
-      latencyHint: 'interactive',
-      sampleRate: this.sampleRate,
-    });
+    this.audioContext = new AudioCTX();
 
     this.scriptNode = this.audioContext.createScriptProcessor(
-      lowestQuantum,
+      softwareBufferSize,
       inputsCount,
-      outputsCount
+      outputsCount,
     );
+    this.process = this.process.bind(this);
     const processor = this.process.bind(this);
     this.scriptNode.onaudioprocess = processor;
     this.scriptNode.connect(this.audioContext.destination);
@@ -79,20 +74,20 @@ class CsoundScriptNodeProcessor {
       for (let channelIndex = 0; channelIndex < this.outputsCount; ++channelIndex) {
         let hasLeftover = false;
         let framesLeft = numFrames;
-        const nextReadIndex = readIndex % this.hardwareBufferSize;
+        const nextReadIndex = (readIndex + numFrames) % MAX_HARDWARE_BUFFER_SIZE;
         if (nextReadIndex < readIndex) {
           hasLeftover = true;
-          framesLeft = this.hardwareBufferSize - readIndex;
+          framesLeft = MAX_HARDWARE_BUFFER_SIZE - readIndex;
         }
 
         this.vanillaOutputChannels[channelIndex].set(
           audioPacket[channelIndex].subarray(0, framesLeft),
-          readIndex
+          readIndex,
         );
 
         if (hasLeftover) {
           this.vanillaOutputChannels[channelIndex].set(
-            audioPacket[channelIndex].subarray(framesLeft)
+            audioPacket[channelIndex].subarray(framesLeft),
           );
         }
       }
@@ -106,6 +101,13 @@ class CsoundScriptNodeProcessor {
   // try to do the same here as in Vanilla+Worklet
   process({ inputBuffer, outputBuffer }) {
     if (!this.vanillaInitialized || !audioFramePort.ready) {
+      if (workerMessagePort.vanillaWorkerState === 'realtimePerformanceEnded') {
+        if (this.audioContext) {
+          this.audioContext.close();
+          this.audioContext = undefined;
+        }
+        return true;
+      }
       if (audioFramePort.requestFrames && !this.vanillaInitialized) {
         // this minimizes startup glitches
         const firstTransferSize = this.softwareBufferSize * 4;
@@ -121,11 +123,11 @@ class CsoundScriptNodeProcessor {
       }
     }
 
-    const writeableInputChannels = range(0, this.inputsCount).map(index =>
-      inputBuffer.getChannelData(index)
+    const writeableInputChannels = range(0, this.inputsCount).map((index) =>
+      inputBuffer.getChannelData(index),
     );
-    const writeableOutputChannels = range(0, this.outputsCount).map(index =>
-      outputBuffer.getChannelData(index)
+    const writeableOutputChannels = range(0, this.outputsCount).map((index) =>
+      outputBuffer.getChannelData(index),
     );
     const hasWriteableInputChannels = writeableInputChannels.length > 0;
 
@@ -136,15 +138,20 @@ class CsoundScriptNodeProcessor {
       ? (this.vanillaInputReadIndex + writeableInputChannels[0].length) % this.hardwareBufferSize
       : 0;
 
-    if (this.vanillaAvailableFrames >= writeableOutputChannels[0].length) {
+    if (workerMessagePort.vanillaWorkerState !== 'realtimePerformanceStarted') {
+      writeableOutputChannels.forEach((channelBuffer) => {
+        channelBuffer.fill(0);
+      });
+      return true;
+    } else if (this.vanillaAvailableFrames >= writeableOutputChannels[0].length) {
       writeableOutputChannels.forEach((channelBuffer, channelIndex) => {
         channelBuffer.set(
           this.vanillaOutputChannels[channelIndex].subarray(
             this.vanillaOutputReadIndex,
             nextOutputReadIndex < this.vanillaOutputReadIndex
               ? this.hardwareBufferSize
-              : nextOutputReadIndex
-          )
+              : nextOutputReadIndex,
+          ),
         );
       });
 
@@ -164,7 +171,7 @@ class CsoundScriptNodeProcessor {
             inputBufferLength;
           const thisBufferEnd =
             nextInputReadIndex === 0 ? this.hardwareBufferSize : nextInputReadIndex;
-          this.vanillaInputChannels.forEach(channelBuffer => {
+          this.vanillaInputChannels.forEach((channelBuffer) => {
             packet.push(channelBuffer.subarray(pastBufferBegin, thisBufferEnd));
           });
           audioInputPort.transferInputFrames(packet);
@@ -213,35 +220,39 @@ class CsoundScriptNodeProcessor {
   }
 }
 
-const workerMessageHandler = event => {
+const workerMessageHandler = (event) => {
   if (event.data.msg === 'initMessagePort') {
-    console.log(`initMessagePort in worker`);
     const port = event.ports[0];
-    workerMessagePort.post = log => port.postMessage({ log });
-    workerMessagePort.broadcastPlayState = playStateChange => port.postMessage({ playStateChange });
+    workerMessagePort.post = (log) => port.postMessage({ log });
+    workerMessagePort.broadcastPlayState = (playStateChange) =>
+      port.postMessage({ playStateChange });
     workerMessagePort.ready = true;
   } else if (event.data.msg === 'initRequestPort') {
-    console.log(`initRequestPort in worker`);
     const requestPort = event.ports[0];
-    requestPort.addEventListener('message', requestPortEvent => {
+    requestPort.addEventListener('message', (requestPortEvent) => {
       const { audioPacket, readIndex, numFrames } = requestPortEvent.data;
       spnClassInstance &&
         spnClassInstance.updateVanillaFrames({ audioPacket, numFrames, readIndex });
     });
-    audioFramePort.requestFrames = arguments_ => requestPort.postMessage(arguments_);
+    audioFramePort.requestFrames = (arguments_) => requestPort.postMessage(arguments_);
     if (!audioFramePort.ready) {
       requestPort.start();
       audioFramePort.ready = true;
     }
   } else if (event.data.msg === 'initAudioInputPort') {
-    console.log(`initAudioInputPort in worker`);
     const inputPort = event.ports[0];
-    audioInputPort.transferInputFrames = frames => inputPort.postMessage(frames);
+    audioInputPort.transferInputFrames = (frames) => inputPort.postMessage(frames);
   } else if (event.data.msg === 'makeSPNClass') {
     if (typeof spnClassInstance !== 'undefined') {
       spnClassInstance = undefined;
     }
     spnClassInstance = new CsoundScriptNodeProcessor(event.data.argumentz);
+  } else if (event.data.playStateChange) {
+    workerMessagePort.vanillaWorkerState = event.data.playStateChange;
+    if (event.data.playStateChange === 'realtimePerformanceEnded') {
+      spnClassInstance = undefined;
+      audioFramePort.ready = false;
+    }
   }
 };
 

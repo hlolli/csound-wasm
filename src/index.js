@@ -52,7 +52,7 @@ async function Csound() {
     logSAB(`using SharedArrayBuffers`);
   }
 
-  const worker = hasSABSupport
+  const worker = hasSABSupport && workletSupport
     ? new SharedArrayBufferMainThread(audioWorker, wasmDataURI)
     : new VanillaWorkerMainThread(audioWorker, wasmDataURI);
 
