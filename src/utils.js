@@ -96,7 +96,7 @@ export const WebkitAudioContext = () => {
 };
 
 export const isScriptProcessorNodeSupported = () => {
-  const audioContext = AudioContext || WebkitAudioContext;
+  const audioContext = WebkitAudioContext();
   return (
     typeof audioContext !== 'undefined' &&
     typeof audioContext.prototype.createScriptProcessor !== 'undefined'

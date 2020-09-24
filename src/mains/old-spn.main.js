@@ -29,6 +29,7 @@ class ScriptProcessorNodeMainThread {
     this.initIframe = this.initIframe.bind(this);
     this.initialize = this.initialize.bind(this);
     this.onPlayStateChange = this.onPlayStateChange.bind(this);
+    this.scriptProcessorNode = true;
     logSPN('ScriptProcessorNodeMainThread was constructed');
   }
 

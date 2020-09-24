@@ -73,6 +73,9 @@ class VanillaWorkerMainThread {
     this.audioWorker.inputsCount = this.audioWorker.isRequestingInput ? 1 : 0;
     this.audioWorker.hardwareBufferSize = DEFAULT_HARDWARE_BUFFER_SIZE;
     this.audioWorker.softwareBufferSize = DEFAULT_SOFTWARE_BUFFER_SIZE;
+    if (this.audioWorker.scriptProcessorNode) {
+      this.audioWorker.softwareBufferSize *= 2;
+    }
 
     logVAN(`vars for rtPerf set`);
   }

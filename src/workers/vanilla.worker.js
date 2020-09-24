@@ -24,13 +24,13 @@ let csoundWorkerFrameRequestPort;
 let rtmidiPort;
 let rtmidiQueue = [];
 
-const createAudioInputBuffers = inputsCount => {
+const createAudioInputBuffers = (inputsCount) => {
   for (let channelIndex = 0; channelIndex < inputsCount; ++channelIndex) {
     audioInputs.buffers.push(new Float64Array(MAX_HARDWARE_BUFFER_SIZE));
   }
 };
 
-const generateAudioFrames = arguments_ => {
+const generateAudioFrames = (arguments_) => {
   if (workerMessagePort.vanillaWorkerState !== 'realtimePerformanceEnded') {
     return audioProcessCallback(arguments_);
   }
@@ -49,7 +49,7 @@ const createRealtimeAudioThread = ({ csound }) => {
   if (startError !== 0) {
     workerMessagePort.post(
       'error: csoundStart failed in realtime-performance,' +
-        ' look out for errors in options and syntax'
+        ' look out for errors in options and syntax',
     );
     return -1;
   }
@@ -85,14 +85,14 @@ const createRealtimeAudioThread = ({ csound }) => {
       csoundInputBuffer = new Float64Array(
         wasm.exports.memory.buffer,
         libraryCsound.csoundGetSpin(csound),
-        ksmps * nchnlsInput
+        ksmps * nchnlsInput,
       );
     }
     if (csoundOutputBuffer.length === 0) {
       csoundOutputBuffer = new Float64Array(
         wasm.exports.memory.buffer,
         libraryCsound.csoundGetSpout(csound),
-        ksmps * nchnls
+        ksmps * nchnls,
       );
     }
 
@@ -100,7 +100,7 @@ const createRealtimeAudioThread = ({ csound }) => {
     const hasInput = audioInputs.buffers.length > 0 && audioInputs.availableFrames >= numFrames;
 
     if (rtmidiQueue.length > 0) {
-      rtmidiQueue.forEach(event => {
+      rtmidiQueue.forEach((event) => {
         try {
           libraryCsound.csoundPushMidiMessage(csound, event[0], event[1], event[2]);
         } catch (error) {
@@ -127,9 +127,11 @@ const createRealtimeAudioThread = ({ csound }) => {
       }
 
       outputAudioPacket.forEach((channel, channelIndex) => {
-        channel[i] =
-          (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] || 0) /
-          zeroDecibelFullScale;
+        if (csoundOutputBuffer.length > 0) {
+          channel[i] =
+            (csoundOutputBuffer[currentCsoundBufferPos * nchnls + channelIndex] || 0) /
+            zeroDecibelFullScale;
+        }
       });
 
       if (hasInput) {
@@ -154,12 +156,12 @@ const callUncloned = async (k, arguments_) => {
   return caller && caller.apply({}, arguments_ || []);
 };
 
-addEventListener('message', event => {
+addEventListener('message', (event) => {
   if (event.data.msg === 'initMessagePort') {
     logVAN(`initMessagePort`);
     const port = event.ports[0];
-    workerMessagePort.post = log => port.postMessage({ log });
-    workerMessagePort.broadcastPlayState = playStateChange => {
+    workerMessagePort.post = (log) => port.postMessage({ log });
+    workerMessagePort.broadcastPlayState = (playStateChange) => {
       workerMessagePort.vanillaWorkerState = playStateChange;
       port.postMessage({ playStateChange });
     };
@@ -167,7 +169,7 @@ addEventListener('message', event => {
   } else if (event.data.msg === 'initRequestPort') {
     logVAN(`initRequestPort`);
     csoundWorkerFrameRequestPort = event.ports[0];
-    csoundWorkerFrameRequestPort.addEventListener('message', requestEvent => {
+    csoundWorkerFrameRequestPort.addEventListener('message', (requestEvent) => {
       const { framesLeft = 0, audioPacket } = generateAudioFrames(requestEvent.data) || {};
       csoundWorkerFrameRequestPort &&
         csoundWorkerFrameRequestPort.postMessage({
@@ -207,14 +209,14 @@ addEventListener('message', event => {
   }
 });
 
-const initialize = async wasmDataURI => {
+const initialize = async (wasmDataURI) => {
   logVAN(`initializing wasm and exposing csoundAPI functions from worker to main`);
   wasm = wasm || (await loadWasm(wasmDataURI));
   libraryCsound = libraryCsound || libcsoundFactory(wasm);
   const startHandler = handleCsoundStart(
     workerMessagePort,
     libraryCsound,
-    createRealtimeAudioThread
+    createRealtimeAudioThread,
   );
   const allAPI = pipe(
     assoc('copyToFs', copyToFs),
@@ -223,7 +225,7 @@ const initialize = async wasmDataURI => {
     assoc('llFs', llFs),
     assoc('rmrfFs', rmrfFs),
     assoc('csoundStart', startHandler),
-    assoc('wasm', wasm)
+    assoc('wasm', wasm),
   )(libraryCsound);
   combined = new Map(Object.entries(allAPI));
 };
