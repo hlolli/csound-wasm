@@ -7,6 +7,7 @@ import nodePolyfills from 'rollup-plugin-node-polyfills';
 import { terser } from 'rollup-plugin-terser';
 import strip from '@rollup/plugin-strip';
 // import nodeBuiltins from 'rollup-plugin-node-builtins';
+// import { getBabelOutputPlugin } from '@rollup/plugin-babel';
 import babel from '@rollup/plugin-babel';
 import pluginJson from '@rollup/plugin-json';
 import replace from '@rollup/plugin-replace';
@@ -38,8 +39,16 @@ const pluginsCommon = [
   commonjs({ transformMixedEsModules: true }),
   nodejsResolve({ preferBuiltins: false }),
   nodePolyfills({ fs: false, crypto: false, sourceMap: false }),
-  babel({ plugins: ['@babel/plugin-transform-destructuring'] }),
 ];
+
+const babelCommon = babel({
+  babelHelpers: 'inline',
+  include: 'src/**/*.js',
+  plugins: [
+    ['@babel/plugin-transform-destructuring', { useBuiltIns: true }],
+    ['@babel/plugin-proposal-object-rest-spread', { useBuiltIns: true }],
+  ],
+});
 
 export default [
   {
@@ -54,6 +63,8 @@ export default [
     },
     plugins: [
       ...pluginsCommon,
+      babelCommon,
+      ...(PROD ? [terser()] : []),
       // arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] })
     ],
   },
@@ -67,7 +78,7 @@ export default [
       sourcemap: false,
       globals,
     },
-    plugins: [...pluginsCommon],
+    plugins: [...pluginsCommon, babelCommon, ...(PROD ? [terser()] : [])],
   },
   {
     input: 'src/workers/worklet.worker.js',
@@ -79,7 +90,7 @@ export default [
       sourcemap: false,
       globals,
     },
-    plugins: [...pluginsCommon],
+    plugins: [...pluginsCommon, babelCommon, ...(PROD ? [terser()] : [])],
   },
   {
     input: 'src/workers/old-spn.worker.js',
@@ -90,7 +101,7 @@ export default [
       sourcemap: false,
       globals,
     },
-    plugins: [...pluginsCommon],
+    plugins: [...pluginsCommon, babelCommon, ...(PROD ? [terser()] : [])],
   },
   {
     input: 'src/index.js',
@@ -111,6 +122,7 @@ export default [
         include: ['**/sab.worker.js', '**/vanilla.worker.js', '**/old-spn.worker.js'],
         dataUrl: false,
       }),
+      babelCommon,
       arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] }),
       ...(PROD ? [terser()] : []),
     ],
