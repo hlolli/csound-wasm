@@ -7,6 +7,7 @@ import nodePolyfills from 'rollup-plugin-node-polyfills';
 import { terser } from 'rollup-plugin-terser';
 import strip from '@rollup/plugin-strip';
 // import nodeBuiltins from 'rollup-plugin-node-builtins';
+import babel from '@rollup/plugin-babel';
 import pluginJson from '@rollup/plugin-json';
 import replace from '@rollup/plugin-replace';
 import { resolve } from 'path';
@@ -37,6 +38,7 @@ const pluginsCommon = [
   commonjs({ transformMixedEsModules: true }),
   nodejsResolve({ preferBuiltins: false }),
   nodePolyfills({ fs: false, crypto: false, sourceMap: false }),
+  babel({ plugins: ['@babel/plugin-transform-destructuring'] }),
 ];
 
 export default [
