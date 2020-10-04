@@ -142,6 +142,7 @@ const createRealtimeAudioThread = ({ csound }) => {
         }
       }
     }
+
     if (hasInput) {
       audioInputs.availableFrames -= numFrames;
       audioInputs.inputReadIndex += numFrames % MAX_HARDWARE_BUFFER_SIZE;

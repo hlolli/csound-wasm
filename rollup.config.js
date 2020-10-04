@@ -122,7 +122,7 @@ export default [
         include: ['**/sab.worker.js', '**/vanilla.worker.js', '**/old-spn.worker.js'],
         dataUrl: false,
       }),
-      babelCommon,
+      R.assoc('plugins', R.append('add-module-exports', babelCommon.plugins), babelCommon),
       arraybufferPlugin({ include: ['**/*.wasm', '**/*.wasm.zlib'] }),
       ...(PROD ? [terser()] : []),
     ],

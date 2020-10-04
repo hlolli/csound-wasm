@@ -1,4 +1,3 @@
-// eslint-disable
 import * as Comlink from 'comlink';
 import ScriptProcessorNodeWorker from '@root/workers/old-spn.worker';
 import { logSPN } from '@root/logger';
@@ -35,17 +34,20 @@ class ScriptProcessorNodeMainThread {
 
   async onPlayStateChange(newPlayState) {
     this.currentPlayState = newPlayState;
-    this.spnWorker &&
-      this.spnWorker.postMessage({ playStateChange: newPlayState }, '*');
+    this.spnWorker && this.spnWorker.postMessage({ playStateChange: newPlayState }, '*');
     switch (newPlayState) {
       case 'realtimePerformanceStarted': {
         logSPN('event received: realtimePerformanceStarted');
-        await this.initialize();
+        try {
+          await this.initialize();
+        } catch (error) {
+          console.log(error);
+        }
         break;
       }
       case 'realtimePerformanceEnded': {
         logSPN('event received: realtimePerformanceEnded');
-        // cleanupPorts(this.csoundWorkerMain);
+        cleanupPorts(this.csoundWorkerMain);
         this.currentPlayState = undefined;
         this.sampleRate = undefined;
         this.inputsCount = undefined;
@@ -88,16 +90,26 @@ class ScriptProcessorNodeMainThread {
 
     const iFrameBlob = new Blob([iFrameHtml], { type: 'text/html' });
     const iFrame = document.createElement('iframe');
+
     iFrame.src = URL.createObjectURL(iFrameBlob);
     iFrame.sandbox.add('allow-scripts', 'allow-same-origin');
+
     iFrame.style.cssText = 'position:absolute;left:0;top:-999px;width:1px;height:1px;';
 
     // appending early to have access to contentWindow
     const iFrameOnLoad = new Promise((resolve) => {
-      iFrame.onload = resolve;
+      iFrame.onload = () => {
+        resolve();
+      };
     });
+
     parentScope.body.appendChild(iFrame);
-    await iFrameOnLoad;
+
+    try {
+      await iFrameOnLoad;
+    } catch (error) {
+      console.error(error);
+    }
 
     const iFrameWin = iFrame.contentWindow;
     const iFrameDoc = iFrameWin.document;
@@ -114,19 +126,21 @@ class ScriptProcessorNodeMainThread {
       }
     }
 
-    this.spnWorker.postMessage({
-      msg: 'makeSPNClass',
-      argumentz: {
-        hardwareBufferSize: this.hardwareBufferSize,
-        softwareBufferSize: this.softwareBufferSize,
-        inputsCount: this.inputsCount,
-        outputsCount: this.outputsCount,
-        sampleRate: this.sampleRate,
-      },
-    });
-
     this.connectPorts();
-    // console.log(this.spnWorkerClass);
+
+    this.spnWorker.postMessage(
+      {
+        msg: 'makeSPNClass',
+        argumentz: {
+          hardwareBufferSize: 32768,
+          softwareBufferSize: 2048,
+          inputsCount: this.inputsCount,
+          outputsCount: this.outputsCount,
+          sampleRate: this.sampleRate,
+        },
+      },
+      '*',
+    );
 
     if (!this.csoundWorkerMain) {
       log.error(`fatal: worker not reachable from worklet-main thread`);

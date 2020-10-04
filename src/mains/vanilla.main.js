@@ -149,26 +149,17 @@ class VanillaWorkerMainThread {
   }
 
   async csoundPause() {
-    if (
-      this.audioWorker &&
-      typeof this.audioWorker.workletProxy !== 'undefined' &&
-      (this.currentPlayState === 'realtimePerformanceStarted' ||
-        this.currentPlayState === 'realtimePerformanceResumed')
-    ) {
+    if (this.audioWorker && typeof this.audioWorker.workletProxy !== 'undefined') {
       await this.audioWorker.workletProxy.pause();
-      this.onPlayStateChange('realtimePerformancePaused');
     }
+    this.onPlayStateChange('realtimePerformancePaused');
   }
 
   async csoundResume() {
-    if (
-      this.audioWorker &&
-      typeof this.audioWorker.workletProxy !== 'undefined' &&
-      this.currentPlayState === 'realtimePerformancePaused'
-    ) {
+    if (this.audioWorker && typeof this.audioWorker.workletProxy !== 'undefined') {
       await this.audioWorker.workletProxy.resume();
-      this.onPlayStateChange('realtimePerformanceResumed');
     }
+    this.onPlayStateChange('realtimePerformanceResumed');
   }
 
   // User-land hook to csound's play-state changes
@@ -206,7 +197,6 @@ class VanillaWorkerMainThread {
     const proxyPort = Comlink.wrap(this.csoundWorker);
     this.proxyPort = proxyPort;
     await proxyPort.initialize(this.wasmDataURI);
-
     this.exportApi.setMessageCallback = this.setMessageCallback.bind(this);
     this.exportApi.addMessageCallback = this.addMessageCallback.bind(this);
     this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(
@@ -215,10 +205,8 @@ class VanillaWorkerMainThread {
     this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(
       this,
     );
-
     this.exportApi.csoundPause = this.csoundPause.bind(this);
     this.exportApi.csoundResume = this.csoundResume.bind(this);
-
     this.exportApi.copyToFs = makeProxyCallback(proxyPort, 'copyToFs');
     this.exportApi.readFromFs = makeProxyCallback(proxyPort, 'readFromFs');
     this.exportApi.llFs = makeProxyCallback(proxyPort, 'llFs');
@@ -228,7 +216,6 @@ class VanillaWorkerMainThread {
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
       const proxyCallback = makeProxyCallback(proxyPort, apiK);
-
       switch (apiK) {
         case 'csoundStart': {
           const csoundStart = async function (csound) {
@@ -238,7 +225,6 @@ class VanillaWorkerMainThread {
             }
 
             this.csound = csound;
-
             this.csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
             this.csoundWorker.postMessage({ msg: 'initRequestPort' }, [
               csoundWorkerFrameRequestPort,
@@ -248,7 +234,6 @@ class VanillaWorkerMainThread {
             ]);
             this.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [csoundWorkerRtMidiPort]);
             logVAN(`4x message-ports sent to the worker`);
-
             await proxyCallback({
               audioStreamIn,
               audioStreamOut,
@@ -270,14 +255,18 @@ class VanillaWorkerMainThread {
               console.error('csoundStop expects first parameter to be instance of Csound');
               return -1;
             }
+
             await proxyCallback(csound);
             if (this.currentPlayState === 'realtimePerformancePaused') {
               try {
                 await proxyPort.callUncloned('csoundPerformKsmps', [csound]);
-              } catch {}
+              } catch (_) {}
               try {
                 await brodcastTheEnd();
-              } catch {}
+              } catch (_) {}
+            }
+            if (this.currentPlayState !== 'realtimePerformanceEnded') {
+              await brodcastTheEnd();
             }
           };
           this.exportApi.csoundStop = csoundStop.bind(this);

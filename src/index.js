@@ -1,14 +1,14 @@
 // eslint-disable-next-line no-unused-vars
 import * as Comlink from 'comlink';
 import VanillaWorkerMainThread from '@root/mains/vanilla.main';
+import unmuteIosAudio from 'unmute-ios-audio';
 import SharedArrayBufferMainThread from '@root/mains/sab.main';
 import AudioWorkletMainThread from '@root/mains/worklet.main';
 import ScriptProcessorNodeMainThread from '@root/mains/old-spn.main';
 import wasmDataURI from '../lib/libcsound.wasm.zlib';
-import log, { logSAB, logSPN, logWorklet } from '@root/logger';
+import log, { logSAB, logWorklet, logVAN } from '@root/logger';
 import { areWorkletsSupportet, isSabSupported, isScriptProcessorNodeSupported } from '@root/utils';
-export { Csound };
-export default Csound;
+
 
 let audioWorker, csoundWasmApi;
 
@@ -17,10 +17,12 @@ let audioWorker, csoundWasmApi;
  * @async
  * @return {Promise.<Object>}
  */
-async function Csound() {
+export async function Csound() {
   // prevent multiple initializations
   if (csoundWasmApi) {
     return csoundWasmApi;
+  } else {
+    unmuteIosAudio();
   }
   const workletSupport = areWorkletsSupportet();
   const spnSupport = isScriptProcessorNodeSupported();
@@ -28,7 +30,7 @@ async function Csound() {
   if (workletSupport) {
     logWorklet(`support detected`);
   } else if (spnSupport) {
-    logSPN(`support detected`);
+    logVAN(`support detected`);
   } else {
     log.warn(`No WebAudio Support detected`);
   }
@@ -52,9 +54,10 @@ async function Csound() {
     logSAB(`using SharedArrayBuffers`);
   }
 
-  const worker = hasSABSupport && workletSupport
-    ? new SharedArrayBufferMainThread(audioWorker, wasmDataURI)
-    : new VanillaWorkerMainThread(audioWorker, wasmDataURI);
+  const worker =
+    hasSABSupport && workletSupport
+      ? new SharedArrayBufferMainThread(audioWorker, wasmDataURI)
+      : new VanillaWorkerMainThread(audioWorker, wasmDataURI);
 
   if (worker) {
     log(`starting Csound thread initialization via WebWorker`);
@@ -67,3 +70,5 @@ async function Csound() {
 
   return csoundWasmApi;
 }
+
+export default Csound;

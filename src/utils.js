@@ -9,9 +9,9 @@ const sizeOf = {
 export const decoder = new TextDecoder('utf-8');
 export const encoder = new TextEncoder('utf-8');
 
-export const uint2String = uint => decoder.decode(uint);
+export const uint2String = (uint) => decoder.decode(uint);
 
-export const trimNull = a => {
+export const trimNull = (a) => {
   const c = a.indexOf('\0');
   if (c > -1) {
     // eslint-disable-next-line unicorn/prefer-string-slice
@@ -21,7 +21,7 @@ export const trimNull = a => {
 };
 
 // eslint-disable-next-line no-unused-vars
-export const cleanStdout = stdout => {
+export const cleanStdout = (stdout) => {
   const pattern = [
     '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)',
     '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))',
@@ -44,7 +44,7 @@ export const string2ptr = (wasm, string) => {
   return offset;
 };
 
-export const sizeofStruct = jsStruct => {
+export const sizeofStruct = (jsStruct) => {
   const result = jsStruct.reduce((total, [_, primitive, ...rest]) => {
     if (primitive === 'char') {
       return (total += sizeOf[primitive] * rest[0]);
@@ -70,19 +70,23 @@ export const structBuffer2Object = (jsStruct, buffer) => {
       parameters[parameterName] = currentValue;
       return [parameters, offset + currentSize];
     },
-    [{}, 0]
+    [{}, 0],
   );
   return result;
 };
 
-export const nearestPowerOf2 = n => {
+export const nearestPowerOf2 = (n) => {
   return 1 << (31 - Math.clz32(n));
 };
+
+export const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
 
 const isFirefox = () => navigator.userAgent.toLowerCase().includes('firefox');
 
 export const isSabSupported = () =>
-  !isFirefox() && window.Atomics !== 'undefined' && window.SharedArrayBuffer !== 'undefined';
+  !isFirefox() &&
+  typeof window.Atomics !== 'undefined' &&
+  typeof window.SharedArrayBuffer !== 'undefined';
 
 export const areWorkletsSupportet = () =>
   typeof AudioNode !== 'undefined' && typeof AudioWorkletNode !== 'undefined';

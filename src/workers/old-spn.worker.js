@@ -1,4 +1,3 @@
-import { AUDIO_STATE, MAX_HARDWARE_BUFFER_SIZE } from '@root/constants';
 import { instantiateAudioPacket } from '@root/workers/common.utils';
 // https://github.com/xpl/ololog/issues/20
 // import { logSPN } from '@root/logger';
@@ -27,7 +26,7 @@ const audioInputPort = {
 
 class CsoundScriptNodeProcessor {
   constructor({ hardwareBufferSize, softwareBufferSize, inputsCount, outputsCount, sampleRate }) {
-    this.hardwareBufferSize = MAX_HARDWARE_BUFFER_SIZE;
+    this.hardwareBufferSize = hardwareBufferSize;
     this.softwareBufferSize = softwareBufferSize;
     this.inputsCount = inputsCount;
     this.outputsCount = outputsCount;
@@ -42,29 +41,27 @@ class CsoundScriptNodeProcessor {
 
     this.vanillaInitialized = false;
     this.vanillaFirstTransferDone = false;
-    this.vanillaInputChannels = instantiateAudioPacket(inputsCount, MAX_HARDWARE_BUFFER_SIZE);
-    this.vanillaOutputChannels = instantiateAudioPacket(outputsCount, MAX_HARDWARE_BUFFER_SIZE);
+    this.vanillaInputChannels = instantiateAudioPacket(inputsCount, hardwareBufferSize);
+    this.vanillaOutputChannels = instantiateAudioPacket(outputsCount, hardwareBufferSize);
 
     // SPN
     const AudioCTX = WebkitAudioContext();
     this.audioContext = new AudioCTX();
 
-    this.scriptNode = this.audioContext.createScriptProcessor(
-      softwareBufferSize,
-      inputsCount,
-      outputsCount,
-    );
+    // Safari autoplay cancer :(
+    if (this.audioContext.state === 'suspended') {
+      workerMessagePort.broadcastPlayState('realtimePerformancePaused');
+      workerMessagePort.vanillaWorkerState = 'realtimePerformancePaused';
+    }
+
+    this.scriptNode = this.audioContext.createScriptProcessor(this.softwareBufferSize, inputsCount, outputsCount);
     this.process = this.process.bind(this);
+
     const processor = this.process.bind(this);
     this.scriptNode.onaudioprocess = processor;
     this.scriptNode.connect(this.audioContext.destination);
-    const updateVanillaFrames = this.updateVanillaFrames.bind(this);
-    // this.actualProcess = processVanillaBuffers.bind(this);
 
-    // this.vanillaMessageHandler = this.vanillaMessageHandler.bind(this);
-    // const messageHandlerCallback = this.vanillaMessageHandler(updateVanillaFrames).bind(this);
-    // this.port.addEventListener('message', messageHandlerCallback);
-    // this.port.start();
+    const updateVanillaFrames = this.updateVanillaFrames.bind(this);
   }
 
   updateVanillaFrames({ audioPacket, numFrames, readIndex }) {
@@ -74,10 +71,10 @@ class CsoundScriptNodeProcessor {
       for (let channelIndex = 0; channelIndex < this.outputsCount; ++channelIndex) {
         let hasLeftover = false;
         let framesLeft = numFrames;
-        const nextReadIndex = (readIndex + numFrames) % MAX_HARDWARE_BUFFER_SIZE;
+        const nextReadIndex = (readIndex + numFrames) % this.hardwareBufferSize;
         if (nextReadIndex < readIndex) {
           hasLeftover = true;
-          framesLeft = MAX_HARDWARE_BUFFER_SIZE - readIndex;
+          framesLeft = this.hardwareBufferSize - readIndex;
         }
 
         this.vanillaOutputChannels[channelIndex].set(
@@ -110,7 +107,7 @@ class CsoundScriptNodeProcessor {
       }
       if (audioFramePort.requestFrames && !this.vanillaInitialized) {
         // this minimizes startup glitches
-        const firstTransferSize = this.softwareBufferSize * 4;
+        const firstTransferSize = this.softwareBufferSize * PERIODS;
         audioFramePort.requestFrames({
           readIndex: 0,
           numFrames: firstTransferSize,
@@ -129,6 +126,7 @@ class CsoundScriptNodeProcessor {
     const writeableOutputChannels = range(0, this.outputsCount).map((index) =>
       outputBuffer.getChannelData(index),
     );
+
     const hasWriteableInputChannels = writeableInputChannels.length > 0;
 
     const nextOutputReadIndex =
@@ -138,7 +136,10 @@ class CsoundScriptNodeProcessor {
       ? (this.vanillaInputReadIndex + writeableInputChannels[0].length) % this.hardwareBufferSize
       : 0;
 
-    if (workerMessagePort.vanillaWorkerState !== 'realtimePerformanceStarted') {
+    if (
+      workerMessagePort.vanillaWorkerState !== 'realtimePerformanceStarted' &&
+      workerMessagePort.vanillaWorkerState !== 'realtimePerformanceResumed'
+    ) {
       writeableOutputChannels.forEach((channelBuffer) => {
         channelBuffer.fill(0);
       });
@@ -200,17 +201,14 @@ class CsoundScriptNodeProcessor {
 
     if (
       this.vanillaAvailableFrames < this.softwareBufferSize * PERIODS &&
-      this.pendingFrames < this.softwareBufferSize * PERIODS * 2
+      this.pendingFrames < this.softwareBufferSize * PERIODS
     ) {
       const futureOutputReadIndex =
         (this.vanillaAvailableFrames + nextOutputReadIndex + this.pendingFrames) %
         this.hardwareBufferSize;
 
       audioFramePort.requestFrames({
-        readIndex:
-          futureOutputReadIndex < this.hardwareBufferSize
-            ? futureOutputReadIndex
-            : futureOutputReadIndex + 1,
+        readIndex: futureOutputReadIndex,
         numFrames: this.softwareBufferSize * PERIODS,
       });
       this.pendingFrames += this.softwareBufferSize * PERIODS;
@@ -247,14 +245,21 @@ const workerMessageHandler = (event) => {
       spnClassInstance = undefined;
     }
     spnClassInstance = new CsoundScriptNodeProcessor(event.data.argumentz);
+  } else if (event.data.msg === 'resume' && spnClassInstance) {
+    spnClassInstance.audioContext.state === 'suspended' && spnClassInstance.audioContext.resume();
+    if (spnClassInstance.audioContext.state === 'running') {
+      workerMessagePort.broadcastPlayState('realtimePerformanceResumed');
+    }
   } else if (event.data.playStateChange) {
     workerMessagePort.vanillaWorkerState = event.data.playStateChange;
     if (event.data.playStateChange === 'realtimePerformanceEnded') {
       spnClassInstance = undefined;
       audioFramePort.ready = false;
+    } else if (event.data.playStateChange === 'realtimePerformanceResumed') {
+      spnClassInstance.audioContext.state === 'suspended' && spnClassInstance.audioContext.resume();
     }
   }
 };
 
 // object cloning is terrible in iframes, so it's oldskool and no Comlink :(
-addEventListener('message', workerMessageHandler);
+window.addEventListener('message', workerMessageHandler);
