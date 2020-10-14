@@ -29,20 +29,20 @@ class SharedArrayBufferMainThread {
     this.csoundPlayStateChangeCallbacks = [];
 
     this.audioStateBuffer = new SharedArrayBuffer(
-      initialSharedState.length * Int32Array.BYTES_PER_ELEMENT
+      initialSharedState.length * Int32Array.BYTES_PER_ELEMENT,
     );
 
     this.audioStatePointer = new Int32Array(this.audioStateBuffer);
 
     this.audioStreamIn = new SharedArrayBuffer(
-      MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
+      MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT,
     );
     this.audioStreamOut = new SharedArrayBuffer(
-      MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT
+      MAX_CHANNELS * MAX_HARDWARE_BUFFER_SIZE * Float64Array.BYTES_PER_ELEMENT,
     );
 
     this.midiBufferSAB = new SharedArrayBuffer(
-      MIDI_BUFFER_SIZE * MIDI_BUFFER_PAYLOAD_SIZE * Int32Array.BYTES_PER_ELEMENT
+      MIDI_BUFFER_SIZE * MIDI_BUFFER_PAYLOAD_SIZE * Int32Array.BYTES_PER_ELEMENT,
     );
 
     this.midiBuffer = new Int32Array(this.midiBufferSAB);
@@ -57,7 +57,7 @@ class SharedArrayBufferMainThread {
   handleMidiInput({ data: [status, data1, data2] }) {
     const currentQueueLength = Atomics.load(
       this.audioStatePointer,
-      AUDIO_STATE.AVAIL_RTMIDI_EVENTS
+      AUDIO_STATE.AVAIL_RTMIDI_EVENTS,
     );
     const rtmidiBufferIndex = Atomics.load(this.audioStatePointer, AUDIO_STATE.RTMIDI_INDEX);
     const nextIndex =
@@ -132,7 +132,7 @@ class SharedArrayBufferMainThread {
       case 'realtimePerformanceStarted': {
         logSAB(
           `event: realtimePerformanceStarted received,` +
-            ` proceeding to call prepareRealtimePerformance`
+            ` proceeding to call prepareRealtimePerformance`,
         );
         await this.prepareRealtimePerformance();
         break;
@@ -163,7 +163,7 @@ class SharedArrayBufferMainThread {
       console.error(error);
     }
 
-    this.csoundPlayStateChangeCallbacks.forEach(callback => {
+    this.csoundPlayStateChangeCallbacks.forEach((callback) => {
       try {
         callback(newPlayState);
       } catch (error) {
@@ -180,7 +180,7 @@ class SharedArrayBufferMainThread {
     this.audioWorker.isRequestingInput = inputCount > 0;
     this.audioWorker.isRequestingMidi = Atomics.load(
       this.audioStatePointer,
-      AUDIO_STATE.IS_REQUESTING_RTMIDI
+      AUDIO_STATE.IS_REQUESTING_RTMIDI,
     );
 
     const sampleRate = Atomics.load(this.audioStatePointer, AUDIO_STATE.SAMPLE_RATE);
@@ -217,7 +217,7 @@ class SharedArrayBufferMainThread {
     mainMessagePort.addEventListener('message', messageEventHandler(this));
     mainMessagePortAudio.addEventListener('message', messageEventHandler(this));
     logSAB(
-      `(postMessage) making a message channel from SABMain to SABWorker via workerMessagePort`
+      `(postMessage) making a message channel from SABMain to SABWorker via workerMessagePort`,
     );
     csoundWorker.postMessage({ msg: 'initMessagePort' }, [workerMessagePort]);
 
@@ -233,10 +233,10 @@ class SharedArrayBufferMainThread {
     this.exportApi.setMessageCallback = this.setMessageCallback.bind(this);
     this.exportApi.addMessageCallback = this.addMessageCallback.bind(this);
     this.exportApi.setCsoundPlayStateChangeCallback = this.setCsoundPlayStateChangeCallback.bind(
-      this
+      this,
     );
     this.exportApi.addCsoundPlayStateChangeCallback = this.addCsoundPlayStateChangeCallback.bind(
-      this
+      this,
     );
 
     this.exportApi.csoundPause = this.csoundPause.bind(this);
@@ -247,6 +247,8 @@ class SharedArrayBufferMainThread {
     this.exportApi.llFs = makeProxyCallback(proxyPort, 'llFs');
     this.exportApi.lsFs = makeProxyCallback(proxyPort, 'lsFs');
     this.exportApi.rmrfFs = makeProxyCallback(proxyPort, 'rmrfFs');
+
+    this.exportApi.getAudioContext = async () => this.audioWorker.audioCtx;
 
     for (const apiK of Object.keys(API)) {
       const proxyCallback = makeProxyCallback(proxyPort, apiK);
@@ -264,13 +266,13 @@ class SharedArrayBufferMainThread {
           break;
         }
         case 'csoundStart': {
-          const csoundStart = async function(csound) {
+          const csoundStart = async function (csound) {
             if (!csound || typeof csound !== 'number') {
               console.error('csoundStart expects first parameter to be instance of Csound');
               return -1;
             }
 
-            await proxyCallback({
+            return await proxyCallback({
               audioStateBuffer,
               audioStreamIn,
               audioStreamOut,
@@ -285,10 +287,10 @@ class SharedArrayBufferMainThread {
         }
 
         case 'csoundStop': {
-          const csoundStop = async csound => {
+          const csoundStop = async (csound) => {
             logSAB(
               "Checking if it's safe to call stop:",
-              stopableStates.has(this.currentPlayState)
+              stopableStates.has(this.currentPlayState),
             );
             if (stopableStates.has(this.currentPlayState)) {
               logSAB("Marking SAB's state to STOP");
@@ -303,7 +305,7 @@ class SharedArrayBufferMainThread {
                   logSAB("stopping didn't cause the correct event to be triggered");
                   if (Atomics.load(this.audioStatePointer, AUDIO_STATE.STOP) === 0) {
                     logSAB(
-                      'stopped state got reset to 0 (could be fatal, but also race condition)'
+                      'stopped state got reset to 0 (could be fatal, but also race condition)',
                     );
                     Atomics.store(this.audioStatePointer, AUDIO_STATE.STOP, 1);
                   }

@@ -213,6 +213,8 @@ class VanillaWorkerMainThread {
     this.exportApi.lsFs = makeProxyCallback(proxyPort, 'lsFs');
     this.exportApi.rmrfFs = makeProxyCallback(proxyPort, 'rmrfFs');
 
+    this.exportApi.getAudioContext = async () => this.audioWorker.audioCtx;
+
     for (const apiK of Object.keys(API)) {
       const reference = API[apiK];
       const proxyCallback = makeProxyCallback(proxyPort, apiK);
@@ -234,7 +236,7 @@ class VanillaWorkerMainThread {
             ]);
             this.csoundWorker.postMessage({ msg: 'initRtMidiEventPort' }, [csoundWorkerRtMidiPort]);
             logVAN(`4x message-ports sent to the worker`);
-            await proxyCallback({
+            return await proxyCallback({
               audioStreamIn,
               audioStreamOut,
               midiBuffer,
@@ -256,7 +258,7 @@ class VanillaWorkerMainThread {
               return -1;
             }
 
-            await proxyCallback(csound);
+            const stopResult = await proxyCallback(csound);
             if (this.currentPlayState === 'realtimePerformancePaused') {
               try {
                 await proxyPort.callUncloned('csoundPerformKsmps', [csound]);
@@ -268,6 +270,7 @@ class VanillaWorkerMainThread {
             if (this.currentPlayState !== 'realtimePerformanceEnded') {
               await brodcastTheEnd();
             }
+            return stopResult;
           };
           this.exportApi.csoundStop = csoundStop.bind(this);
           csoundStop.toString = () => reference.toString();
